@@ -15,7 +15,7 @@
 # and the images are bumped by hand in the same PR. Each job reads the repo and nothing else, and
 # no checkout keeps the token. The build cache is used on pull requests only, so nothing a cache
 # holds reaches a run that gates a release.
-name: CI
+name: Linux checks
 
 on:
   pull_request:
@@ -182,7 +182,7 @@ jobs:
           echo "Job results: $RESULTS"
           for result in $RESULTS; do
             if [[ "$result" != "success" ]]; then
-              echo "::error::A CI job didn't pass: $RESULTS."
+              echo "::error::A Linux check didn't pass: $RESULTS."
               exit 1
             fi
           done
