@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Changed
+
+- The README is a short guide: requirements, install, a quick start, one small example per feature, and what the macros refuse and why. Every example is checked against the current API.
+
 ## 0.3.0 - 2026-11-25
 
 ### Added
