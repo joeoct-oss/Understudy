@@ -437,6 +437,8 @@ struct ExpansionTests {
                     "@Spied func move(_ <#name#>: Int)"),
         fixedMember("a property with no type", "@SpiedProperty var token", "Add a type",
                     "@SpiedProperty var token: <#Type#>"),
+        fixedMember("a property with a value and no type", "@SpiedProperty var token = 0", "Add a type",
+                    "@SpiedProperty var token: <#Type#> = 0"),
         Fixed(
             name: "@Recorded in an actor",
             source: "@GenerateSpies\nactor SpyStore {\n    @Recorded var count = 0\n}",

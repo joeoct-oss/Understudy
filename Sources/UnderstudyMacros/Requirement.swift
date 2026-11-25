@@ -539,7 +539,10 @@ struct Property: SpiedMember {
             )
         }
         guard let annotation = binding.typeAnnotation else {
+            // The type takes the space the name had before an initializer: `token = 0` becomes
+            // `token: <#Type#> = 0`.
             let placeholder = TypeSyntax("<#Type#>").with(\.leadingTrivia, .space)
+                .with(\.trailingTrivia, binding.pattern.trailingTrivia)
             let typed = binding.with(\.pattern, binding.pattern.trimmed)
                 .with(\.typeAnnotation, TypeAnnotationSyntax(type: placeholder))
             throw UnderstudyError(
