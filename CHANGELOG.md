@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Added
+
+- `.spi.yml`, so the Swift Package Index builds the package and hosts the API docs of `Understudy` and `UnderstudySamples`.
+
 ## 0.6.0 - 2026-11-25
 
 ### Added
