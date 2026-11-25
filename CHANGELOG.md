@@ -4,6 +4,8 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+## 0.1.0 - 2026-11-25
+
 ### Added
 
 - `Spy`, which keeps every input a test double's requirement is called with and answers as the test scripts: a standing answer, one-off answers queued in front of it (`willReturnNext(_:then:)`, `willGiveNext(_:then:)`), or an answer worked out from the input.
