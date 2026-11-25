@@ -1,0 +1,55 @@
+# Sends the test coverage to Codecov, which shows it for main and for each pull request. The gate
+# itself is scripts/check-coverage.sh in ci.yml; this workflow only reports, so it is not a
+# required check, and a failed upload never fails the run.
+# - Runs on pull requests to main (drafts skipped until ready for review) and on pushes to main,
+#   which give Codecov the base each pull request is compared with.
+# - Kept apart from ci.yml so the release workflow's call to ci.yml keeps read-only permissions:
+#   only this workflow asks for an OIDC token, which Codecov takes in place of an upload token, so
+#   no repository secret is needed. Pull requests from forks get no token and skip the upload.
+# Free GitHub-hosted Linux runner. Every action is pinned to a full commit SHA and the image to a
+# digest, with the version in a comment, as in ci.yml.
+name: Coverage report
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: coverage-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  upload:
+    name: Coverage to Codecov
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+    container:
+      image: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Measure the coverage
+        env:
+          COVERAGE_LCOV: coverage.lcov
+        run: scripts/check-coverage.sh
+
+      - name: Upload to Codecov
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: coverage.lcov
+          disable_search: true
+          use_oidc: true
+          fail_ci_if_error: false

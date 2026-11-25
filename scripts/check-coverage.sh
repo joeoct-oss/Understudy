@@ -11,9 +11,11 @@
 # The spies are measured in the runtime's tests, and each set of macros in its own macro tests,
 # which run them in process. `UnderstudySamples` holds only macro declarations, so it has no lines
 # to measure. `Plugin.swift` is left out: it is the compiler plugin's entry point, which only the
-# compiler starts. Extra arguments go to `swift test`.
+# compiler starts. Extra arguments go to `swift test`. With COVERAGE_LCOV set to a path, it also
+# writes the measured lines there as one LCOV file, each set of sources from its own tests, for a
+# coverage report such as Codecov's.
 #
-# Usage: scripts/check-coverage.sh [swift test arguments]
+# Usage: [COVERAGE_LCOV=path] scripts/check-coverage.sh [swift test arguments]
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -32,6 +34,20 @@ swift test --enable-code-coverage "$@"
 build=$(swift build --show-bin-path)
 profile="$(dirname "$(swift test --show-codecov-path)")/default.profdata"
 status=0
+if [[ -n "${COVERAGE_LCOV:-}" ]]; then
+    : >"$COVERAGE_LCOV"
+fi
+
+# Prints the LCOV records of the files under `$2`, as measured by the test bundle `$1`.
+lcov_for() {
+    local bundle="$1" sources="$2"
+    llvm-cov export "$bundle" -instr-profile="$profile" -format=lcov \
+        -ignore-filename-regex='(\.build|Tests|Plugin\.swift)' |
+        awk -v sources="$sources" '
+            /^SF:/ { keep = index(substr($0, 4), sources) > 0 }
+            keep { print }
+        '
+}
 
 # Prints "file:line" for each line of `$2` that the test bundle `$1` never ran.
 uncovered() {
@@ -66,6 +82,9 @@ for pair in "UnderstudyTests Sources/Understudy/" "UnderstudyMacrosTests Sources
     read -r name sources <<<"$pair"
     bundle=$(bundle_for "$name")
     missed=$(uncovered "$bundle" "$PWD/$sources")
+    if [[ -n "${COVERAGE_LCOV:-}" ]]; then
+        lcov_for "$bundle" "$PWD/$sources" >>"$COVERAGE_LCOV"
+    fi
     if [[ -n "$missed" ]]; then
         echo "error: lines in $sources that no test runs:" >&2
         echo "$missed" >&2
