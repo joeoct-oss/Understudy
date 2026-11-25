@@ -4,7 +4,8 @@
 # - The words are lowercase plain English joined by hyphens, with no plan, decision or
 #   issue numbers in them (a person checks that part in review).
 # The same file is in Waypoint, Waypoint-planning and Understudy (Yousef, 2026-11-21 and
-# 2026-11-25: one git rule for every repo).
+# 2026-11-25: one git rule for every repo). Understudy's copy adds one exception: Dependabot names
+# its own branches, so a PR opened by dependabot[bot] from a dependabot/ branch passes.
 name: Branch name
 
 on:
@@ -16,13 +17,18 @@ permissions: {}
 jobs:
   branch-name:
     name: Branch name
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
       - name: Check the branch name
         env:
           HEAD_REF: ${{ github.head_ref }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
+          if [[ "$AUTHOR" == "dependabot[bot]" && "$HEAD_REF" == dependabot/* ]]; then
+            echo "Branch '$HEAD_REF' is Dependabot's own."
+            exit 0
+          fi
           pattern='^(feature|fix|docs|test|refactor|chore|ci|spike)/[0-9]+-[a-z][a-z0-9]*(-[a-z0-9]+)*$'
           if [[ "$HEAD_REF" =~ $pattern ]]; then
             echo "Branch '$HEAD_REF' follows the rule."

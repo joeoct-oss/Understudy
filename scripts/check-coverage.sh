@@ -17,6 +17,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# A restored build cache can hold coverage profiles from an earlier run, which would count lines
+# that this run's tests never reach, so they are removed first.
+rm -rf "$(dirname "$(swift test --show-codecov-path)")"
 swift test --enable-code-coverage "$@"
 
 build=$(swift build --show-bin-path)

@@ -1,0 +1,19 @@
+# Keeps the pinned actions and swift-syntax current. Each ecosystem gets one grouped pull request a
+# month. The swift images in ci.yml are pinned by digest and bumped by hand in the actions PR.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: swift
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      swift-packages:
+        patterns: ["*"]

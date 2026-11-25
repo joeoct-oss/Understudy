@@ -24,4 +24,4 @@ No API newer than the oldest platform in `Package.swift` (iOS 13, macOS 10.15), 
 
 Tests check what a person using the package sees: what a spy keeps and answers, how a generated double behaves once the compiler builds it, and which code the macros accept or refuse, with the message and the place it points to. No test compares the text a macro writes, since that is how it works, not what it promises. One promise has one test; a test that repeats another's promise is merged into it.
 
-Everything runs on Linux, in the cloud and in CI, with no Mac. `scripts/check-coverage.sh` runs the tests with coverage and fails on any line of `Sources/` that no test runs, except the compiler plugin's entry point.
+Everything runs on Linux, in the cloud and in CI, with no Mac. [CI](.github/workflows/ci.yml) runs the tests on every Swift version from 6.0, and with the lowest swift-syntax `Package.swift` allows. `scripts/check-coverage.sh` runs the tests with coverage and fails on any line of `Sources/` that no test runs, except the compiler plugin's entry point.
