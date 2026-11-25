@@ -21,10 +21,28 @@ public struct SpiedMacro: BodyMacro {
         guard let function = declaration.as(FunctionDeclSyntax.self) else {
             throw UnderstudyError("@Spied goes on a function")
         }
-        let requirement = try Requirement(function)
+        guard isInsideUnderstudyClass(context) else {
+            throw UnderstudyError("@Spied needs @Understudy on the class it is in")
+        }
+        // `@Understudy` explains a requirement it can't write, at the requirement. The body only has
+        // to compile until the person fixes it.
+        guard let requirement = try? Requirement(function) else {
+            return ["fatalError(\"@Understudy can't write this requirement\")"]
+        }
         let attempt = requirement.throwsError ? "try " : ""
         let call = "\(requirement.forwarderName)(\(requirement.forwarderArguments))"
         return ["return \(raw: attempt)self.\(raw: call)"]
+    }
+
+    /// Whether the function is a member of a class marked `@Understudy`.
+    private static func isInsideUnderstudyClass(_ context: some MacroExpansionContext) -> Bool {
+        guard let type = context.lexicalContext.first?.as(ClassDeclSyntax.self) else {
+            return false
+        }
+        return type.attributes.contains { element in
+            let name = element.as(AttributeSyntax.self)?.attributeName.trimmedDescription
+            return name == "Understudy" || name == "Understudy.Understudy"
+        }
     }
 
     /// The statements that call a spy directly and return its answer, for the spy class

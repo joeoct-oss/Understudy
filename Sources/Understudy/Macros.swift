@@ -23,7 +23,8 @@
 /// ```
 ///
 /// On a protocol you own, it writes a class named after the protocol with `Spy` added, such as
-/// `CatalogSpy`, next to it. The protocol's target then depends on Understudy.
+/// `CatalogSpy`, next to it. The protocol's target then depends on Understudy. A protocol that
+/// inherits another, other than `Sendable` or `AnyObject`, needs the class form.
 ///
 /// Each spy is named after its requirement with `Spy` added, such as `productSpy`; overloads add
 /// their argument labels, such as `removeIdSpy` and `removeNamedSpy`. A requirement with several

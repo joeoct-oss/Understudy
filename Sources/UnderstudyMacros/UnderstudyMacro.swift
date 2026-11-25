@@ -6,6 +6,7 @@
 //  Copyright © 2026 Yousef Mohamed. MIT License.
 //
 
+import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
@@ -19,6 +20,41 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
+        try reporting(in: context) {
+            try members(of: declaration)
+        }
+    }
+
+    /// The spy class, for a protocol.
+    public static func expansion(
+        of node: AttributeSyntax,
+        providingPeersOf declaration: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [DeclSyntax] {
+        try reporting(in: context) {
+            try peers(of: declaration)
+        }
+    }
+
+    /// Reports an error about a requirement at the requirement, so the editor marks that line, and
+    /// any other error at the attribute.
+    private static func reporting(
+        in context: some MacroExpansionContext,
+        _ expand: () throws -> [DeclSyntax]
+    ) throws -> [DeclSyntax] {
+        do {
+            return try expand()
+        } catch let error as UnderstudyError {
+            guard let node = error.node else {
+                throw error
+            }
+            context.diagnose(Diagnostic(node: node, message: error))
+            return []
+        }
+    }
+
+    /// The spies, the forwarders and the initializer, for a class.
+    private static func members(of declaration: some DeclGroupSyntax) throws -> [DeclSyntax] {
         guard let type = declaration.as(ClassDeclSyntax.self) else {
             if declaration.is(ProtocolDeclSyntax.self) {
                 return []
@@ -36,21 +72,26 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
         return try storage(for: requirements, access: access(of: type.modifiers)) + forwarders
     }
 
-    /// The spy class, for a protocol.
-    public static func expansion(
-        of node: AttributeSyntax,
-        providingPeersOf declaration: some DeclSyntaxProtocol,
-        in context: some MacroExpansionContext
-    ) throws -> [DeclSyntax] {
+    /// The spy class written next to a protocol.
+    private static func peers(of declaration: some DeclSyntaxProtocol) throws -> [DeclSyntax] {
         guard let proto = declaration.as(ProtocolDeclSyntax.self) else {
             return []
+        }
+        let inherited = proto.inheritanceClause?.inheritedTypes.map(\.type.trimmedDescription) ?? []
+        if let other = inherited.first(where: { !["Sendable", "AnyObject", "Swift.Sendable"].contains($0) }) {
+            throw UnderstudyError(
+                "'\(proto.name.text)' inherits '\(other)', whose requirements this macro can't see; "
+                    + "use @Understudy on a class that conforms to '\(proto.name.text)' instead",
+                at: proto.inheritanceClause
+            )
         }
         var requirements: [Requirement] = []
         for member in proto.memberBlock.members {
             guard let function = member.decl.as(FunctionDeclSyntax.self) else {
                 throw UnderstudyError(
                     "'\(proto.name.text)' has a requirement that isn't a function; "
-                        + "write its double by hand, or use @Understudy on a class"
+                        + "write its double by hand, or use @Understudy on a class",
+                    at: member.decl
                 )
             }
             requirements.append(try Requirement(function))
@@ -86,7 +127,7 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
                 return nil
             }
             guard function.body == nil else {
-                throw UnderstudyError("'\(function.name.text)' is @Spied, so give it no body")
+                throw UnderstudyError("'\(function.name.text)' is @Spied, so give it no body", at: function)
             }
             return try Requirement(function)
         }
@@ -124,11 +165,12 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
         let names = try spyNames(for: requirements)
         let prefix = access.isEmpty ? "" : access + " "
         var declarations: [DeclSyntax] = []
+        // A closure answer is taken `@escaping`, because the spy keeps it.
         var answers: [(name: String, output: String)] = []
         for (requirement, name) in zip(requirements, names) {
             if requirement.needsAnswer {
                 declarations.append("\(raw: prefix)let \(raw: name): \(raw: requirement.spyType)")
-                answers.append((name, requirement.output))
+                answers.append((name, (requirement.returnsFunction ? "@escaping " : "") + requirement.output))
             } else {
                 let answer = requirement.returnsNothing ? "()" : "nil"
                 declarations.append(

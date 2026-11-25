@@ -141,7 +141,9 @@ struct ExpansionTests {
             """,
             into: """
             final class SpyStore: Store {
-                func load<Value>(_ key: String) -> Value
+                func load<Value>(_ key: String) -> Value {
+                    fatalError("@Understudy can't write this requirement")
+                }
             }
             """,
             diagnostics: [
@@ -149,11 +151,6 @@ struct ExpansionTests {
                     message: "@Understudy: 'load' is generic; write its double by hand",
                     line: 3,
                     column: 5
-                ),
-                DiagnosticSpec(
-                    message: "@Understudy: 'load' is generic; write its double by hand",
-                    line: 1,
-                    column: 1
                 ),
             ]
         )
@@ -176,8 +173,8 @@ struct ExpansionTests {
             diagnostics: [
                 DiagnosticSpec(
                     message: "@Understudy: 'Session' has a requirement that isn't a function; write its double by hand, or use @Understudy on a class",
-                    line: 1,
-                    column: 1
+                    line: 3,
+                    column: 5
                 ),
             ]
         )
@@ -206,8 +203,8 @@ struct ExpansionTests {
             diagnostics: [
                 DiagnosticSpec(
                     message: "@Understudy: two requirements would both be spied on as 'writeSpy'; rename one",
-                    line: 1,
-                    column: 1
+                    line: 4,
+                    column: 5
                 ),
             ]
         )
@@ -232,6 +229,53 @@ struct ExpansionTests {
                     message: "@Understudy: mark each requirement to stand in for with @Spied, and give it no body",
                     line: 1,
                     column: 1
+                ),
+            ]
+        )
+    }
+
+    @Test
+    func spiedOutsideAnUnderstudyClassIsExplained() {
+        expand(
+            """
+            final class Lonely {
+                @Spied func ping()
+            }
+            """,
+            into: """
+            final class Lonely {
+                func ping()
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@Understudy: @Spied needs @Understudy on the class it is in",
+                    line: 2,
+                    column: 5
+                ),
+            ]
+        )
+    }
+
+    @Test
+    func protocolThatInheritsAnotherIsExplained() {
+        expand(
+            """
+            @Understudy
+            protocol Child: Base, Sendable {
+                func ping()
+            }
+            """,
+            into: """
+            protocol Child: Base, Sendable {
+                func ping()
+            }
+            """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message: "@Understudy: 'Child' inherits 'Base', whose requirements this macro can't see; use @Understudy on a class that conforms to 'Child' instead",
+                    line: 2,
+                    column: 15
                 ),
             ]
         )

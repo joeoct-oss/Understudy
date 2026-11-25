@@ -88,6 +88,17 @@ struct GeneratedDoubleTests {
     }
 
     @Test
+    func closureAnswerIsTakenAtCreation() {
+        let ran = Spy<Void, Void>()
+        let factory = SpyHandlerFactory(makeHandler: { ran() })
+
+        factory.makeHandler()()
+
+        #expect(factory.makeHandlerSpy.callCount == 1)
+        #expect(ran.callCount == 1)
+    }
+
+    @Test
     func protocolGetsASpyClassNextToIt() async {
         let clock = ClockSpy(now: 10)
 
@@ -167,6 +178,20 @@ private protocol AccountGate: AnyObject {
 private final class SpyGate: AccountGate {
     @Spied func requireAccount(for reason: String, then action: @escaping () -> Void)
     @Spied func isOpen() -> Bool
+}
+
+/// Makes the handler a screen runs when it is tapped.
+private protocol HandlerFactory {
+    func makeHandler() -> () -> Void
+}
+
+/// A handler factory that gives the closure the test chose.
+///
+/// Conformances:
+/// - `HandlerFactory`, so a test can pass it where a factory is expected.
+@Understudy
+private final class SpyHandlerFactory: HandlerFactory {
+    @Spied func makeHandler() -> () -> Void
 }
 
 /// Tells the time and waits, so a test can control both.

@@ -54,7 +54,7 @@ func showsTheProductItWasOpenedWith() {
 
 Your shipped code doesn't change and never depends on Understudy. A requirement that returns something other than `Void` or an optional needs its answer when the double is created, such as `SpyClock(now: 10)`, so a double can't be called with nothing scripted. Overloads add their argument labels, such as `removeIdSpy` and `removeNamedSpy`.
 
-On a protocol you own, `@Understudy` writes the spy class next to it instead, such as `ClockSpy` for `Clock`. That protocol's target then depends on Understudy.
+On a protocol you own, `@Understudy` writes the spy class next to it instead, such as `ClockSpy` for `Clock`. That protocol's target then depends on Understudy. A protocol that inherits another (other than `Sendable` or `AnyObject`) needs the class form, because the macro can't see the inherited requirements.
 
 ### Spies by hand
 
