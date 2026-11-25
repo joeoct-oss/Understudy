@@ -71,9 +71,11 @@ reviews:
       instructions: >-
         Swift Testing only. Each test pins one promise the package makes to its user and
         reaches the code only the way that user does (public API, or the compiler for macro
-        tests). Flag a test that checks internals, order, counts or timing, that sleeps, that
-        compares the text a macro writes, or that repeats another test's promise. Every @Test
-        needs a display name that states its promise as a plain sentence.
+        tests). Flag a test that checks private state or internal order, counts or timing,
+        that sleeps, that compares the text a macro writes, or that repeats another test's
+        promise. A spy's calls, call count and call order are its public promise, so tests may
+        check them. Every @Test needs a display name that states its promise as a plain
+        sentence.
     - path: ".github/workflows/**"
       instructions: >-
         Actions are pinned to a commit SHA, each job gets only the permissions it uses, and
