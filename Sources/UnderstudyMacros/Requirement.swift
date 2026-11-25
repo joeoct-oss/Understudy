@@ -28,6 +28,8 @@ protocol SpiedMember {
     var obviousAnswer: String? { get }
     /// The type of a second spy that keeps the sets, for a settable subscript; `nil` for others.
     var setSpyType: String? { get }
+    /// Whether it is `static`, so its spy lives in the double's box of static spies.
+    var isStatic: Bool { get }
     /// What the requirement goes through to reach `spy` on a class.
     func forwarder(spy: String) -> DeclSyntax
     /// The requirement written out to call `spy`, for the spy class next to a protocol.
@@ -42,6 +44,10 @@ extension SpiedMember {
 
     var setSpyType: String? {
         nil
+    }
+
+    var isStatic: Bool {
+        false
     }
 }
 
@@ -107,6 +113,7 @@ struct Requirement: SpiedMember {
     }
 
     let declaration: FunctionDeclSyntax
+    let isStatic: Bool
     let labels: [String]
     let parameters: [Parameter]
     let throwsError: Bool
@@ -258,9 +265,7 @@ struct Requirement: SpiedMember {
         let where_ = "'\(declaration.name.text)'"
         let generics = try Self.erasedGenerics(of: declaration, in: where_)
         let modifiers = declaration.modifiers.map(\.name.text)
-        if modifiers.contains("static") || modifiers.contains("class") {
-            throw UnderstudyError("\(where_) is static; write its double by hand", at: declaration.name)
-        }
+        isStatic = modifiers.contains("static") || modifiers.contains("class")
         if modifiers.contains("mutating") {
             throw UnderstudyError(
                 "\(where_) is mutating; @GenerateSpies writes classes and actors",
@@ -464,6 +469,7 @@ struct Requirement: SpiedMember {
 /// a type and nothing else on a class, or a `var` requirement of a protocol.
 struct Property: SpiedMember {
     let nameToken: TokenSyntax
+    let isStatic: Bool
     let type: String
     /// The type as written, which ``obviousAnswer`` reads.
     let typeSyntax: TypeSyntax
@@ -512,9 +518,7 @@ struct Property: SpiedMember {
         nameToken = pattern.identifier
         let where_ = "'\(pattern.identifier.text)'"
         let modifiers = declaration.modifiers.map(\.name.text)
-        if modifiers.contains("static") || modifiers.contains("class") {
-            throw UnderstudyError("\(where_) is static; write its double by hand", at: pattern.identifier)
-        }
+        isStatic = modifiers.contains("static") || modifiers.contains("class")
         if declaration.bindingSpecifier.tokenKind == .keyword(.let) {
             throw UnderstudyError("\(where_) is a let; declare it as a var", at: pattern.identifier)
         }

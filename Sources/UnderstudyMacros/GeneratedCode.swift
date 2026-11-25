@@ -27,8 +27,9 @@ extension Requirement {
             .map { "<" + $0.with(\.trailingComma, nil).trimmedDescription + ">" } ?? ""
         let returned = declaration.signature.returnClause?.type.trimmedDescription ?? "Void"
         let signature = "\(forwarderName)\(generics)(\(forwarderParameters))\(effects)"
+        let kind = isStatic ? "static func" : "func"
         return """
-            \(raw: actors)private \(raw: isolation)func \(raw: signature) -> \(raw: returned) {
+            \(raw: actors)private \(raw: isolation)\(raw: kind) \(raw: signature) -> \(raw: returned) {
             \(raw: body(on: spy))
             }
             """
@@ -49,7 +50,7 @@ extension Requirement {
 extension Property {
     /// The private property a `@SpiedProperty` property's accessors go through on a class.
     func forwarder(spy: String) -> DeclSyntax {
-        "private var \(raw: forwarderName): \(raw: spyType) { self.\(raw: spy) }"
+        "private \(raw: isStatic ? "static " : "")var \(raw: forwarderName): \(raw: spyType) { self.\(raw: spy) }"
     }
 
     /// The property with accessors that go through `spy`, for the spy class written next to a
@@ -58,7 +59,7 @@ extension Property {
         let prefix = access.isEmpty ? "" : access + " "
         let accessors = SpiedPropertyMacro.accessors(spy: "self." + spy).map(\.description).joined(separator: "\n")
         return """
-            \(raw: prefix)var \(raw: baseName): \(raw: type) {
+            \(raw: prefix)\(raw: isStatic ? "static " : "")var \(raw: baseName): \(raw: type) {
             \(raw: accessors)
             }
             """

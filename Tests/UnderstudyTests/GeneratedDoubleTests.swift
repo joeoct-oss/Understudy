@@ -69,6 +69,24 @@ struct GeneratedDoubleTests {
     }
 
     @Test
+    func staticSpyAnswersWhatTheTestScripts() {
+        SpyStopwatch.elapsedSpy.willReturn(5)
+        CalendarSpy.todaySpy.willReturn("Monday")
+
+        let elapsed = SpyStopwatch.elapsed()
+        SpyStopwatch.unit = "ms"
+        let today = CalendarSpy.today()
+        let zone = CalendarSpy.zone
+
+        let expectedUnits = ["ms"]
+        #expect(elapsed == 5)
+        #expect(SpyStopwatch.elapsedSpy.callCount == 1)
+        #expect(SpyStopwatch.unitSpy.sets == expectedUnits)
+        #expect(today == "Monday")
+        #expect(zone == "")
+    }
+
+    @Test
     func optionalAndVoidAnswersNeedNothingAtCreation() {
         let catalog = SpyCatalog(product: "apple")
 
@@ -472,6 +490,31 @@ private final class SpyShop: Shop {
     @Spied func tags() -> [String]
     @Spied func prices() -> [String: Double]
     @Spied func codes() -> Set<Int>
+}
+
+/// Measures time for the whole app, through static members.
+private protocol Stopwatch {
+    static var unit: String { get set }
+    static func elapsed() -> Int
+    func lap()
+}
+
+/// A stopwatch whose static answers the test scripts.
+///
+/// Conformances:
+/// - `Stopwatch`, so a test can pass its type where a stopwatch is expected.
+@GenerateSpies
+private final class SpyStopwatch: Stopwatch {
+    @SpiedProperty static var unit: String = "s"
+    @Spied static func elapsed() -> Int
+    @Spied func lap()
+}
+
+/// Tells the day and the time zone, through static members.
+@GenerateSpies
+private protocol Calendar {
+    static var zone: String { get set }
+    static func today() -> String
 }
 
 /// Loads data that may not be there.

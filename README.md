@@ -81,6 +81,7 @@ The macro writes the function's body and a spy named after it: `productSpy`. Bec
 - [Typed throws](#typed-throws)
 - [Properties](#properties)
 - [Subscripts](#subscripts)
+- [Static members](#static-members)
 - [Async calls](#async-calls)
 - [Call order](#call-order)
 - [Strict mocks](#strict-mocks)
@@ -199,6 +200,32 @@ list.subscriptSetSpy.calls.map(\.index)    // [2]
 Gets go to `subscriptSpy` and sets to `subscriptSetSpy`, which keeps the index and the `newValue`. A get-only subscript has only `subscriptSpy`. Several indices are kept as a labelled tuple, and overloads add the index names, such as `subscriptRowColumnSpy` for `subscript(row:column:)`.
 
 `@Spied` on a `get` or `set` needs Swift 6.4 or later. With an older Swift, use [a double next to your protocol](#doubles-next-to-your-protocol), whose subscript requirements are written the same way on every Swift version.
+
+### Static members
+
+`@Spied static func` and `@SpiedProperty static var` work too. A static spy has no initializer to take its first answer, so it starts as `nil`, `()`, `""`, `0`, `false` or empty, and the test scripts any other with `willReturn`:
+
+```swift
+@GenerateSpies
+final class SpyClock: Clock {
+    @Spied static func now() -> Date?
+}
+
+@Suite(.freshSpies(SpyClock.self))
+struct GreetingTests {
+    @Test
+    func showsTodaysDate() {
+        SpyClock.nowSpy.willReturn(.distantPast)
+    }
+}
+```
+
+Put `.freshSpies(...)` on the suite or the test: each test then gets its own static spies, so tests that run in parallel never see each other's calls or answers. Without it, every test shares one set of static spies. A static requirement whose answer has no obvious first value, such as `Date`, is refused; make it optional.
+
+Its limits:
+- **Swift 6.1 or later** for `.freshSpies(...)`, which is a test scoping trait.
+- **Tasks that leave the test** don't see its spies: a detached task or Dispatch work reads the shared ones, because task locals don't cross them. Child tasks and `async let` do see them.
+- **A spy class next to a protocol** can't be named in a trait, because Swift doesn't look into macro expansions from a macro's arguments. Run the test's body in `try await ClockSpy.withFreshSpies { ... }` instead.
 
 ### Async calls
 
@@ -409,7 +436,7 @@ Each of these is a compile error at the line it's about, saying what to do inste
 
 | Requirement | Why |
 |---|---|
-| `static` members | A stored spy belongs to one instance. |
+| A `static` member whose answer has no obvious first value | No initializer takes its first answer; make it optional. |
 | A generic parameter inside a closure, a tuple or another generic type (`Result<T, E>`), a `where` clause, a parameter pack | A spy records one input type, and only these containers can be recorded and cast back. |
 | `rethrows`, or a function that throws its own generic type (`throws(E)` with `<E: Error>`) | The spy can't tell when the function may throw, or which type it throws. |
 | `inout` or `@autoclosure` parameters, opaque (`some`) return types | A spy can't keep or hand back these safely. |
