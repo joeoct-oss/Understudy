@@ -10,13 +10,13 @@ All notable changes to this package are listed here. The format follows [Keep a 
 - Generics inside a collection: a generic parameter inside an array, an optional, a dictionary's value or a set, such as `func tags<T: Tag>(_ items: [T]) -> [T]`, is recorded as the same container of `any` of its constraints (`[any Tag]`; a set as `Set<AnyHashable>`), and a returned one is cast back to the type the caller asks for. A generic parameter inside a closure, a tuple or another generic type is still refused.
 - `@SpiedProperty` with a first value: `@SpiedProperty var user: String = "ana"` starts its spy with `"ana"`, and the double's initializer doesn't ask for it. It works in a `Sendable` class and in an actor, where `@Recorded` can't. Without a value it works as before.
 - Subscripts: in a `@GenerateSpies` class, `subscript(index: Int) -> Item { @Spied get {} @Spied set {} }` (Swift needs the empty bodies; Swift 6.4 or later), and a protocol's subscript requirements (every Swift version). Gets go to `subscriptSpy`, a `Spy` of the index, and sets to `subscriptSetSpy`, a `Spy` of the index and the `newValue`; a get-only subscript has only the first. Several indices are a labelled tuple, and overloads add the index names. The double's initializer asks for the first answer unless it is optional.
-
 - Static members: `@Spied static func` and `@SpiedProperty static var`, and a protocol's static requirements. The static spies live in a box held in a task local, and `.freshSpies(SpyClock.self)`, a Swift Testing trait for a test or a suite (Swift 6.1 or later), gives each test its own, so parallel tests never share them. Without the trait, every test shares one box. A static spy starts from the obvious first answer (`nil`, `""`, `0`, `false`, empty), and a static requirement with none is refused. A double with static spies conforms to the new `StaticSpies`, whose `withFreshSpies` runs a block with a fresh box.
+- Fix-its: each refusal with one clear fix offers it in the editor: `let` to `var` for a `@SpiedProperty`, removing a `@Spied` function's body, naming a parameter written `_: Int`, adding `: <#Type#>` to a property with no type, and `@Recorded` to `@SpiedProperty` in an actor.
+- `@GenerateSpies` refuses `@Recorded` in a `Sendable` class, which can't hold a wrapped property, with a fix-it to `@SpiedProperty`.
 
 ### Changed
 
 - The double's initializer gives an obvious first answer when the test passes none: `""` for `String`, `0` for whole and decimal numbers and `Decimal`, `false` for `Bool`, and empty arrays, dictionaries and sets. `SpyCatalog()` now compiles when every answer has one. A type with no obvious answer is still a required argument, and every argument a test passes today is still accepted. The macro reads the type as written, so `Swift.String` or a typealias stays required.
-
 - The README is rewritten for a first-time user: what Understudy is (spies and sample values), install, a quick start, then each tool with one short example. Every example is compiled and run against the current API.
 
 ## 0.5.0 - 2026-11-25

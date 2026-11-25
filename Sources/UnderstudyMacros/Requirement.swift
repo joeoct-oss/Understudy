@@ -297,7 +297,15 @@ struct Requirement: SpiedMember {
         parameters = try signature.parameterClause.parameters.map { parameter in
             let name = (parameter.secondName ?? parameter.firstName).text
             guard name != "_" else {
-                throw UnderstudyError("\(where_) has a parameter with no name; name it", at: parameter)
+                throw UnderstudyError(
+                    "\(where_) has a parameter with no name; name it",
+                    at: parameter,
+                    fixIt: .replace(
+                        message: UnderstudyFixIt("Add a name"),
+                        oldNode: parameter,
+                        newNode: named(parameter)
+                    )
+                )
             }
             let escapes = parameter.type.as(AttributedTypeSyntax.self)?.attributes.contains { attribute in
                 attribute.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "escaping"
@@ -520,10 +528,25 @@ struct Property: SpiedMember {
         let modifiers = declaration.modifiers.map(\.name.text)
         isStatic = modifiers.contains("static") || modifiers.contains("class")
         if declaration.bindingSpecifier.tokenKind == .keyword(.let) {
-            throw UnderstudyError("\(where_) is a let; declare it as a var", at: pattern.identifier)
+            throw UnderstudyError(
+                "\(where_) is a let; declare it as a var",
+                at: pattern.identifier,
+                fixIt: .replace(
+                    message: UnderstudyFixIt("Replace 'let' with 'var'"),
+                    oldNode: declaration.bindingSpecifier,
+                    newNode: TokenSyntax.keyword(.var, trailingTrivia: .space)
+                )
+            )
         }
         guard let annotation = binding.typeAnnotation else {
-            throw UnderstudyError("\(where_) has no type; write its type", at: pattern.identifier)
+            let placeholder = TypeSyntax("<#Type#>").with(\.leadingTrivia, .space)
+            let typed = binding.with(\.pattern, binding.pattern.trimmed)
+                .with(\.typeAnnotation, TypeAnnotationSyntax(type: placeholder))
+            throw UnderstudyError(
+                "\(where_) has no type; write its type",
+                at: pattern.identifier,
+                fixIt: .replace(message: UnderstudyFixIt("Add a type"), oldNode: binding, newNode: typed)
+            )
         }
         initialValue = binding.initializer?.value.trimmedDescription
         if !inProtocol, binding.accessorBlock != nil {
@@ -575,10 +598,13 @@ struct UnderstudyError: Error, CustomStringConvertible, DiagnosticMessage {
     let description: String
     /// The code the error is about, such as the requirement or its parameter.
     let node: Syntax?
+    /// The one change that fixes it, when there is one, which the editor offers as a fix-it.
+    let fixIt: FixIt?
 
-    init(_ description: String, at node: (some SyntaxProtocol)? = Optional<Syntax>.none) {
+    init(_ description: String, at node: (some SyntaxProtocol)? = Optional<Syntax>.none, fixIt: FixIt? = nil) {
         self.description = "@GenerateSpies: " + description
         self.node = node.map { Syntax($0) }
+        self.fixIt = fixIt
     }
 
     var message: String {
@@ -591,5 +617,24 @@ struct UnderstudyError: Error, CustomStringConvertible, DiagnosticMessage {
 
     var severity: DiagnosticSeverity {
         .error
+    }
+}
+
+/// `parameter` with a placeholder name after its `_`, which the editor offers to fill in.
+func named(_ parameter: FunctionParameterSyntax) -> FunctionParameterSyntax {
+    parameter.with(\.firstName, parameter.firstName.with(\.trailingTrivia, .space))
+        .with(\.secondName, .identifier("<#name#>"))
+}
+
+/// What a fix-it does, as the editor shows it, such as "Replace 'let' with 'var'".
+struct UnderstudyFixIt: FixItMessage {
+    let message: String
+
+    init(_ message: String) {
+        self.message = message
+    }
+
+    var fixItID: MessageID {
+        MessageID(domain: "Understudy", id: "fix-it")
     }
 }

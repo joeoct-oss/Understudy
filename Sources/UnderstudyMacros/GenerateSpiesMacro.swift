@@ -67,7 +67,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
             guard let node = error.node else {
                 throw error
             }
-            context.diagnose(Diagnostic(node: node, message: error))
+            context.diagnose(Diagnostic(node: node, message: error, fixIts: error.fixIt.map { [$0] } ?? []))
             return []
         }
     }
@@ -83,11 +83,23 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         }
         let requirements = try spiedRequirements(of: declaration.memberBlock)
         let recorded = recordedProperties(of: declaration.memberBlock)
-        if isActor, let property = recorded.first {
+        let isSendable = declaration.inheritanceClause?.inheritedTypes.contains { inherited in
+            ["Sendable", "Swift.Sendable"].contains(inherited.type.trimmedDescription)
+        } == true
+        if let (property, attribute) = recorded.first, isActor || isSendable {
+            let why = isActor
+                ? "whose spy a test can't read on an actor without await"
+                : "which a Sendable class can't hold, because a wrapped property's storage is a var"
+            let name = TokenSyntax.identifier("SpiedProperty", trailingTrivia: attribute.attributeName.trailingTrivia)
+            let spied = attribute.with(\.attributeName, TypeSyntax(IdentifierTypeSyntax(name: name)))
             throw UnderstudyError(
-                "'\(property.identifier.text)' is @Recorded, whose spy a test can't read on an actor "
-                    + "without await; use @SpiedProperty",
-                at: property
+                "'\(property.identifier.text)' is @Recorded, \(why); use @SpiedProperty",
+                at: property,
+                fixIt: .replace(
+                    message: UnderstudyFixIt("Replace '@Recorded' with '@SpiedProperty'"),
+                    oldNode: attribute,
+                    newNode: spied
+                )
             )
         }
         guard !requirements.isEmpty || !recorded.isEmpty else {
@@ -179,20 +191,35 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
                   function.attributes.contains(where: { isAttribute($0, named: "Spied") }) else {
                 return nil
             }
-            guard function.body == nil else {
-                throw UnderstudyError("'\(function.name.text)' is @Spied, so give it no body", at: function.name)
+            if let body = function.body {
+                let bare = function.with(\.body, nil)
+                    .with(\.signature, function.signature.with(\.trailingTrivia, []))
+                    .with(\.trailingTrivia, body.trailingTrivia)
+                throw UnderstudyError(
+                    "'\(function.name.text)' is @Spied, so give it no body",
+                    at: function.name,
+                    fixIt: .replace(message: UnderstudyFixIt("Remove the body"), oldNode: function, newNode: bare)
+                )
             }
             return try Requirement(function)
         }
     }
 
-    /// The name of every property marked `@Recorded`, which keeps its own spy, so the macro writes
-    /// nothing for it.
-    private static func recordedProperties(of block: MemberBlockSyntax) -> [IdentifierPatternSyntax] {
+    /// The name and the attribute of every property marked `@Recorded`, which keeps its own spy, so
+    /// the macro writes nothing for it.
+    private static func recordedProperties(
+        of block: MemberBlockSyntax
+    ) -> [(IdentifierPatternSyntax, AttributeSyntax)] {
         block.members
             .compactMap { $0.decl.as(VariableDeclSyntax.self) }
-            .filter { $0.attributes.contains { isAttribute($0, named: "Recorded") } }
-            .flatMap { $0.bindings.compactMap { $0.pattern.as(IdentifierPatternSyntax.self) } }
+            .flatMap { variable -> [(IdentifierPatternSyntax, AttributeSyntax)] in
+                guard let attribute = variable.attributes.lazy.compactMap({ $0.as(AttributeSyntax.self) })
+                    .first(where: { isAttribute(.attribute($0), named: "Recorded") }) else {
+                    return []
+                }
+                return variable.bindings.compactMap { $0.pattern.as(IdentifierPatternSyntax.self) }
+                    .map { ($0, attribute) }
+            }
     }
 
     /// Whether an attribute is `@<name>`, written alone or with the module's name.
