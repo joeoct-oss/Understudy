@@ -73,8 +73,8 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
         }
         guard !requirements.isEmpty || !recorded.isEmpty else {
             throw UnderstudyError(
-                "mark each function to stand in for with @Spied and give it no body, and each property "
-                    + "with @SpiedProperty or @Recorded"
+                "mark each function to stand in for with @Spied and give it no body, each property "
+                    + "with @SpiedProperty or @Recorded, and the get and set of each subscript with @Spied"
             )
         }
         let names = try spyNames(for: requirements)
@@ -107,9 +107,12 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
             if let property = member.decl.as(VariableDeclSyntax.self) {
                 return try Property(property, inProtocol: true)
             }
+            if let spied = member.decl.as(SubscriptDeclSyntax.self) {
+                return try Subscript(spied, inProtocol: true)
+            }
             throw UnderstudyError(
-                "'\(proto.name.text)' has a requirement that is neither a function nor a property; "
-                    + "write its double by hand, or use @GenerateSpies on a class or an actor",
+                "'\(proto.name.text)' has a requirement that is not a function, a property or a "
+                    + "subscript; write its double by hand, or use @GenerateSpies on a class or an actor",
                 at: member.decl
             )
         }
@@ -137,9 +140,15 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
         ]
     }
 
-    /// The `@Spied` functions and properties of a class, in order.
+    /// The `@Spied` functions, properties and subscripts of a class, in order.
     private static func spiedRequirements(of block: MemberBlockSyntax) throws -> [any SpiedMember] {
         try block.members.compactMap { member -> (any SpiedMember)? in
+            if let spied = member.decl.as(SubscriptDeclSyntax.self),
+               spied.accessorBlock?.accessors.as(AccessorDeclListSyntax.self)?.contains(where: { accessor in
+                   accessor.attributes.contains { isAttribute($0, named: "Spied") }
+               }) == true {
+                return try Subscript(spied, inProtocol: false)
+            }
             if let property = member.decl.as(VariableDeclSyntax.self),
                property.attributes.contains(where: { isAttribute($0, named: "SpiedProperty") }) {
                 return try Property(property, inProtocol: false)
@@ -184,6 +193,9 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
         // A closure answer is taken `@escaping`, because the spy keeps it.
         var answers: [(name: String, output: String)] = []
         for (requirement, name) in zip(requirements, names) {
+            if let setSpyType = requirement.setSpyType {
+                declarations.append("\(raw: spyPrefix)let \(raw: setSpyName(for: name)) = \(raw: setSpyType)()")
+            }
             if requirement.needsAnswer {
                 declarations.append("\(raw: spyPrefix)let \(raw: name): \(raw: requirement.spyType)")
                 answers.append((name, requirement.answerType))
@@ -196,10 +208,13 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
         guard !answers.isEmpty else {
             return declarations
         }
-        // The initializer names each answer after its requirement: `init(now:)` fills `nowSpy`.
+        // The initializer names each answer after its requirement: `init(now:)` fills `nowSpy`, and
+        // `init(subscript:)` fills `subscriptSpy`, with the keyword in backticks where it's a name.
         let parameters = answers.map { "\(label(of: $0.name)): \($0.output)" }.joined(separator: ", ")
-        let assignments = answers.map { "self.\($0.name) = .init(returning: \(label(of: $0.name)))" }
-            .joined(separator: "\n")
+        let assignments = answers.map { answer in
+            let name = label(of: answer.name)
+            return "self.\(answer.name) = .init(returning: \(name == "subscript" ? "`subscript`" : name))"
+        }.joined(separator: "\n")
         declarations.append(
             """
             /// Creates the double with the answer each requirement gives until the test scripts another.

@@ -83,6 +83,21 @@ struct ExpansionTests {
         #expect(expanded.description.contains(message))
     }
 
+    /// A get-only subscript of a protocol has no setter, so its spy class gets no set spy.
+    @Test
+    func getOnlySubscriptHasNoSetSpy() {
+        let (expanded, diagnostics) = expand("""
+            @GenerateSpies
+            protocol Table {
+                subscript(row: Int) -> String { get }
+            }
+            """)
+
+        #expect(diagnostics.isEmpty)
+        #expect(expanded.description.contains("subscriptSpy"))
+        #expect(!expanded.description.contains("subscriptSetSpy"))
+    }
+
     /// The body `@Spied` writes for a requirement `@GenerateSpies` refused.
     private static let refusedBody = "@GenerateSpies can't write this requirement"
 
@@ -270,6 +285,28 @@ struct ExpansionTests {
                 """
         ),
         Accepted(
+            name: "subscripts with one or several indices, overloaded, and in protocols",
+            source: """
+                @GenerateSpies
+                final class SpyGrid: Grid {
+                    subscript(row: Int, column: Int) -> String { @Spied get {} @Spied set {} }
+                    subscript(name: String) -> String? { @Spied get {} @Spied set {} }
+                    subscript(_ index: Int) -> String { @Spied get {} @Spied set {} }
+                }
+
+                @GenerateSpies
+                actor SpyShelf: Shelf {
+                    subscript(index: Int) -> String { @Spied get {} @Spied set {} }
+                }
+
+                @GenerateSpies
+                public protocol Table {
+                    subscript(row: Int) -> String { get set }
+                    subscript(key: String) -> Int? { get }
+                }
+                """
+        ),
+        Accepted(
             name: "actors",
             source: """
                 @GenerateSpies
@@ -380,7 +417,7 @@ struct ExpansionTests {
                 }
                 """,
             message: "mark each function to stand in for with @Spied and give it no body, "
-                + "and each property with @SpiedProperty or @Recorded",
+                + "each property with @SpiedProperty or @Recorded, and the get and set of each subscript with @Spied",
             line: 1,
             column: 1
         ),
@@ -463,22 +500,72 @@ struct ExpansionTests {
                     @Spied init() {}
                 }
                 """,
-            message: "@Spied goes on a function",
+            message: "@Spied goes on a function, or on the get and set of a subscript",
             line: 4,
             column: 5
         ),
         Refused(
-            name: "a protocol subscript",
+            name: "a protocol initializer",
             source: """
                 @GenerateSpies
                 protocol Session {
-                    subscript(key: String) -> String { get }
+                    init(user: String)
                 }
                 """,
-            message: "'Session' has a requirement that is neither a function nor a property; "
+            message: "'Session' has a requirement that is not a function, a property or a subscript; "
                 + "write its double by hand, or use @GenerateSpies on a class or an actor",
             line: 3,
             column: 5
+        ),
+        Refused(
+            name: "a protocol subscript that throws",
+            source: """
+                @GenerateSpies
+                protocol Session {
+                    subscript(key: String) -> String { get throws }
+                }
+                """,
+            message: "'subscript' is async or throws; write its double by hand",
+            line: 3,
+            column: 5
+        ),
+        refusedRequirement("a static subscript", "static subscript(index: Int) -> Int { @Spied get {} }",
+                           "'subscript' is static; write its double by hand", column: 12, marker: ""),
+        refusedRequirement("a generic subscript", "subscript<Value>(key: String) -> Value { @Spied get {} }",
+                           "'subscript' is generic; write its double by hand", column: 5, marker: ""),
+        refusedRequirement("a subscript with a body", "subscript(index: Int) -> Int { @Spied get { 0 } }",
+                           "'subscript' has @Spied accessors, so write it as { @Spied get {} @Spied set {} }, "
+                               + "or { @Spied get {} } with no set", column: 5, marker: ""),
+        refusedRequirement("an unmarked accessor", "subscript(index: Int) -> Int { @Spied get {} set {} }",
+                           "'subscript' has @Spied accessors, so write it as { @Spied get {} @Spied set {} }, "
+                               + "or { @Spied get {} } with no set", column: 5, marker: ""),
+        refusedRequirement("a subscript index with no name", "subscript(_: Int) -> Int { @Spied get {} }",
+                           "'subscript' has an index with no name; name it", column: 15, marker: ""),
+        refusedRequirement("an inout subscript index", "subscript(index: inout Int) -> Int { @Spied get {} }",
+                           "'subscript' takes an inout parameter; write its double by hand", column: 15, marker: ""),
+        Refused(
+            name: "a @Spied subscript outside a @GenerateSpies class",
+            source: """
+                final class Lonely {
+                    subscript(index: Int) -> Int { @Spied get {} }
+                }
+                """,
+            message: "@Spied needs @GenerateSpies on the class or actor it is in",
+            line: 2,
+            column: 36
+        ),
+        Refused(
+            name: "@Spied on the get of a property",
+            source: """
+                @GenerateSpies
+                final class Lines {
+                    @Spied func clear()
+                    var count: Int { @Spied get {} }
+                }
+                """,
+            message: "@Spied goes on a function, or on the get and set of a subscript",
+            line: 4,
+            column: 22
         ),
         Refused(
             name: "a protocol that inherits another",
@@ -518,7 +605,7 @@ struct ExpansionTests {
             source: """
                 @GenerateSpies
                 final class SpyStore: Store {
-                    \(marker) \(requirement)
+                    \(marker.isEmpty ? "" : marker + " ")\(requirement)
                 }
                 """,
             message: message,
