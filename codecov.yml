@@ -1,0 +1,15 @@
+# Codecov reports the coverage that CI measures; scripts/check-coverage.sh in ci.yml is the gate.
+# - Statuses only, no pull request comment: CodeRabbit's review is the one comment on a PR.
+# - Coverage never drops: the project status fails on any drop from the base commit, and the
+#   patch status asks every changed line of Sources/ to be covered, as the gate does.
+# - Neither status is a required check; they show the numbers next to the gate.
+comment: false
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 0%
+    patch:
+      default:
+        target: 100%

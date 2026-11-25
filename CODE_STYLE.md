@@ -10,7 +10,7 @@ Everything is Swift: the runtime imports Foundation and nothing else, and the ma
 
 ## Macros write what a person would
 
-The code a macro writes reads like a double written by hand: a stored spy per requirement and a body that calls it. Every expansion has a test that shows the code it writes, and every requirement a macro can't write gets an error that says what to do instead.
+The code a macro writes reads like a double written by hand: a stored spy per requirement and a body that calls it. Every requirement a macro can't write gets an error that says what to do instead. How the macros are tested is under [Tests prove behaviour](#tests-prove-behaviour-and-every-line-is-tested).
 
 ## Every isolation is written, and the spies carry none
 
@@ -22,6 +22,6 @@ No API newer than the oldest platform in `Package.swift` (iOS 13, macOS 10.15), 
 
 ## Tests prove behaviour, and every line is tested
 
-Tests check what a person using the package sees: what a spy keeps and answers, how a generated double behaves once the compiler builds it, and which code the macros accept or refuse, with the message and the place it points to. No test compares the text a macro writes, since that is how it works, not what it promises. One promise has one test; a test that repeats another's promise is merged into it. Every test states its promise as a display name, as Waypoint's [Every test names the promise it pins](https://github.com/joeoct-oss/Waypoint/blob/main/CODE_STYLE.md#every-test-names-the-promise-it-pins) says.
+Tests check what a person using the package sees: what a spy keeps and answers, how a generated double behaves once the compiler builds it, and which code the macros accept or refuse, with the message and the place it points to. No test compares the text a macro writes, since that is how it works, not what it promises. A macro test expands source in process and checks only what a person sees: the diagnostics (message, place and fix-its), and the parts of an expansion that a running test can't show, such as a stop message, the generated initializer's parameters, the access level or a member that must not exist. One promise has one test; a test that repeats another's promise is merged into it. Every test states its promise as a display name, as Waypoint's [Every test names the promise it pins](https://github.com/joeoct-oss/Waypoint/blob/main/CODE_STYLE.md#every-test-names-the-promise-it-pins) says.
 
 Everything runs on Linux, in the cloud and in CI, with no Mac. The [Linux checks](.github/workflows/ci.yml) workflow runs the tests on every Swift version from 6.0, and with the lowest swift-syntax `Package.swift` allows. `scripts/check-coverage.sh` runs the tests with coverage and fails on any line of `Sources/` that no test runs, except the compiler plugin's entry point.
