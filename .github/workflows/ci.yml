@@ -26,7 +26,11 @@ jobs:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    container: swift:6.2
+    # The thread sanitizer turns off address randomisation with `personality`, which Docker's
+    # default seccomp profile blocks, so the container runs without it.
+    container:
+      image: swift:6.2
+      options: --security-opt seccomp=unconfined
     steps:
       - name: Check out
         uses: actions/checkout@v4
