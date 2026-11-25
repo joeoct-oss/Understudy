@@ -15,6 +15,17 @@ struct SpyTests {
     /// How many tasks call at once.
     private static let concurrentCallCount = 1_000
 
+    @Test
+    func keepsTheLastInput() {
+        let spy = Spy<Int, Void>()
+
+        spy(4)
+        spy(5)
+
+        #expect(spy.calls == [4, 5])
+        #expect(spy.lastCall == 5)
+    }
+
     @Test("A spy keeps every input in order")
     func keepsEveryInputInOrder() {
         let spy = Spy<Int, Void>()
