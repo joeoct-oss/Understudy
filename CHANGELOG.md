@@ -7,6 +7,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 ### Added
 
 - Typed throws: `@GenerateSpies` writes a requirement such as `func signIn(...) async throws(AuthError) -> Account`. It gets a `ThrowingSpy`, as a plain `throws` does, and its body rethrows the scripted error as `AuthError`. An error of another type stops the test with a message naming the spy and both types. `throws(any Error)` is a plain `throws`, and `throws(Never)` throws nothing.
+- Generics inside a collection: a generic parameter inside an array, an optional, a dictionary's value or a set, such as `func tags<T: Tag>(_ items: [T]) -> [T]`, is recorded as the same container of `any` of its constraints (`[any Tag]`; a set as `Set<AnyHashable>`), and a returned one is cast back to the type the caller asks for. A generic parameter inside a closure, a tuple or another generic type is still refused.
 
 ### Changed
 

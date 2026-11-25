@@ -37,9 +37,10 @@
 /// than `Void` or an optional, and the value of every property that isn't optional, so a double
 /// can't be called with nothing scripted. A property gets a ``PropertySpy``. An async requirement
 /// goes through ``Spy/respond(to:isolation:)``, so the test can hold the call. A generic
-/// parameter that is a whole parameter type, or the whole return type, is recorded as `any` of
-/// its constraints, and the answer is cast back. Subscripts and static requirements are written
-/// by hand.
+/// parameter `T` is recorded as `any` of its constraints, and so is one inside an array, an
+/// optional, a dictionary's value or a set: `[T]` as `[any Tag]`, `Set<T>` as `Set<AnyHashable>`.
+/// A generic answer is cast back to the type the caller asks for. Subscripts and static
+/// requirements are written by hand.
 @attached(member, names: arbitrary)
 @attached(peer, names: suffixed(Spy))
 public macro GenerateSpies() = #externalMacro(module: "UnderstudyMacros", type: "GenerateSpiesMacro")

@@ -251,6 +251,24 @@ struct ExpansionTests {
                 """
         ),
         Accepted(
+            name: "generics inside arrays, optionals, dictionary values and sets",
+            source: """
+                @GenerateSpies
+                final class SpyBag: Bag {
+                    @Spied func put<Item: Codable>(_ items: [Item], first: Item?)
+                    @Spied func all<Item: Codable>() -> [Item]
+                    @Spied func maybe<Item>() -> [Item]?
+                    @Spied func lookup<Item>(_ map: [String: Item]) -> [String: Item]
+                    @Spied func unique<Item: Hashable>(_ items: Set<Item>) -> Set<Item>
+                }
+
+                @GenerateSpies
+                protocol Bag {
+                    func all<Item: Codable>() -> [Item]
+                }
+                """
+        ),
+        Accepted(
             name: "actors",
             source: """
                 @GenerateSpies
@@ -293,9 +311,13 @@ struct ExpansionTests {
                            "'load' has a where clause; write its double by hand", column: 17),
         refusedRequirement("a generic parameter pack", "func load<each Value>(_ keys: repeat each Value)",
                            "'load' takes a parameter pack; write its double by hand", column: 17),
-        refusedRequirement("a generic inside a parameter's type", "func save<Value>(_ values: [Value])",
-                           "'save' uses 'Value' inside another type; write its double by hand", column: 39),
-        refusedRequirement("a generic inside the return type", "func load<Value>(_ key: String) -> [Value]",
+        refusedRequirement("a generic inside a closure", "func save<Value>(_ handler: (Value) -> Void)",
+                           "'save' uses 'Value' inside another type; write its double by hand", column: 40),
+        refusedRequirement("a generic inside a tuple", "func pair<Value>(_ both: (Value, Value))",
+                           "'pair' uses 'Value' inside another type; write its double by hand", column: 37),
+        refusedRequirement("a generic dictionary key", "func index<Key: Hashable>(_ map: [Key: Int])",
+                           "'index' uses 'Key' inside another type; write its double by hand", column: 45),
+        refusedRequirement("a generic inside another generic type", "func load<Value>(_ key: String) -> Result<Value, Error>",
                            "'load' uses 'Value' inside another type; write its double by hand", column: 47),
         refusedRequirement("a static requirement", "static func shared() -> Int",
                            "'shared' is static; write its double by hand", column: 24),

@@ -253,7 +253,7 @@ A `CallOrder` keeps the names it has; make a new one for the next step.
 
 ### Generic functions
 
-A generic function can be `@Spied` when each generic parameter is a whole parameter type or the whole return type (`T` or `T?`). The spy records it as `any` of its constraints, or `Any`, and casts the answer back to the type the caller asks for:
+A generic function can be `@Spied` when each generic parameter is a whole type (`T`), or sits inside an array, an optional, a dictionary's value or a set (`[T]`, `T?`, `[String: T]`, `Set<T>`). The spy records `T` as `any` of its constraints, or `Any`, in the same container, and casts the answer back to the type the caller asks for:
 
 ```swift
 @GenerateSpies
@@ -264,6 +264,14 @@ final class SpyCache: Cache {
 cache.valueSpy.willReturn(42)
 let count: Int? = cache.value(for: "count")   // 42
 ```
+
+```swift
+@Spied func tags<T: Tag>(_ items: [T]) -> [T]   // tagsSpy records [any Tag]
+
+let tags: [Label] = session.tags([.new])
+```
+
+A set is recorded as `Set<AnyHashable>`, because `any Tag` can't go in a set.
 
 An answer of the wrong type stops the test with a message naming the spy and both types.
 
@@ -375,7 +383,7 @@ Each of these is a compile error at the line it's about, saying what to do inste
 | Requirement | Why |
 |---|---|
 | `static` members | A stored spy belongs to one instance. |
-| A generic parameter inside another type (`[T]`, `Result<T, E>`), a `where` clause, a parameter pack | A spy records one input type, so only a whole generic parameter can be stood in for. |
+| A generic parameter inside a closure, a tuple or another generic type (`Result<T, E>`), a `where` clause, a parameter pack | A spy records one input type, and only these containers can be recorded and cast back. |
 | `rethrows`, or a function that throws its own generic type (`throws(E)` with `<E: Error>`) | The spy can't tell when the function may throw, or which type it throws. |
 | `inout` or `@autoclosure` parameters, opaque (`some`) return types | A spy can't keep or hand back these safely. |
 | `mutating` functions | The macro writes classes and actors. |
