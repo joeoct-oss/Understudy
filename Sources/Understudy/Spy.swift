@@ -21,7 +21,7 @@
 /// }
 /// ```
 ///
-/// The test scripts the answers with ``willReturn(_:)``, ``willReturn(_:then:)`` or
+/// The test scripts the answers with ``willReturn(_:)``, ``willReturnNext(_:then:)`` or
 /// ``willAnswer(_:)``, and checks the calls with ``calls``. A requirement with several parameters
 /// records a labelled tuple, such as `Spy<(id: Int, force: Bool), Void>`.
 ///
@@ -77,7 +77,7 @@ public final class Spy<Input, Output> {
 
     /// Answers the next calls with `first`, then each of `rest`, once each, and then goes back to
     /// the standing answer. Replaces any answers still queued.
-    public func willReturn(_ first: Output, then rest: Output...) {
+    public func willReturnNext(_ first: Output, then rest: Output...) {
         ledger.answerNextCalls(with: CollectionOfOne(first) + rest)
     }
 

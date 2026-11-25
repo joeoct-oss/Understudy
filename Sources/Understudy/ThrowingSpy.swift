@@ -92,7 +92,7 @@ public final class ThrowingSpy<Input, Output> {
     /// Gives `first`, then each of `rest`, to the next calls, once each, and then goes back to the
     /// standing answer. A success is returned and a failure is thrown. Replaces any answers still
     /// queued.
-    public func willGive(
+    public func willGiveNext(
         _ first: Result<Output, any Error>,
         then rest: Result<Output, any Error>...
     ) {

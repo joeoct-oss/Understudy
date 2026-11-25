@@ -65,7 +65,7 @@ struct SpyTests {
     func queuedAnswersComeOnceEachThenTheStandingAnswer() {
         let spy = Spy<Void, Int>(returning: 0)
 
-        spy.willReturn(1, then: 2, 3)
+        spy.willReturnNext(1, then: 2, 3)
         let answers = (0..<5).map { _ in
             spy()
         }
@@ -78,7 +78,7 @@ struct SpyTests {
     @Test
     func willReturnDropsAnswersStillQueued() {
         let spy = Spy<Void, Int>(returning: 0)
-        spy.willReturn(1, then: 2)
+        spy.willReturnNext(1, then: 2)
 
         spy.willReturn(5)
         let answer = spy()

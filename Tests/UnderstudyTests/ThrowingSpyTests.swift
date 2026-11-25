@@ -60,7 +60,7 @@ struct ThrowingSpyTests {
     func givesQueuedResultsInOrderThenTheStandingAnswer() throws {
         let spy = ThrowingSpy<Void, Int>(returning: 0)
 
-        spy.willGive(.success(1), then: .failure(LoadError.offline), .success(2))
+        spy.willGiveNext(.success(1), then: .failure(LoadError.offline), .success(2))
         let first = try spy()
         #expect(throws: LoadError.offline) {
             try spy()
