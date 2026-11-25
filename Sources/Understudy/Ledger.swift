@@ -67,6 +67,8 @@ final class Ledger<Input, Output> {
 
     /// One expectation: the calls it matches, how many it wants, and how a report names them.
     struct Expectation {
+        /// Whether a call matches. A test's own closure comes in `@Sendable`; the equality check
+        /// captures only the expected input, which is `Sendable` whenever the spy is.
         let matches: (Input) -> Bool
         let times: Int
         let description: String

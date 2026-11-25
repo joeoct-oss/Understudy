@@ -8,8 +8,8 @@
 
 import Foundation
 
-/// One value handed to one waiting task, at most once: either a value, or `nil` once its time is
-/// up. Whichever comes first wins, and the other is ignored.
+/// One value settled at most once, and handed to every task that waits for it: either a value, or
+/// `nil` once its time is up. Whichever comes first wins, and the other is ignored.
 ///
 /// Conformances:
 /// - `@unchecked Sendable`, because the task that waits and the code that delivers run anywhere;
@@ -22,9 +22,9 @@ final class Delivery<Value: Sendable>: @unchecked Sendable {
     /// the timeout.
     private var outcome: Value??
 
-    /// The waiting task, once it waits. `var` because it is set when the task waits, and taken
-    /// when the outcome arrives.
-    private var waiter: CheckedContinuation<Value?, Never>?
+    /// The tasks waiting for the outcome. `var` because each task that waits adds itself, and the
+    /// outcome takes them all.
+    private var waiters: [CheckedContinuation<Value?, Never>] = []
 
     /// Delivers `value`, unless an outcome came first, and says whether it was delivered.
     func deliver(_ value: Value) -> Bool {
@@ -48,13 +48,13 @@ final class Delivery<Value: Sendable>: @unchecked Sendable {
                 continuation.resume(returning: outcome)
                 return
             }
-            waiter = continuation
+            waiters.append(continuation)
             lock.unlock()
         }
     }
 
-    /// Keeps the first outcome and wakes the waiting task, if it waits, and says whether `value`
-    /// was the first.
+    /// Keeps the first outcome and wakes every waiting task, and says whether `value` was the
+    /// first.
     @discardableResult
     private func settle(_ value: Value?) -> Bool {
         lock.lock()
@@ -63,10 +63,10 @@ final class Delivery<Value: Sendable>: @unchecked Sendable {
             return false
         }
         outcome = .some(value)
-        let waiting = waiter
-        waiter = nil
+        let waiting = waiters
+        waiters.removeAll()
         lock.unlock()
-        waiting?.resume(returning: value)
+        waiting.forEach { $0.resume(returning: value) }
         return true
     }
 }

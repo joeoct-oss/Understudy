@@ -108,7 +108,7 @@ public final class Spy<Input, Output> {
     /// Expects `times` calls that `matches` accepts; any call by default. The spy becomes strict:
     /// ``verify(sourceLocation:)`` then reports each expectation not met and each call no
     /// expectation accepts.
-    public func expect(times: Int = 1, where matches: @escaping (Input) -> Bool = { _ in true }) {
+    public func expect(times: Int = 1, where matches: @escaping @Sendable (Input) -> Bool = { _ in true }) {
         ledger.expect(.init(matches: matches, times: times, description: "a matching input"))
     }
 

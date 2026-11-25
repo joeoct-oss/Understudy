@@ -46,6 +46,24 @@ struct AsyncControlTests {
     }
 
     @Test
+    func everyTaskWaitingForAHeldCallSeesIt() async {
+        let spy = Spy<Int, Void>()
+        let held = spy.holdNextCall()
+
+        async let first = held.arrived()
+        async let second = held.arrived()
+        let task = Task {
+            await spy.respond(to: 4)
+        }
+        let inputs = await [first, second]
+        held.resume(returning: ())
+        await task.value
+
+        let expected: [Int?] = [4, 4]
+        #expect(inputs == expected)
+    }
+
+    @Test
     func heldCallCanGiveItsScriptedAnswer() async {
         let spy = Spy<Void, String>(returning: "scripted")
         let held = spy.holdNextCall()
