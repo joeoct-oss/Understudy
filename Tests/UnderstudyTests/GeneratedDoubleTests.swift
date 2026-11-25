@@ -118,6 +118,31 @@ struct GeneratedDoubleTests {
     }
 
     @Test
+    @MainActor
+    func doublesOfEveryAccessLevelAndIsolationBuildAndRecord() async {
+        let gate = SpyOpenGate(isOpen: true)
+        let adder = SpyAdder(sum: 6)
+        let scheduler = SpyScheduler()
+        let clock = PublicClockSpy(now: 1)
+        let log = FileLogSpy()
+
+        let open = gate.isOpen()
+        let total = adder.sum(1, 2, 3)
+        scheduler.schedule { @Sendable in }
+        let now = clock.now()
+        log.write("saved")
+
+        let expectedNumbers = [[1, 2, 3]]
+        let expectedLines = ["saved"]
+        #expect(open)
+        #expect(total == 6)
+        #expect(adder.sumSpy.calls == expectedNumbers)
+        #expect(scheduler.scheduleSpy.callCount == 1)
+        #expect(now == 1)
+        #expect(log.writeSpy.calls == expectedLines)
+    }
+
+    @Test
     func protocolGetsASpyClassNextToIt() async {
         let clock = ClockSpy(now: 10)
 
@@ -222,6 +247,63 @@ private protocol Printer {
 private final class SpyPrinter: Printer {
     @Spied func print(_ lines: String...)
     @Spied func show(_ value: some Equatable)
+}
+
+/// A gate any thread may ask whether it is open, owned by the main actor.
+@MainActor
+public protocol OpenGate {
+    nonisolated func isOpen() -> Bool
+}
+
+/// An open, main-actor gate whose answer the test chose.
+///
+/// Conformances:
+/// - `OpenGate`, so a test can pass it where a gate is expected.
+@Understudy
+@MainActor
+open class SpyOpenGate: OpenGate {
+    @Spied nonisolated public func isOpen() -> Bool
+}
+
+/// Adds any count of numbers.
+public protocol Adder {
+    func sum(_ numbers: Int...) -> Int
+}
+
+/// A public adder that keeps every list of numbers it was given.
+///
+/// Conformances:
+/// - `Adder`, so a test can pass it where an adder is expected.
+@Understudy
+public final class SpyAdder: Adder {
+    @Spied public func sum(_ numbers: Int...) -> Int
+}
+
+/// Runs work later, on any thread.
+private protocol Scheduler {
+    func schedule(_ work: @escaping @Sendable () -> Void)
+}
+
+/// A scheduler that keeps the work and never runs it.
+///
+/// Conformances:
+/// - `Scheduler`, so a test can pass it where a scheduler is expected.
+@Understudy
+private final class SpyScheduler: Scheduler {
+    @Spied func schedule(_ work: @escaping @Sendable () -> Void)
+}
+
+/// Tells the time, for code in other modules too.
+@Understudy
+@MainActor
+public protocol PublicClock: AnyObject {
+    func now() -> Int
+}
+
+/// Writes lines to a file in this file only.
+@Understudy
+fileprivate protocol FileLog {
+    func write(_ line: String)
 }
 
 /// Makes the handler a screen runs when it is tapped.

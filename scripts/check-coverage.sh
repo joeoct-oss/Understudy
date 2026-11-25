@@ -34,19 +34,27 @@ uncovered() {
         '
 }
 
-# A test bundle is a .xctest bundle on Apple platforms and a shared library on Linux.
+# The test binary that holds the target `$1`. Newer toolchains build one per test target, a shared
+# library on Linux or a .xctest bundle on Apple platforms; Swift 6.2 builds one for the whole
+# package, `UnderstudyPackageTests.xctest`, a plain file on Linux.
 bundle_for() {
-    local name="$1"
-    if [[ -d "$build/$name.xctest" ]]; then
-        echo "$build/$name.xctest/Contents/MacOS/$name"
-    else
-        echo "$build/$name.so"
-    fi
+    local name="$1" candidate
+    for candidate in "$build/$name.so" "$build/$name.xctest/Contents/MacOS/$name" \
+        "$build/UnderstudyPackageTests.xctest/Contents/MacOS/UnderstudyPackageTests" \
+        "$build/UnderstudyPackageTests.xctest"; do
+        if [[ -f "$candidate" ]]; then
+            echo "$candidate"
+            return
+        fi
+    done
+    echo "error: no test binary for $name in $build" >&2
+    return 1
 }
 
 for pair in "UnderstudyTests Sources/Understudy/" "UnderstudyMacrosTests Sources/UnderstudyMacros/"; do
     read -r name sources <<<"$pair"
-    missed=$(uncovered "$(bundle_for "$name")" "$PWD/$sources")
+    bundle=$(bundle_for "$name")
+    missed=$(uncovered "$bundle" "$PWD/$sources")
     if [[ -n "$missed" ]]; then
         echo "error: lines in $sources that no test runs:" >&2
         echo "$missed" >&2
