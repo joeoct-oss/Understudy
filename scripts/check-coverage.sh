@@ -8,8 +8,9 @@
 #
 
 # Runs the tests with code coverage and fails on any line of the package's sources that no test ran.
-# The spies are measured in the runtime's tests, and the macros in the macro tests, which run them
-# in process. `Plugin.swift` is left out: it is the compiler plugin's entry point, which only the
+# The spies are measured in the runtime's tests, and each set of macros in its own macro tests,
+# which run them in process. `UnderstudySamples` holds only macro declarations, so it has no lines
+# to measure. `Plugin.swift` is left out: it is the compiler plugin's entry point, which only the
 # compiler starts. Extra arguments go to `swift test`.
 #
 # Usage: scripts/check-coverage.sh [swift test arguments]
@@ -60,7 +61,8 @@ bundle_for() {
     return 1
 }
 
-for pair in "UnderstudyTests Sources/Understudy/" "UnderstudyMacrosTests Sources/UnderstudyMacros/"; do
+for pair in "UnderstudyTests Sources/Understudy/" "UnderstudyMacrosTests Sources/UnderstudyMacros/" \
+    "UnderstudySamplesMacrosTests Sources/UnderstudySamplesMacros/"; do
     read -r name sources <<<"$pair"
     bundle=$(bundle_for "$name")
     missed=$(uncovered "$bundle" "$PWD/$sources")

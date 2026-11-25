@@ -13,6 +13,7 @@ let package = Package(
     ],
     products: [
         .library(name: "Understudy", targets: ["Understudy"]),
+        .library(name: "UnderstudySamples", targets: ["UnderstudySamples"]),
     ],
     dependencies: [
         // The macros are built on swift-syntax, from 602: 600 lacks the generic parameter
@@ -37,6 +38,30 @@ let package = Package(
             name: "UnderstudyMacrosTests",
             dependencies: [
                 "UnderstudyMacros",
+                .product(name: "SwiftDiagnostics", package: "swift-syntax"),
+                .product(name: "SwiftParser", package: "swift-syntax"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxMacroExpansion", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+            ]
+        ),
+        // Writes `sample(...)` for structs. Knows nothing about spies.
+        .macro(
+            name: "UnderstudySamplesMacros",
+            dependencies: [
+                .product(name: "SwiftDiagnostics", package: "swift-syntax"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+                .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
+            ]
+        ),
+        // The `@Sample` macro's declarations, for app targets as well as test targets.
+        .target(name: "UnderstudySamples", dependencies: ["UnderstudySamplesMacros"]),
+        .testTarget(name: "UnderstudySamplesTests", dependencies: ["UnderstudySamples"]),
+        .testTarget(
+            name: "UnderstudySamplesMacrosTests",
+            dependencies: [
+                "UnderstudySamplesMacros",
                 .product(name: "SwiftDiagnostics", package: "swift-syntax"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
