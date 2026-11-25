@@ -148,6 +148,45 @@ struct GeneratedDoubleTests {
     }
 
     @Test
+    func spiedPropertyWithAValueStartsWithIt() {
+        let session = SpyProfile()
+
+        let user = session.user
+        session.user = "bo"
+
+        let expectedUsers = ["bo"]
+        #expect(user == "ana")
+        #expect(session.userSpy.sets == expectedUsers)
+        #expect(session.user == "bo")
+    }
+
+    @Test
+    func spiedPropertyWithAValueWorksInASendableClass() async {
+        let account = SpyAccount()
+
+        await withTaskGroup(of: Void.self) { group in
+            for index in 0..<10 {
+                group.addTask {
+                    account.user = "user \(index)"
+                }
+            }
+        }
+
+        #expect(account.userSpy.sets.count == 10)
+    }
+
+    @Test
+    func spiedPropertyWithAValueWorksInAnActor() async {
+        let counter = SpyCounter()
+
+        await counter.bump()
+
+        let expectedCounts = [1]
+        #expect(counter.countSpy.sets == expectedCounts)
+        #expect(counter.countSpy.value == 1)
+    }
+
+    @Test
     func genericMethodsRecordTheirInputsAndAnswerAsTheCallerAsks() async throws {
         let cache = SpyCache(load: 7)
         cache.valueSpy.willReturn("cached")
@@ -466,6 +505,53 @@ private final class SpySession: Session {
     @SpiedProperty var token: String?
     @SpiedProperty var user: String
     @SpiedProperty var onExpire: () -> Void
+}
+
+/// A profile a screen shows and edits.
+private protocol Profile: AnyObject {
+    var user: String { get set }
+}
+
+/// A profile whose user starts as "ana", so the test makes it with no arguments.
+///
+/// Conformances:
+/// - `Profile`, so a test can pass it where a profile is expected.
+@GenerateSpies
+private final class SpyProfile: Profile {
+    @SpiedProperty var user: String = "ana"
+}
+
+/// Counts on its own actor.
+private protocol Counter: Actor {
+    var count: Int { get set }
+}
+
+/// A counter that starts at 0, an actor like the real one.
+///
+/// Conformances:
+/// - `Counter`, so a test can pass it where a counter is expected.
+@GenerateSpies
+private actor SpyCounter: Counter {
+    @SpiedProperty var count: Int = 0
+    // Bumps the count from inside the actor, as the code under test would.
+    func bump() {
+        count += 1
+    }
+}
+
+/// A signed-in account that any task may read.
+private protocol Account: Sendable {
+    var user: String { get set }
+}
+
+/// A sendable account whose user starts as "ana", which `@Recorded` can't spy on.
+///
+/// Conformances:
+/// - `Account`, so a test can pass it where an account is expected.
+/// - `Sendable`: it stores only its spies, which are `Sendable`.
+@GenerateSpies
+private final class SpyAccount: Account, Sendable {
+    @SpiedProperty var user: String = "ana"
 }
 
 /// Keeps values of any type under keys.

@@ -144,13 +144,14 @@ auth.signInSpy.willThrow(AuthError.wrongPassword)   // the caller catches an Aut
 
 ### Properties
 
-Mark a `var` with `@SpiedProperty` and give it only a type. A property that isn't optional takes its first value when the double is made:
+Mark a `var` with `@SpiedProperty` and give it a type. Give it a first value too, or the double takes one when it is made, unless the property is optional:
 
 ```swift
 @GenerateSpies
 final class SpySession: Session {
     @SpiedProperty var user: String
     @SpiedProperty var token: String?
+    @SpiedProperty var theme: String = "light"   // starts as "light"; the init doesn't ask
 }
 
 let session = SpySession(user: "ana")
@@ -163,7 +164,7 @@ session.userSpy.willReturn("bo")
 
 A set changes what later gets answer, as a real property would.
 
-To give the first value at the declaration instead, use the `@Recorded` property wrapper. `$user` is its spy, and it works in a double written by hand too:
+`@SpiedProperty` works in a class, a `Sendable` class and an actor. For a double written by hand, with no macro, use the `@Recorded` property wrapper. `$user` is its spy:
 
 ```swift
 @Recorded var user = "ana"
@@ -171,7 +172,7 @@ To give the first value at the declaration instead, use the `@Recorded` property
 session.$user.sets
 ```
 
-Use `@SpiedProperty` in an actor, where reading `$user` would need `await`, and in a `Sendable` class, which can't hold the wrapper's `var` storage.
+`@Recorded` can't go in an actor, where reading `$user` would need `await`, or in a `Sendable` class, which can't hold the wrapper's `var` storage.
 
 ### Async calls
 

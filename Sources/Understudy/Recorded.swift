@@ -20,10 +20,9 @@
 /// ```
 ///
 /// It works in a class written by hand and in a ``GenerateSpies()`` class, next to
-/// ``SpiedProperty()``, which takes the first value in the double's initializer instead. In an
-/// actor, use ``SpiedProperty()``: an actor's `$name` would need `await`. A `Sendable` class can't
-/// hold it, because a wrapped property's storage is a `var`; mark the double `@unchecked Sendable`,
-/// or use ``SpiedProperty()``.
+/// ``SpiedProperty()``. In an actor, use ``SpiedProperty()``: an actor's `$name` would need
+/// `await`. A `Sendable` class can't hold it, because a wrapped property's storage is a `var`; use
+/// ``SpiedProperty()`` with a first value, `@SpiedProperty var user: String = "ana"`.
 ///
 /// Conformances:
 /// - `Sendable` when `Value` is `Sendable`: it stores only its ``PropertySpy``, which is then

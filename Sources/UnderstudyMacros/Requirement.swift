@@ -408,6 +408,8 @@ struct Property: SpiedMember {
     let type: String
     let isOptional: Bool
     let isFunction: Bool
+    /// The first value written at the declaration, such as `"ana"`, which the spy starts with.
+    let initialValue: String?
 
     var labels: [String] {
         []
@@ -418,11 +420,11 @@ struct Property: SpiedMember {
     }
 
     var needsAnswer: Bool {
-        !isOptional
+        !isOptional && initialValue == nil
     }
 
     var defaultAnswer: String {
-        "nil"
+        initialValue ?? "nil"
     }
 
     var answerType: String {
@@ -435,8 +437,8 @@ struct Property: SpiedMember {
         "__understudy_property_" + nameToken.text
     }
 
-    /// Reads a property, or explains why it can't be written. On a class it must have no value
-    /// and no accessors; a protocol's always has accessors.
+    /// Reads a property, or explains why it can't be written. On a class it must have no
+    /// accessors, and may have a first value; a protocol's always has accessors.
     init(_ declaration: VariableDeclSyntax, inProtocol: Bool) throws {
         guard declaration.bindings.count == 1, let binding = declaration.bindings.first,
               let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else {
@@ -454,12 +456,7 @@ struct Property: SpiedMember {
         guard let annotation = binding.typeAnnotation else {
             throw UnderstudyError("\(where_) has no type; write its type", at: pattern.identifier)
         }
-        if binding.initializer != nil {
-            throw UnderstudyError(
-                "\(where_) has a value; give it none, the double's initializer takes it",
-                at: pattern.identifier
-            )
-        }
+        initialValue = binding.initializer?.value.trimmedDescription
         if !inProtocol, binding.accessorBlock != nil {
             throw UnderstudyError("\(where_) is @SpiedProperty, so give it no accessors", at: pattern.identifier)
         }
