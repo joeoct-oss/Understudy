@@ -13,7 +13,7 @@ import Understudy
 /// happen, and what happened that nobody expected, as test issues.
 @Suite("Strict spies")
 struct StrictSpyTests {
-    @Test
+    @Test("verify reports nothing when every expectation is met, in any order")
     func verifyReportsNothingWhenEveryExpectationIsMet() {
         let spy = Spy<Int, Void>()
         spy.expect(1)
@@ -27,7 +27,7 @@ struct StrictSpyTests {
         #expect(problems.isEmpty)
     }
 
-    @Test
+    @Test("verify reports missing, extra and unexpected calls")
     func verifyReportsMissingExtraAndUnexpectedCalls() throws {
         let loader = ThrowingSpy<String, Int>(returning: 0)
         loader.expect("a")
@@ -49,7 +49,7 @@ struct StrictSpyTests {
         #expect(problems == expected)
     }
 
-    @Test
+    @Test("A spy with no expectations stays lenient")
     func spyWithNoExpectationsStaysLenient() {
         let spy = Spy<Int, Void>()
 
@@ -59,7 +59,7 @@ struct StrictSpyTests {
         #expect(problems.isEmpty)
     }
 
-    @Test
+    @Test("expectNoCalls reports every call")
     func expectNoCallsReportsEveryCall() throws {
         let spy = Spy<Int, Void>()
         let loader = ThrowingSpy<String, Int>(returning: 0)
@@ -80,7 +80,7 @@ struct StrictSpyTests {
         #expect(problems == expected)
     }
 
-    @Test
+    @Test("Expectations can match inputs that aren't Equatable")
     func expectationsCanMatchInputsThatAreNotEquatable() throws {
         let save = Spy<(path: String, force: Bool), Void>()
         let loader = ThrowingSpy<(path: String, force: Bool), Int>(returning: 0)

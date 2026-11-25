@@ -8,6 +8,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 - `.spi.yml`, so the Swift Package Index builds the package and hosts the API docs of `Understudy` and `UnderstudySamples`.
 
+### Changed
+
+- Every test has a display name that states what it checks, such as "A spy keeps every input in order", so a test report reads as a list of what the package promises. Test function names stay as they were, for `swift test --filter`.
+
 ## 0.6.0 - 2026-11-25
 
 ### Added

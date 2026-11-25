@@ -12,7 +12,7 @@ import Understudy
 /// Subscripts written by `@GenerateSpies`: their gets go to one spy and their sets to another.
 @Suite("Subscript doubles")
 struct SubscriptDoubleTests {
-    @Test
+    @Test("A protocol's subscript answers gets and records sets")
     func protocolSubscriptAnswersAndRecordsSets() {
         let table = TableSpy(subscriptRow: "x")
 
@@ -30,7 +30,7 @@ struct SubscriptDoubleTests {
 
     // Swift 6.4 is the first to expand a body macro on a subscript's `get` and `set`.
     #if compiler(>=6.4)
-    @Test
+    @Test("A subscript get answers what the test scripts and records its indices")
     func subscriptGetAnswersWhatTheTestScripts() {
         let list = SpyList(subscript: "a")
         let grid = SpyGrid(subscriptRowColumn: 0)
@@ -49,7 +49,7 @@ struct SubscriptDoubleTests {
         #expect(named == nil)
     }
 
-    @Test
+    @Test("A subscript set records its indices and new value")
     func subscriptSetIsRecorded() {
         let list = SpyList(subscript: "a")
         let grid = SpyGrid(subscriptRowColumn: 0)

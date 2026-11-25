@@ -22,7 +22,7 @@ struct ThrowingSpyTests {
         case notFound
     }
 
-    @Test
+    @Test("A throwing spy answers with its standing answer")
     func answersWithItsStandingAnswer() throws {
         let spy = ThrowingSpy<Int, String>(returning: "ok")
 
@@ -31,7 +31,7 @@ struct ThrowingSpyTests {
         #expect(answer == "ok")
     }
 
-    @Test
+    @Test("A throwing spy throws its error and still keeps the call")
     func throwsItsErrorAndStillKeepsTheCall() {
         let spy = ThrowingSpy<Int, String>(throwing: LoadError.offline)
 
@@ -44,7 +44,7 @@ struct ThrowingSpyTests {
         #expect(spy.wasCalled)
     }
 
-    @Test
+    @Test("willThrow and willReturn replace the standing answer")
     func willThrowAndWillReturnReplaceTheStandingAnswer() throws {
         let spy = ThrowingSpy<Int, String>(returning: "ok")
 
@@ -58,7 +58,7 @@ struct ThrowingSpyTests {
         #expect(answer == "back")
     }
 
-    @Test
+    @Test("Queued results come in order, then the standing answer")
     func givesQueuedResultsInOrderThenTheStandingAnswer() throws {
         let spy = ThrowingSpy<Void, Int>(returning: 0)
 
@@ -76,7 +76,7 @@ struct ThrowingSpyTests {
         #expect(spy.callCount == 4)
     }
 
-    @Test
+    @Test("A computed answer sees the input, may throw, and can be replaced")
     func computedAnswerSeesTheInput() throws {
         let spy = ThrowingSpy<Int, Int> { input in
             guard input > 0 else {
