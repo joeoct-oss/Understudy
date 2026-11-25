@@ -38,6 +38,40 @@ final class Ledger<Input, Output> {
     /// one; only ``record(_:)`` and the two `answer…` functions change it.
     private var queuedAnswers: [Output] = []
 
+    /// Runs on each later call, outside the lock, with the call's input: for ``CallOrder`` and
+    /// for tasks waiting on a call. `var` because watchers come and go; only ``watch(_:)`` and the
+    /// waiting code change it.
+    private var watchers: [Int: (Input) -> Void] = [:]
+
+    /// The key the next watcher gets. `var` because each watcher takes one.
+    private var nextWatcherKey = 0
+
+    /// How many calls ``nextCall(within:)`` has handed out, oldest first. `var` because each
+    /// handed-out call moves it on.
+    private var handedOut = 0
+
+    /// Calls the test holds, next first: each takes one call's input and the answer the spy would
+    /// have given, and gives the answer the call returns once the test resumes it. `var` because
+    /// each held call takes one; only ``holdNextCall(_:)`` adds.
+    private var holds: [Hold] = []
+
+    /// What the test expects, in the order it said so. `var` because each expectation adds one.
+    private var expectations: [Expectation] = []
+
+    /// Whether the spy is strict: set once the test expects anything, even no calls at all.
+    private var isStrict = false
+
+    /// A held call: runs in the caller's isolation, takes the call's input and the answer the spy
+    /// would have given, and gives the answer the call returns.
+    typealias Hold = (isolated (any Actor)?, Input, Output) async -> Output
+
+    /// One expectation: the calls it matches, how many it wants, and how a report names them.
+    struct Expectation {
+        let matches: (Input) -> Bool
+        let times: Int
+        let description: String
+    }
+
     /// Every input, oldest first.
     var calls: [Input] {
         synchronized {
@@ -63,15 +97,46 @@ final class Ledger<Input, Output> {
 
     /// Keeps the input, then gives the next queued answer, or else the standing one.
     ///
-    /// A computed answer runs outside the lock, so it may call the spy again.
+    /// A computed answer and the watchers run outside the lock, so they may call the spy again.
     func record(_ input: Input) -> Output {
-        let answer = synchronized {
+        let (answer, watching) = synchronized {
             recordedCalls.append(input)
-            guard queuedAnswers.isEmpty else {
-                return Answer.value(queuedAnswers.removeFirst())
-            }
-            return standingAnswer
+            return (nextAnswer(), Array(watchers.values))
         }
+        watching.forEach { watch in
+            watch(input)
+        }
+        return resolve(answer, for: input)
+    }
+
+    /// Keeps the input like ``record(_:)``, and when the test holds this call, waits until the
+    /// test resumes it. Runs in the caller's isolation, so its input never leaves it.
+    func recordHolding(_ input: Input, isolation: isolated (any Actor)? = #isolation) async -> Output {
+        let (answer, watching, hold) = synchronized {
+            recordedCalls.append(input)
+            let hold = holds.isEmpty ? nil : holds.removeFirst()
+            return (nextAnswer(), Array(watchers.values), hold)
+        }
+        watching.forEach { watch in
+            watch(input)
+        }
+        let scripted = resolve(answer, for: input)
+        guard let hold else {
+            return scripted
+        }
+        return await hold(isolation, input, scripted)
+    }
+
+    /// The next queued answer, or else the standing one. Called under the lock.
+    private func nextAnswer() -> Answer {
+        guard queuedAnswers.isEmpty else {
+            return Answer.value(queuedAnswers.removeFirst())
+        }
+        return standingAnswer
+    }
+
+    /// The output `answer` gives for `input`.
+    private func resolve(_ answer: Answer, for input: Input) -> Output {
         switch answer {
         case .value(let output):
             return output
@@ -92,6 +157,106 @@ final class Ledger<Input, Output> {
     func answerNextCalls(with answers: [Output]) {
         synchronized {
             queuedAnswers = answers
+        }
+    }
+
+    /// Holds the next async call not yet held, with `hold`.
+    func holdNextCall(_ hold: @escaping Hold) {
+        synchronized {
+            holds.append(hold)
+        }
+    }
+
+    /// Runs `watch` on every later call, and gives the key that stops it.
+    @discardableResult
+    func watch(_ watch: @escaping (Input) -> Void) -> Int {
+        synchronized {
+            let key = nextWatcherKey
+            nextWatcherKey += 1
+            watchers[key] = watch
+            return key
+        }
+    }
+
+    /// Adds an expectation, which makes the spy strict.
+    func expect(_ expectation: Expectation) {
+        synchronized {
+            expectations.append(expectation)
+            isStrict = true
+        }
+    }
+
+    /// Makes the spy strict with no expectations, so any call is unexpected.
+    func expectNoCalls() {
+        synchronized {
+            isStrict = true
+        }
+    }
+
+    /// Every expectation not met and every call nobody expected, in words. Empty when the spy
+    /// isn't strict.
+    func problems() -> [String] {
+        let (calls, expectations, isStrict) = synchronized {
+            (recordedCalls, expectations, isStrict)
+        }
+        guard isStrict else {
+            return []
+        }
+        let missed = expectations.compactMap { expectation -> String? in
+            let count = calls.filter(expectation.matches).count
+            guard count != expectation.times else {
+                return nil
+            }
+            return "expected \(Self.times(expectation.times)) with \(expectation.description), "
+                + "got \(Self.times(count))"
+        }
+        let unexpected = calls.filter { input in
+            !expectations.contains { $0.matches(input) }
+        }.map { input in
+            "unexpected call with \(String(describing: input))"
+        }
+        return missed + unexpected
+    }
+
+    /// "1 call" or "n calls".
+    private static func times(_ count: Int) -> String {
+        count == 1 ? "1 call" : "\(count) calls"
+    }
+}
+
+extension Ledger where Input: Sendable {
+    /// The oldest call not yet handed out, waiting up to `seconds` for one; `nil` when none
+    /// comes in time.
+    func nextCall(within seconds: Double) async -> Input? {
+        let delivery = Delivery<Input>()
+        let key: Int? = synchronized {
+            if handedOut < recordedCalls.count {
+                _ = delivery.deliver(recordedCalls[handedOut])
+                handedOut += 1
+                return nil
+            }
+            let key = nextWatcherKey
+            nextWatcherKey += 1
+            watchers[key] = { [unowned self] _ in
+                self.handOutNext(to: delivery, key: key)
+            }
+            return key
+        }
+        if key != nil {
+            delivery.expire(after: seconds)
+        }
+        return await delivery.value()
+    }
+
+    /// Hands the oldest call not yet handed out to `delivery` and stops watching, unless another
+    /// wait took that call first. A call that comes after the wait's time is up stays for the
+    /// next wait.
+    private func handOutNext(to delivery: Delivery<Input>, key: Int) {
+        synchronized {
+            if handedOut < recordedCalls.count, watchers.removeValue(forKey: key) != nil,
+               delivery.deliver(recordedCalls[handedOut]) {
+                handedOut += 1
+            }
         }
     }
 }

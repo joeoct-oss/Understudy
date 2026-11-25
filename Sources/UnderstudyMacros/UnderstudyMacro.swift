@@ -63,11 +63,11 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
         }
         let requirements = try spiedRequirements(of: type.memberBlock)
         guard !requirements.isEmpty else {
-            throw UnderstudyError("mark each requirement to stand in for with @Spied, and give it no body")
+            throw UnderstudyError("mark each function to stand in for with @Spied and give it no body, and each property with @SpiedProperty")
         }
         let names = try spyNames(for: requirements)
         let forwarders = zip(requirements, names).map { requirement, name in
-            forwarder(for: requirement, spy: name)
+            requirement.forwarder(spy: name)
         }
         return try storage(for: requirements, access: access(of: type.modifiers)) + forwarders
     }
@@ -85,22 +85,24 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
                 at: proto.inheritanceClause
             )
         }
-        var requirements: [Requirement] = []
-        for member in proto.memberBlock.members {
-            guard let function = member.decl.as(FunctionDeclSyntax.self) else {
-                throw UnderstudyError(
-                    "'\(proto.name.text)' has a requirement that isn't a function; "
-                        + "write its double by hand, or use @Understudy on a class",
-                    at: member.decl
-                )
+        let requirements: [any SpiedMember] = try proto.memberBlock.members.map { member in
+            if let function = member.decl.as(FunctionDeclSyntax.self) {
+                return try Requirement(function)
             }
-            requirements.append(try Requirement(function))
+            if let property = member.decl.as(VariableDeclSyntax.self) {
+                return try Property(property, inProtocol: true)
+            }
+            throw UnderstudyError(
+                "'\(proto.name.text)' has a requirement that is neither a function nor a property; "
+                    + "write its double by hand, or use @Understudy on a class",
+                at: member.decl
+            )
         }
         let access = access(of: proto.modifiers)
         let names = try spyNames(for: requirements)
         let members = try storage(for: requirements, access: access)
             + zip(requirements, names).map { requirement, name in
-                implementation(of: requirement, spy: name, access: access)
+                requirement.implementation(spy: name, access: access)
             }
         let actors = proto.attributes.compactMap { $0.as(AttributeSyntax.self) }
             .filter { $0.attributeName.trimmedDescription.hasSuffix("Actor") }
@@ -119,11 +121,15 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
         ]
     }
 
-    /// The `@Spied` functions of a class, in order.
-    private static func spiedRequirements(of block: MemberBlockSyntax) throws -> [Requirement] {
-        try block.members.compactMap { member in
+    /// The `@Spied` functions and properties of a class, in order.
+    private static func spiedRequirements(of block: MemberBlockSyntax) throws -> [any SpiedMember] {
+        try block.members.compactMap { member -> (any SpiedMember)? in
+            if let property = member.decl.as(VariableDeclSyntax.self),
+               property.attributes.contains(where: { isAttribute($0, named: "SpiedProperty") }) {
+                return try Property(property, inProtocol: false)
+            }
             guard let function = member.decl.as(FunctionDeclSyntax.self),
-                  function.attributes.contains(where: isSpied) else {
+                  function.attributes.contains(where: { isAttribute($0, named: "Spied") }) else {
                 return nil
             }
             guard function.body == nil else {
@@ -133,35 +139,15 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
         }
     }
 
-    /// Whether an attribute is `@Spied`.
-    private static func isSpied(_ element: AttributeListSyntax.Element) -> Bool {
-        let name = element.as(AttributeSyntax.self)?.attributeName.trimmedDescription
-        return name == "Spied" || name == "Understudy.Spied"
-    }
-
-    /// The private function a `@Spied` requirement's body calls: it takes the requirement's labels,
-    /// keeps its isolation and its `throws`, and calls the spy.
-    private static func forwarder(for requirement: Requirement, spy: String) -> DeclSyntax {
-        let actors = requirement.declaration.attributes.compactMap { $0.as(AttributeSyntax.self) }
-            .filter { $0.attributeName.trimmedDescription.hasSuffix("Actor") }
-            .map { $0.trimmedDescription + " " }
-            .joined()
-        let isolation = requirement.declaration.modifiers.contains { $0.name.text == "nonisolated" }
-            ? "nonisolated "
-            : ""
-        let effects = requirement.throwsError ? " throws" : ""
-        let attempt = requirement.throwsError ? "try " : ""
-        let signature = "\(requirement.forwarderName)(\(requirement.forwarderParameters))\(effects)"
-        return """
-            \(raw: actors)private \(raw: isolation)func \(raw: signature) -> \(raw: requirement.output) {
-            return \(raw: attempt)self.\(raw: spy)(\(raw: requirement.callArgument))
-            }
-            """
+    /// Whether an attribute is `@<name>`, written alone or with the module's name.
+    private static func isAttribute(_ element: AttributeListSyntax.Element, named name: String) -> Bool {
+        let written = element.as(AttributeSyntax.self)?.attributeName.trimmedDescription
+        return written == name || written == "Understudy." + name
     }
 
     /// One stored spy per requirement, and an initializer that asks for every answer with no safe
     /// default.
-    private static func storage(for requirements: [Requirement], access: String) throws -> [DeclSyntax] {
+    private static func storage(for requirements: [any SpiedMember], access: String) throws -> [DeclSyntax] {
         let names = try spyNames(for: requirements)
         let prefix = access.isEmpty ? "" : access + " "
         var declarations: [DeclSyntax] = []
@@ -170,11 +156,10 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
         for (requirement, name) in zip(requirements, names) {
             if requirement.needsAnswer {
                 declarations.append("\(raw: prefix)let \(raw: name): \(raw: requirement.spyType)")
-                answers.append((name, (requirement.returnsFunction ? "@escaping " : "") + requirement.output))
+                answers.append((name, requirement.answerType))
             } else {
-                let answer = requirement.returnsNothing ? "()" : "nil"
                 declarations.append(
-                    "\(raw: prefix)let \(raw: name) = \(raw: requirement.spyType)(returning: \(raw: answer))"
+                    "\(raw: prefix)let \(raw: name) = \(raw: requirement.spyType)(returning: \(raw: requirement.defaultAnswer))"
                 )
             }
         }
@@ -201,19 +186,8 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
         String(spy.dropLast(spySuffix.count))
     }
 
-    /// A protocol requirement with its body, for the spy class.
-    private static func implementation(of requirement: Requirement, spy: String, access: String) -> DeclSyntax {
-        var function = requirement.declaration
-        function.body = CodeBlockSyntax(statements: SpiedMacro.body(of: requirement, spy: spy))
-        function.leadingTrivia = []
-        if !access.isEmpty {
-            function.modifiers.append(DeclModifierSyntax(name: .identifier(access), trailingTrivia: .space))
-        }
-        return DeclSyntax(function)
-    }
-
     /// The access level a generated member takes from the declaration it belongs to.
-    private static func access(of modifiers: DeclModifierListSyntax) -> String {
+    static func access(of modifiers: DeclModifierListSyntax) -> String {
         let levels = ["open", "public", "package", "internal", "fileprivate", "private"]
         guard let level = modifiers.first(where: { levels.contains($0.name.text) })?.name.text else {
             return ""

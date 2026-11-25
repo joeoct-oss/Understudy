@@ -4,6 +4,16 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+## 0.3.0 - 2026-11-25
+
+### Added
+
+- `@SpiedProperty`, which marks a `var` of an `@Understudy` class for the macro to write, and `PropertySpy`, which keeps every value set, counts the gets and answers with the last value set. `@Understudy` on a protocol now writes its `var` requirements too.
+- Held calls: `holdNextCall()` makes the next async call wait until the test resumes it with an answer, an error or the scripted answer. Async requirements written by `@Understudy` go through the new `respond(to:)`, so they can be held.
+- `nextCall(within:)`, which waits for a call made from another task, giving each call once, in order.
+- `CallOrder`, which keeps the order of calls across several spies.
+- Strict spies: `expect(_:times:)`, `expect(times:where:)` and `expectNoCalls()`, checked by `verify()`, which records each expected call that didn't happen and each call nobody expected as a Swift Testing issue.
+
 ## 0.2.0 - 2026-11-25
 
 ### Added
