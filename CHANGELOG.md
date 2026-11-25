@@ -7,6 +7,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 ### Added
 
 - `.spi.yml`, so the Swift Package Index builds the package and hosts the API docs of `Understudy` and `UnderstudySamples`.
+- A coverage report on Codecov for main and each pull request (the **Coverage report** workflow). `scripts/check-coverage.sh` writes the measured lines as one LCOV file when `COVERAGE_LCOV` names a path. The coverage gate itself is unchanged.
 
 ### Changed
 
