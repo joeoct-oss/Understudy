@@ -50,8 +50,9 @@ public macro GenerateSpies() = #externalMacro(module: "UnderstudyMacros", type: 
 public macro Spied() = #externalMacro(module: "UnderstudyMacros", type: "SpiedMacro")
 
 /// Marks a property of a ``GenerateSpies()`` class that the macro writes. Declare it as a `var` with
-/// a type and nothing else; the macro writes its getter and setter, and the double's initializer
-/// takes its value unless it is optional. To give the first value at the declaration instead, use
-/// ``Recorded``.
+/// a type, and a first value if you like; the macro writes its getter and setter. With a first
+/// value, `@SpiedProperty var user: String = "ana"`, the spy starts with it; without one, the
+/// double's initializer takes it unless it is optional. It works in a `Sendable` class and in an
+/// actor, where ``Recorded`` can't.
 @attached(accessor)
 public macro SpiedProperty() = #externalMacro(module: "UnderstudyMacros", type: "SpiedPropertyMacro")

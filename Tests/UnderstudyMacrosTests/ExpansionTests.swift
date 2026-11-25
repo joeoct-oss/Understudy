@@ -161,6 +161,7 @@ struct ExpansionTests {
                     @SpiedProperty var token: String?
                     @SpiedProperty var user: String
                     @SpiedProperty var onExpire: () -> Void
+                    @SpiedProperty var name: String = "ana"
                     @Spied func token(for user: String) -> String
                 }
                 """
@@ -337,8 +338,6 @@ struct ExpansionTests {
                            "'log' takes an autoclosure; write its double by hand", column: 21),
         refusedProperty("a let", "let token: String",
                         "'token' is a let; declare it as a var", column: 24),
-        refusedProperty("a property with a value", "var token: String = \"\"",
-                        "'token' has a value; give it none, the double's initializer takes it", column: 24),
         refusedProperty("a property with accessors", "var token: String { \"\" }",
                         "'token' is @SpiedProperty, so give it no accessors", column: 24),
         refusedProperty("a static property", "static var shared: Int",
