@@ -28,12 +28,14 @@ import Foundation
 /// `CancellationError`, as the system clocks do.
 ///
 /// **What `advance` promises.** It wakes each sleep whose deadline the window reaches, in
-/// deadline order, with `now` set to that deadline as it wakes. After each wake, it yields to
-/// the other tasks many times, so the woken task runs on to its next sleep, even across actors,
-/// and that sleep is woken in the same call when it falls inside the window. Swift has no public
-/// way to know when every woken task has reached its next suspension, so this is a generous wait,
-/// not a guarantee: a task that waits on something other than this clock between sleeps, such
-/// as real I/O, may not be done when `advance` returns.
+/// deadline order, with `now` set to that deadline as it wakes. After each wake, it lets the
+/// other tasks run until the woken task sleeps on the clock again, even across actors and the
+/// main actor, and that sleep is woken in the same call when it falls inside the window. When
+/// the woken task doesn't sleep again, and before the first wake, it lets them run for about
+/// 10 ms of real time, so tasks just started reach their first sleep. Swift has no public way to
+/// know when every task has reached its next suspension, so this is a generous wait, not a
+/// guarantee: a task that waits on something other than this clock, such as real I/O, may not
+/// be done when `advance` returns.
 ///
 /// Conformances:
 /// - `Clock`, so it goes wherever the code under test asks for an `any Clock<Duration>`.
@@ -71,17 +73,25 @@ public final class TestClock: Clock, @unchecked Sendable {
         }
     }
 
-    /// A sleep that waits for the clock: when it wakes, and the task waiting on it.
+    /// A sleep that waits for the clock: when it wakes, the task that sleeps, and the
+    /// continuation that resumes it.
     private struct Sleeper {
         let id: Int
         let deadline: Instant
+        /// The sleeping task's identity, so ``settle(after:)`` sees when it sleeps again.
+        let task: Int?
         let continuation: CheckedContinuation<Void, any Error>
     }
 
-    /// How many times ``advance(to:)`` yields after each wake, so woken work runs on to its next
-    /// sleep. 64 left a task that hops across actors behind in tests; 1,000 never did, in
-    /// milliseconds.
-    private static let yieldsPerWake = 1_000
+    /// The fewest times ``advance(to:)`` yields after each wake, so woken work runs on to its
+    /// next sleep. 64 left a task that hops across actors behind in tests.
+    private static let minimumYields = 1_000
+
+    /// How long ``advance(to:)`` keeps yielding after a wake when the woken task doesn't sleep
+    /// again, and before its first wake, in real time. 1,000 yields alone, about a millisecond,
+    /// left one run in 1,000 behind on a busy two-core machine, where a hop to the main actor
+    /// can wait longer than that.
+    private static let quietTime = Duration.milliseconds(10)
 
     /// Guards every stored value below.
     private let lock = NSLock()
@@ -91,13 +101,13 @@ public final class TestClock: Clock, @unchecked Sendable {
     private var current = Instant(offset: .zero)
 
     /// The sleeps waiting for the clock, in the order they started. `var` because sleeps start
-    /// and wake; only ``wait(_:until:with:)``, ``takeSleeper(dueBy:)`` and ``cancelSleeper(_:)``
+    /// and wake; only ``wait(_:)``, ``takeSleeper(dueBy:)`` and ``cancelSleeper(_:)``
     /// change it.
     private var sleepers: [Sleeper] = []
 
     /// The sleeps that have been called but don't wait yet. A sleep cancelled in that moment
     /// leaves it, and throws as soon as it would wait. `var` because sleeps start and get
-    /// cancelled; only ``sleep(until:tolerance:)``, ``wait(_:until:with:)`` and
+    /// cancelled; only ``sleep(until:tolerance:)``, ``wait(_:)`` and
     /// ``cancelSleeper(_:)`` change it.
     private var starting: Set<Int> = []
 
@@ -130,9 +140,10 @@ public final class TestClock: Clock, @unchecked Sendable {
             starting.insert(id)
             return id
         }
+        let task = withUnsafeCurrentTask { $0?.hashValue }
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
-                wait(id, until: deadline, with: continuation)
+                wait(Sleeper(id: id, deadline: deadline, task: task, continuation: continuation))
             }
         } onCancel: {
             cancelSleeper(id)
@@ -149,10 +160,10 @@ public final class TestClock: Clock, @unchecked Sendable {
     /// ``now`` set to each sleep's deadline as it wakes. An instant before ``now`` moves nothing,
     /// because the clock never goes back.
     public func advance(to deadline: Instant) async {
-        await settle()
+        await settle(after: nil)
         while let sleeper = takeSleeper(dueBy: deadline) {
             sleeper.continuation.resume()
-            await settle()
+            await settle(after: sleeper)
         }
     }
 
@@ -166,10 +177,10 @@ public final class TestClock: Clock, @unchecked Sendable {
     /// loop of sleeps runs to its end. ``now`` is then the last deadline. Code that always
     /// starts another sleep, such as a repeating timer, keeps it running.
     public func run() async {
-        await settle()
+        await settle(after: nil)
         while let sleeper = takeSleeper(dueBy: nil) {
             sleeper.continuation.resume()
-            await settle()
+            await settle(after: sleeper)
         }
     }
 
@@ -184,29 +195,43 @@ public final class TestClock: Clock, @unchecked Sendable {
         return body()
     }
 
-    /// Yields to the other tasks, so work a wake started runs on to its next suspension.
-    private func settle() async {
-        for _ in 0..<Self.yieldsPerWake {
+    /// Yields to the other tasks, so the work `woken` started runs on to its next suspension:
+    /// at least ``minimumYields`` times, then until the woken task sleeps on this clock again,
+    /// or until ``quietTime`` has passed. With nothing woken yet, it waits the quiet time, so
+    /// tasks just started reach their first sleep.
+    private func settle(after woken: Sleeper?) async {
+        let start = ContinuousClock.now
+        for _ in 0..<Self.minimumYields {
+            await Task.yield()
+        }
+        while ContinuousClock.now - start < Self.quietTime, !isSleeping(woken?.task) {
             await Task.yield()
         }
     }
 
-    /// Keeps sleep `id` waiting for `deadline`, or ends it at once when the clock is already
+    /// Whether `task` waits on this clock; `false` for no task.
+    private func isSleeping(_ task: Int?) -> Bool {
+        synchronized {
+            task != nil && sleepers.contains { $0.task == task }
+        }
+    }
+
+    /// Keeps `sleeper` waiting for its deadline, or ends it at once when the clock is already
     /// there or the sleep was cancelled first. A task cancelled before it sleeps lands here
     /// cancelled, because its cancellation handler runs first.
-    private func wait(_ id: Int, until deadline: Instant, with continuation: CheckedContinuation<Void, any Error>) {
+    private func wait(_ sleeper: Sleeper) {
         let outcome: Result<Void, any Error>? = synchronized {
-            if starting.remove(id) == nil {
+            if starting.remove(sleeper.id) == nil {
                 return .failure(CancellationError())
             }
-            if deadline <= current {
+            if sleeper.deadline <= current {
                 return .success(())
             }
-            sleepers.append(Sleeper(id: id, deadline: deadline, continuation: continuation))
+            sleepers.append(sleeper)
             return nil
         }
         if let outcome {
-            continuation.resume(with: outcome)
+            sleeper.continuation.resume(with: outcome)
         }
     }
 
