@@ -23,6 +23,9 @@ protocol SpiedMember {
     var defaultAnswer: String { get }
     /// The type the initializer takes the answer as, `@escaping` for a closure the spy keeps.
     var answerType: String { get }
+    /// The answer the initializer gives when the test passes none, for a type with an obvious one,
+    /// such as `""` for `String`; `nil` when the test must pass one.
+    var obviousAnswer: String? { get }
     /// The type of a second spy that keeps the sets, for a settable subscript; `nil` for others.
     var setSpyType: String? { get }
     /// What the requirement goes through to reach `spy` on a class.
@@ -41,6 +44,43 @@ extension SpiedMember {
         nil
     }
 }
+
+/// The obvious value of a type, which the double's initializer gives an answer of that type when
+/// the test passes none: `""`, `0`, `false` or an empty collection. `nil` for any other type,
+/// including one spelled another way, such as `Swift.String` or a typealias, which the macro
+/// can't place.
+func obviousDefault(of type: TypeSyntax) -> String? {
+    if type.is(ArrayTypeSyntax.self) {
+        return "[]"
+    }
+    if type.is(DictionaryTypeSyntax.self) {
+        return "[:]"
+    }
+    guard let named = type.as(IdentifierTypeSyntax.self) else {
+        return nil
+    }
+    switch named.name.text {
+    case "Array", "Set":
+        return named.genericArgumentClause == nil ? nil : "[]"
+    case "Dictionary":
+        return named.genericArgumentClause == nil ? nil : "[:]"
+    default:
+        return obviousDefaults[named.name.text]
+    }
+}
+
+/// The obvious value of each type that has one and no generic arguments.
+private let obviousDefaults: [String: String] = {
+    var defaults = ["String": #""""#, "Bool": "false"]
+    let numbers = [
+        "Int", "Int8", "Int16", "Int32", "Int64", "UInt", "UInt8", "UInt16", "UInt32", "UInt64",
+        "Double", "Float", "CGFloat", "Decimal",
+    ]
+    for number in numbers {
+        defaults[number] = "0"
+    }
+    return defaults
+}()
 
 /// The name of the spy that keeps a subscript's sets, from the name of the one that keeps its
 /// gets: `subscriptSetSpy` for `subscriptSpy`.
@@ -75,6 +115,8 @@ struct Requirement: SpiedMember {
     let typedError: String?
     let isAsync: Bool
     let output: String
+    /// The return type as written, which ``obviousAnswer`` reads; `nil` when it returns nothing.
+    let returnType: TypeSyntax?
     let returnsNothing: Bool
     let returnsOptional: Bool
     /// Whether the answer is a closure, which the double's initializer must take `@escaping`.
@@ -118,6 +160,10 @@ struct Requirement: SpiedMember {
 
     var answerType: String {
         (returnsFunction ? "@escaping " : "") + output
+    }
+
+    var obviousAnswer: String? {
+        returnType.flatMap(obviousDefault(of:))
     }
 
     /// The statements that call `spy` and return its answer, cast back to the generic parameter
@@ -258,6 +304,7 @@ struct Requirement: SpiedMember {
             )
         }
         let returnType = signature.returnClause?.type
+        self.returnType = returnType
         let unwrapped = returnType?.as(OptionalTypeSyntax.self)?.wrappedType ?? returnType
         if let returnType, let unwrapped, let erased = Self.erased(unwrapped, generics: generics) {
             let optional = returnType.is(OptionalTypeSyntax.self)
@@ -418,6 +465,8 @@ struct Requirement: SpiedMember {
 struct Property: SpiedMember {
     let nameToken: TokenSyntax
     let type: String
+    /// The type as written, which ``obviousAnswer`` reads.
+    let typeSyntax: TypeSyntax
     let isOptional: Bool
     let isFunction: Bool
     /// The first value written at the declaration, such as `"ana"`, which the spy starts with.
@@ -441,6 +490,10 @@ struct Property: SpiedMember {
 
     var answerType: String {
         (isFunction ? "@escaping " : "") + type
+    }
+
+    var obviousAnswer: String? {
+        obviousDefault(of: typeSyntax)
     }
 
     /// The private property `@GenerateSpies` writes for this property on a class, which the
@@ -473,6 +526,7 @@ struct Property: SpiedMember {
             throw UnderstudyError("\(where_) is @SpiedProperty, so give it no accessors", at: pattern.identifier)
         }
         let type = annotation.type
+        typeSyntax = type
         self.type = type.trimmedDescription
         isOptional = type.is(OptionalTypeSyntax.self)
             || type.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)

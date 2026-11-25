@@ -98,6 +98,27 @@ struct ExpansionTests {
         #expect(!expanded.description.contains("subscriptSetSpy"))
     }
 
+    /// A type with no obvious value stays a required argument of the initializer, so the compiler
+    /// still asks for it; the test checks the initializer the double declares.
+    @Test
+    func initStillAsksForATypeWithNoObviousDefault() {
+        let (expanded, _) = expand("""
+            @GenerateSpies
+            final class SpyCatalog: Catalog {
+                @Spied func product(id: Int) -> Product
+                @Spied func count() -> Swift.Int
+                @Spied func handler() -> () -> Void
+                @Spied func list() -> Array<Int>
+                @Spied func map() -> Dictionary<String, Int>
+                @Spied func name() -> String
+            }
+            """)
+
+        let initializer = "init(product: Product, count: Swift.Int, handler: @escaping () -> Void, "
+            + #"list: Array<Int> = [], map: Dictionary<String, Int> = [:], name: String = "")"#
+        #expect(expanded.description.contains(initializer))
+    }
+
     /// The body `@Spied` writes for a requirement `@GenerateSpies` refused.
     private static let refusedBody = "@GenerateSpies can't write this requirement"
 

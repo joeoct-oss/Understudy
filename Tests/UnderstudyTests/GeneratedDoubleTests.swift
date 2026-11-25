@@ -34,6 +34,41 @@ struct GeneratedDoubleTests {
     }
 
     @Test
+    func initAsksOnlyForAnswersWithNoObviousDefault() {
+        let shop = SpyShop()
+
+        let name = shop.name()
+        let stock = shop.stock()
+        let price = shop.price()
+        let open = shop.isOpen
+        let tags = shop.tags()
+        let prices = shop.prices()
+        let codes = shop.codes()
+
+        let noTags: [String] = []
+        let noPrices: [String: Double] = [:]
+        let noCodes: Set<Int> = []
+        #expect(name == "")
+        #expect(stock == 0)
+        #expect(price == 0)
+        #expect(!open)
+        #expect(tags == noTags)
+        #expect(prices == noPrices)
+        #expect(codes == noCodes)
+    }
+
+    @Test
+    func initStillTakesEveryAnswerItTookBefore() {
+        let shop = SpyShop(isOpen: true, name: "Corner", stock: 9, tags: ["new"])
+
+        let expectedTags = ["new"]
+        #expect(shop.name() == "Corner")
+        #expect(shop.stock() == 9)
+        #expect(shop.isOpen)
+        #expect(shop.tags() == expectedTags)
+    }
+
+    @Test
     func optionalAndVoidAnswersNeedNothingAtCreation() {
         let catalog = SpyCatalog(product: "apple")
 
@@ -411,6 +446,32 @@ private final class SpyCatalog: Catalog {
     @Spied func refresh()
     @Spied func remove(id: Int)
     @Spied func remove(named name: String)
+}
+
+/// A shop whose every answer has an obvious first value.
+private protocol Shop: AnyObject {
+    var isOpen: Bool { get set }
+    func name() -> String
+    func stock() -> Int
+    func price() -> Double
+    func tags() -> [String]
+    func prices() -> [String: Double]
+    func codes() -> Set<Int>
+}
+
+/// A shop the test makes with no arguments, or with only the answers it cares about.
+///
+/// Conformances:
+/// - `Shop`, so a test can pass it where a shop is expected.
+@GenerateSpies
+private final class SpyShop: Shop {
+    @SpiedProperty var isOpen: Bool
+    @Spied func name() -> String
+    @Spied func stock() -> Int
+    @Spied func price() -> Double
+    @Spied func tags() -> [String]
+    @Spied func prices() -> [String: Double]
+    @Spied func codes() -> Set<Int>
 }
 
 /// Loads data that may not be there.

@@ -13,6 +13,8 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Changed
 
+- The double's initializer gives an obvious first answer when the test passes none: `""` for `String`, `0` for whole and decimal numbers and `Decimal`, `false` for `Bool`, and empty arrays, dictionaries and sets. `SpyCatalog()` now compiles when every answer has one. A type with no obvious answer is still a required argument, and every argument a test passes today is still accepted. The macro reads the type as written, so `Swift.String` or a typealias stays required.
+
 - The README is rewritten for a first-time user: what Understudy is (spies and sample values), install, a quick start, then each tool with one short example. Every example is compiled and run against the current API.
 
 ## 0.5.0 - 2026-11-25

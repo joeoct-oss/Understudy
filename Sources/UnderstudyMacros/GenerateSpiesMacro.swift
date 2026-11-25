@@ -179,8 +179,9 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
         return written == name || written == "Understudy." + name
     }
 
-    /// One stored spy per requirement, and an initializer that asks for every answer with no safe
-    /// default. An actor's spies are `nonisolated`, so a test reads them without `await`.
+    /// One stored spy per requirement, and an initializer that takes every answer with no safe
+    /// default, defaulting those with an obvious value. An actor's spies are `nonisolated`, so a
+    /// test reads them without `await`.
     private static func storage(
         for requirements: [any SpiedMember],
         access: String,
@@ -190,15 +191,16 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
         let prefix = access.isEmpty ? "" : access + " "
         let spyPrefix = prefix + (isActor ? "nonisolated " : "")
         var declarations: [DeclSyntax] = []
-        // A closure answer is taken `@escaping`, because the spy keeps it.
-        var answers: [(name: String, output: String)] = []
+        // A closure answer is taken `@escaping`, because the spy keeps it. An answer with an
+        // obvious value defaults to it, so the test passes only the answers that matter to it.
+        var answers: [(name: String, output: String, obvious: String?)] = []
         for (requirement, name) in zip(requirements, names) {
             if let setSpyType = requirement.setSpyType {
                 declarations.append("\(raw: spyPrefix)let \(raw: setSpyName(for: name)) = \(raw: setSpyType)()")
             }
             if requirement.needsAnswer {
                 declarations.append("\(raw: spyPrefix)let \(raw: name): \(raw: requirement.spyType)")
-                answers.append((name, requirement.answerType))
+                answers.append((name, requirement.answerType, requirement.obviousAnswer))
             } else {
                 declarations.append(
                     "\(raw: spyPrefix)let \(raw: name) = \(raw: requirement.spyType)(returning: \(raw: requirement.defaultAnswer))"
@@ -210,7 +212,9 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
         }
         // The initializer names each answer after its requirement: `init(now:)` fills `nowSpy`, and
         // `init(subscript:)` fills `subscriptSpy`, with the keyword in backticks where it's a name.
-        let parameters = answers.map { "\(label(of: $0.name)): \($0.output)" }.joined(separator: ", ")
+        let parameters = answers.map { answer in
+            "\(label(of: answer.name)): \(answer.output)" + (answer.obvious.map { " = \($0)" } ?? "")
+        }.joined(separator: ", ")
         let assignments = answers.map { answer in
             let name = label(of: answer.name)
             return "self.\(answer.name) = .init(returning: \(name == "subscript" ? "`subscript`" : name))"

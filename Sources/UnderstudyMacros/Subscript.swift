@@ -62,6 +62,10 @@ struct Subscript: SpiedMember {
         (returnsFunction ? "@escaping " : "") + output
     }
 
+    var obviousAnswer: String? {
+        obviousDefault(of: declaration.returnClause.type)
+    }
+
     /// The label of the private subscript `@GenerateSpies` writes on a class, which the `@Spied`
     /// accessors go through, so an overload reaches its own spies.
     static let forwarderLabel = "__understudy"

@@ -105,17 +105,20 @@ A function with several parameters records them as a labelled tuple: `search(for
 
 ### Script answers
 
-A function that returns `Void` or an optional answers `()` or `nil` until you script it. Any other function takes its answer when the double is made, so a double is never called with nothing to answer:
+Every function answers something from the start, so a double is never called with nothing to answer. `Void` answers `()` and an optional answers `nil`. A string answers `""`, a number `0`, a `Bool` `false`, and an array, dictionary or set answers empty, unless you pass another answer when you make the double. Any other type, such as your own `Product`, has to be passed:
 
 ```swift
 @GenerateSpies
 final class SpyPricing: Pricing {
     @Spied func price(of id: Int) -> Int
-    @Spied func load(path: String) async throws -> String
+    @Spied func product(id: Int) -> Product
 }
 
-let pricing = SpyPricing(price: 10, load: "")
+let pricing = SpyPricing(product: .apple)              // price answers 0
+let pricier = SpyPricing(price: 10, product: .apple)   // price answers 10
 ```
+
+The macro reads the type as you wrote it, so `Swift.String`, or a typealias of `String`, has to be passed too.
 
 Change the answer at any point in the test:
 
@@ -124,8 +127,8 @@ pricing.priceSpy.willReturn(12)               // every later call
 pricing.priceSpy.willReturnNext(1, then: 2)   // the next two calls, then back to 12
 pricing.priceSpy.willAnswer { $0 * 100 }      // worked out from the input
 
-pricing.loadSpy.willThrow(LoadError.offline)  // a function that throws
-pricing.loadSpy.willGiveNext(.failure(LoadError.offline), then: .success("ok"))
+loader.loadSpy.willThrow(LoadError.offline)   // a function that throws
+loader.loadSpy.willGiveNext(.failure(LoadError.offline), then: .success("ok"))
 ```
 
 ### Typed throws
@@ -145,7 +148,7 @@ auth.signInSpy.willThrow(AuthError.wrongPassword)   // the caller catches an Aut
 
 ### Properties
 
-Mark a `var` with `@SpiedProperty` and give it a type. Give it a first value too, or the double takes one when it is made, unless the property is optional:
+Mark a `var` with `@SpiedProperty` and give it a type. Give it a first value too, or pass one when the double is made. Without either, it starts as `nil`, `""`, `0`, `false` or empty, as a function's answer does, and any other type has to be passed:
 
 ```swift
 @GenerateSpies
