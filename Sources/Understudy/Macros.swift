@@ -41,9 +41,16 @@
 /// parameter `T` is recorded as `any` of its constraints, and so is one inside an array, an
 /// optional, a dictionary's value or a set: `[T]` as `[any Tag]`, `Set<T>` as `Set<AnyHashable>`.
 /// A generic answer is cast back to the type the caller asks for. A subscript gets a spy for its
-/// gets and one for its sets; see ``Spied()``. Static requirements are written by hand.
+/// gets and one for its sets; see ``Spied()``.
+///
+/// A static requirement's spy lives in a box, held in a task local, so each test can have its own
+/// with ``Testing/Trait/freshSpies(_:)``: `@Test(.freshSpies(SpyClock.self))`. Without the trait,
+/// every test shares one box. A static spy has no initializer to take its first answer, so it
+/// starts from the obvious one, and a requirement with none is refused. The class or actor then
+/// conforms to ``StaticSpies``.
 @attached(member, names: arbitrary)
 @attached(peer, names: suffixed(Spy))
+@attached(extension, conformances: StaticSpies)
 public macro GenerateSpies() = #externalMacro(module: "UnderstudyMacros", type: "GenerateSpiesMacro")
 
 /// Marks a function of a ``GenerateSpies()`` class that the macro writes. Give it no body.

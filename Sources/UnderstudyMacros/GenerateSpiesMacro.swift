@@ -12,7 +12,7 @@ import SwiftSyntaxMacros
 
 /// `@GenerateSpies`: on a class, adds a spy and a private forwarder for each `@Spied` requirement; on a
 /// protocol, writes a spy class next to it.
-public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
+public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
     /// The spies, the forwarders and the initializer, for a class.
     public static func expansion(
         of node: AttributeSyntax,
@@ -34,6 +34,25 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
         try reporting(in: context) {
             try peers(of: declaration)
         }
+    }
+
+    /// The conformance to `StaticSpies`, for a class or an actor with static spies, so
+    /// `.freshSpies(_:)` can give each test its own.
+    public static func expansion(
+        of node: AttributeSyntax,
+        attachedTo declaration: some DeclGroupSyntax,
+        providingExtensionsOf type: some TypeSyntaxProtocol,
+        conformingTo protocols: [TypeSyntax],
+        in context: some MacroExpansionContext
+    ) throws -> [ExtensionDeclSyntax] {
+        guard declaration.is(ClassDeclSyntax.self) || declaration.is(ActorDeclSyntax.self),
+              let requirements = try? spiedRequirements(of: declaration.memberBlock),
+              requirements.contains(where: \.isStatic) else {
+            return []
+        }
+        return [
+            try ExtensionDeclSyntax("extension \(type.trimmed): Understudy.StaticSpies {}"),
+        ]
     }
 
     /// Reports an error about a requirement at the requirement, so the editor marks that line, and
@@ -81,7 +100,9 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
         let forwarders = zip(requirements, names).map { requirement, name in
             requirement.forwarder(spy: name)
         }
-        return try storage(for: requirements, access: access(of: declaration.modifiers), isActor: isActor)
+        let typeName = declaration.asProtocol(NamedDeclSyntax.self)?.name.text ?? ""
+        let access = access(of: declaration.modifiers)
+        return try storage(for: requirements, in: typeName, access: access, isActor: isActor)
             + forwarders
     }
 
@@ -118,7 +139,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
         }
         let access = access(of: proto.modifiers)
         let names = try spyNames(for: requirements)
-        let members = try storage(for: requirements, access: access, isActor: isActor)
+        let members = try storage(for: requirements, in: proto.name.text + "Spy", access: access, isActor: isActor)
             + zip(requirements, names).map { requirement, name in
                 requirement.implementation(spy: name, access: access)
             }
@@ -130,10 +151,11 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
         let body = members.map { $0.trimmedDescription }.joined(separator: "\n\n")
         let name = proto.name.text
         let kind = isActor ? "actor" : "final class"
+        let conformances = requirements.contains(where: \.isStatic) ? ", Understudy.StaticSpies" : ""
         return [
             """
             /// A spy for `\(raw: name)`, written by `@GenerateSpies`.
-            \(raw: actors)\(raw: prefix)\(raw: kind) \(raw: name)Spy: \(raw: name) {
+            \(raw: actors)\(raw: prefix)\(raw: kind) \(raw: name)Spy: \(raw: name)\(raw: conformances) {
             \(raw: body)
             }
             """,
@@ -184,17 +206,19 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
     /// test reads them without `await`.
     private static func storage(
         for requirements: [any SpiedMember],
+        in typeName: String,
         access: String,
         isActor: Bool
     ) throws -> [DeclSyntax] {
         let names = try spyNames(for: requirements)
         let prefix = access.isEmpty ? "" : access + " "
         let spyPrefix = prefix + (isActor ? "nonisolated " : "")
-        var declarations: [DeclSyntax] = []
+        let statics = zip(requirements, names).filter { $0.0.isStatic }
+        var declarations = try staticStorage(for: statics, in: typeName, prefix: prefix)
         // A closure answer is taken `@escaping`, because the spy keeps it. An answer with an
         // obvious value defaults to it, so the test passes only the answers that matter to it.
         var answers: [(name: String, output: String, obvious: String?)] = []
-        for (requirement, name) in zip(requirements, names) {
+        for (requirement, name) in zip(requirements, names) where !requirement.isStatic {
             if let setSpyType = requirement.setSpyType {
                 declarations.append("\(raw: spyPrefix)let \(raw: setSpyName(for: name)) = \(raw: setSpyType)()")
             }
@@ -228,6 +252,59 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
             """
         )
         return declarations
+    }
+
+    /// The box of static spies, held in a task local so each test can have its own, and a static
+    /// property per spy that reads the current box. A static spy has no initializer to take its
+    /// first answer, so it starts from the obvious one; a requirement with none is refused.
+    private static func staticStorage(
+        for statics: [(any SpiedMember, String)],
+        in typeName: String,
+        prefix: String
+    ) throws -> [DeclSyntax] {
+        guard !statics.isEmpty else {
+            return []
+        }
+        let box = "__understudy_statics"
+        var spies: [String] = []
+        var readers: [DeclSyntax] = []
+        for (requirement, name) in statics {
+            guard let first = requirement.needsAnswer ? requirement.obviousAnswer : requirement.defaultAnswer else {
+                throw UnderstudyError(
+                    "'\(requirement.baseName)' is static, so no initializer takes its first answer, and "
+                        + "'\(requirement.answerType)' has no obvious one; make it optional, or write its "
+                        + "double by hand",
+                    at: requirement.nameToken
+                )
+            }
+            spies.append("let \(name) = \(requirement.spyType)(returning: \(first))")
+            readers.append(
+                """
+                /// The spy for `\(raw: requirement.baseName)` in this test's box: `.freshSpies(_:)`
+                /// gives each test its own.
+                \(raw: prefix)static var \(raw: name): \(raw: requirement.spyType) {
+                \(raw: box).get().\(raw: name)
+                }
+                """
+            )
+        }
+        let fresh = "@Sendable (_ test: () async throws -> Void) async throws -> Void"
+        return [
+            """
+            /// The static spies of one test, or of every test that runs without `.freshSpies(_:)`.
+            \(raw: prefix)final class Statics: Sendable {
+            \(raw: spies.joined(separator: "\n"))
+            }
+            """,
+            "private static let \(raw: box) = TaskLocal(wrappedValue: Statics())",
+            """
+            \(raw: prefix)static let withFreshSpies: \(raw: fresh) = { test in
+            try await \(raw: typeName).\(raw: box).withValue(Statics()) {
+            try await test()
+            }
+            }
+            """,
+        ] + readers
     }
 
     /// The initializer's label for a spy's answer: the spy's name without its suffix.
