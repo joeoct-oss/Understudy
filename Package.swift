@@ -15,8 +15,9 @@ let package = Package(
         .library(name: "Understudy", targets: ["Understudy"]),
     ],
     dependencies: [
-        // The macros are built on swift-syntax. Any 6.x release works: body macros need 600.
-        .package(url: "https://github.com/swiftlang/swift-syntax", "600.0.0"..<"700.0.0"),
+        // The macros are built on swift-syntax, from 602: 600 lacks the generic parameter
+        // specifier the macros read, and 601 reports a misplaced `@SpiedProperty` differently.
+        .package(url: "https://github.com/swiftlang/swift-syntax", "602.0.0"..<"700.0.0"),
     ],
     targets: [
         // Writes test doubles from the requirements they are given.

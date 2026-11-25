@@ -26,6 +26,7 @@ Swift macros that write your test doubles: mark a requirement, and every call is
 ## Requirements
 
 - Swift 6.0 or later, on Apple platforms (iOS 13, macOS 10.15, tvOS 13, watchOS 6, visionOS 1) and Linux.
+- swift-syntax 602 or later, below 700. SwiftPM picks it for you unless your project pins an older one.
 - Swift Testing for `verify()`. Everything else works with any test framework.
 
 ## Install
