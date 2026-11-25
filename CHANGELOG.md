@@ -4,6 +4,8 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+## 0.6.0 - 2026-11-25
+
 ### Added
 
 - Typed throws: `@GenerateSpies` writes a requirement such as `func signIn(...) async throws(AuthError) -> Account`. It gets a `ThrowingSpy`, as a plain `throws` does, and its body rethrows the scripted error as `AuthError`. An error of another type stops the test with a message naming the spy and both types. `throws(any Error)` is a plain `throws`, and `throws(Never)` throws nothing.

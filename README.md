@@ -23,7 +23,7 @@ Add the package, then add `Understudy` to your **test targets**. Your shipped co
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/joeoct-oss/Understudy", from: "0.5.0"),
+    .package(url: "https://github.com/joeoct-oss/Understudy", from: "0.6.0"),
 ],
 targets: [
     .testTarget(
