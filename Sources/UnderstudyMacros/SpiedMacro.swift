@@ -30,7 +30,7 @@ public struct SpiedMacro: BodyMacro {
         // `@GenerateSpies` explains a requirement it can't write, at the requirement. The body only has
         // to compile until the person fixes it.
         guard let requirement = try? Requirement(function) else {
-            return ["fatalError(\"@GenerateSpies can't write this requirement\")"]
+            return ["Swift.fatalError(\"@GenerateSpies can't write this requirement\")"]
         }
         let attempt = requirement.throwsError ? "try " : ""
         let wait = requirement.isAsync ? "await " : ""
@@ -53,7 +53,7 @@ public struct SpiedMacro: BodyMacro {
         // `@GenerateSpies` explains a subscript it can't write, at the subscript. The context may
         // hold the subscript without its accessors, so only its indices are read here.
         guard let spied = try? Subscript(declaration, checkingAccessors: false) else {
-            return ["fatalError(\"@GenerateSpies can't write this requirement\")"]
+            return ["Swift.fatalError(\"@GenerateSpies can't write this requirement\")"]
         }
         let target = spied.forwarderTarget
         guard accessor.accessorSpecifier.tokenKind == .keyword(.set) else {

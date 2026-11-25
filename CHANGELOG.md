@@ -16,6 +16,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 - CodeRabbit's review checks the shared code style and clean code (short functions, clear names, no repeated logic), and says exactly which macro test checks are wanted. SonarQube Cloud keeps tests apart from sources and leaves coverage to Codecov, Codecov reports through statuses only, and `CODE_STYLE.md` no longer contradicts itself on macro tests. The review uses the chill profile and reports broken style and testing rules inline as should-fix findings, so an open one blocks the merge.
 - Every test has a display name that states what it checks, such as "A spy keeps every input in order", so a test report reads as a list of what the package promises. Test function names stay as they were, for `swift test --filter`.
 
+### Fixed
+
+- The code `@GenerateSpies` writes names every type it uses with its module (`Understudy.Spy`, `Understudy.PropertySpy`, `Swift.Void`, `_Concurrency.TaskLocal` and the rest), so a double still builds next to a type of the test's own called `Spy`, `Void` or `TaskLocal`. `@Sample`'s defaults keep the type as the property writes it, so they follow a type of the app's own called `Date` or `URL`.
+
 ## 0.6.0 - 2026-11-25
 
 ### Added
