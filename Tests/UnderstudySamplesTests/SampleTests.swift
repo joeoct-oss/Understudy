@@ -14,7 +14,7 @@ import UnderstudySamples
 /// it is about.
 @Suite("Samples")
 struct SampleTests {
-    @Test
+    @Test("A sample fills every stored property with its default")
     func sampleFillsEveryStoredPropertyWithItsDefault() {
         let defaults = Defaults.sample()
 
@@ -35,7 +35,7 @@ struct SampleTests {
         #expect(defaults.link == URL(string: "https://example.com"))
     }
 
-    @Test
+    @Test("A sample changes only the properties the test passes")
     func sampleOverridesOnlyTheGivenProperties() {
         let free = Product.sample(price: 0, tags: ["home"])
 
@@ -51,21 +51,21 @@ struct SampleTests {
         #expect(free == expected)
     }
 
-    @Test
+    @Test("A nested Sample type uses its own sample")
     func nestedSampleTypesUseTheirOwnSample() {
         let product = Product.sample()
 
         #expect(product.seller == Seller.sample())
     }
 
-    @Test
+    @Test("A property's initial value is its default")
     func aPropertysInitialValueIsItsDefault() {
         let product = Product.sample()
 
         #expect(product.stock == 5)
     }
 
-    @Test
+    @Test("SampleDefault sets the property's default")
     func sampleDefaultSetsThePropertysDefault() {
         let product = Product.sample()
 
@@ -73,7 +73,7 @@ struct SampleTests {
         #expect(product.seller.rating == 4.5)
     }
 
-    @Test
+    @Test("A let with a value isn't a parameter")
     func letWithAValueIsNotAParameter() {
         let product = Product.sample(name: "Lamp")
 
@@ -81,7 +81,7 @@ struct SampleTests {
         #expect(product.name == "Lamp")
     }
 
-    @Test
+    @Test("Computed, static and observed properties are handled as the memberwise initializer does")
     func computedStaticAndObservedPropertiesAreHandledLikeTheMemberwiseInitializer() {
         let counter = Counter.sample(value: 3)
 

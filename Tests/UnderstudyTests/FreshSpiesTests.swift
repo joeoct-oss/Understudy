@@ -14,7 +14,7 @@ import Understudy
 /// each other's calls or answers.
 @Suite("Fresh static spies", .freshSpies(SpyBeacon.self))
 struct FreshSpiesTests {
-    @Test(arguments: 0..<8)
+    @Test("Fresh spies give each test its own static spies, in its child tasks too", arguments: 0..<8)
     func freshSpiesGivesEachTestItsOwnStaticSpies(_ signal: Int) async {
         SpyBeacon.signalSpy.willReturn(signal)
 
@@ -28,7 +28,7 @@ struct FreshSpiesTests {
 
     /// A trait can't name a spy class written next to a protocol, because Swift doesn't look into
     /// macro expansions from a macro's arguments, so the test asks the double itself.
-    @Test(arguments: 0..<8)
+    @Test("A protocol's spy gives fresh static spies to the block it runs", arguments: 0..<8)
     func protocolDoubleGivesFreshSpiesToTheBlockItRuns(_ signal: Int) async throws {
         try await BeaconSpy.withFreshSpies {
             BeaconSpy.signalSpy.willReturn(signal)
