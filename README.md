@@ -4,11 +4,13 @@
 
 # Understudy
 
-**Test doubles that write themselves.** Mark the functions and properties your double stands in for, and Understudy's Swift macros record every call and answer the way your test says.
+**Mocks and fakes for your Swift tests, written for you.** Mark the functions and properties your fake stands in for, and Understudy's Swift macros record every call and answer the way your test says.
+
+These stand-ins are called *test doubles*, as a stunt double stands in for an actor: a test uses one in place of a real dependency, such as a network client, a database or a clock, so the test decides what it answers and can check how it was called.
 
 It has two tools, in two products:
 
-- **Spies** (`Understudy`): `@GenerateSpies` writes a test double for a protocol. Each function and property gets a spy that records its calls and gives scripted answers.
+- **Spies** (`Understudy`): `@GenerateSpies` writes a test double for your protocol. Each function and property gets a spy that records its calls and gives scripted answers.
 - **Sample values** (`UnderstudySamples`): `@Sample` writes `sample(...)` for a struct, so a test gets a complete value in one call.
 
 **Contents:** [Install](#install) · [Quick start](#quick-start) · [Spies](#spies) · [Sample values](#sample-values) · [What the macros refuse](#what-the-macros-refuse)
