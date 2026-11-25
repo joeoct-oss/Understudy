@@ -287,7 +287,30 @@ checkout.complete()
 analytics.trackSpy.verify()
 ```
 
-`expectNoCalls()` makes any call a failure. A spy with no expectations stays lenient. `verify()` needs Swift Testing; everything else works with any test framework.
+`expectNoCalls()` makes any call a failure. A spy with no expectations stays lenient. Check state first, and keep a mock for an effect the user relies on, such as an event sent or a message posted.
+
+**Verify by itself.** With `.verifiesMocks` on a test or a suite, every spy given an expectation is checked when the test ends, so a forgotten `verify()` can't pass silently:
+
+```swift
+@Test(.verifiesMocks)
+func checkoutSendsOneEvent() {
+    analytics.trackSpy.expect("checkout")
+    checkout.complete()
+}   // an unmet expectation is reported at the expect line
+```
+
+- An expectation not met is reported at its `expect` line, and a call nobody expected at the test.
+- A spy with no expectations is never checked, so lenient stays the default.
+- It covers `Spy` and `ThrowingSpy`, static spies, a spy whose input isn't `Sendable`, expectations set in a suite's `init`, and each case of a parameterized test on its own. It works next to `.freshSpies`.
+- `verify()` still works, for a check in the middle of a test, and a problem it reported isn't reported again.
+
+Its limits:
+
+- **It needs Swift 6.1 or later**, where test traits can wrap a test. On Swift 6.0 it doesn't exist, and `verify()` works as before.
+- **It doesn't see an `expect` called from a detached task or from Dispatch work**, because task locals don't reach those. Set expectations in the test, or call `verify()` for those spies.
+- **It is opt-in.** A strict spy without the trait still needs `verify()`.
+
+`verify()` and the expectations need Swift Testing; everything else works with any test framework.
 
 ### Reset
 

@@ -61,17 +61,27 @@ final class Ledger<Input, Output> {
     /// Whether the spy is strict: set once the test expects anything, even no calls at all.
     private var isStrict = false
 
+    /// The problems ``verify(sourceLocation:)`` has reported, so `.verifiesMocks` reports only
+    /// the rest. `var` because each report adds its problems; only ``reportProblems()`` adds,
+    /// and ``reset()`` clears.
+    private var reported: [String] = []
+
     /// A held call: runs in the caller's isolation, takes the call's input and the answer the spy
     /// would have given, and gives the answer the call returns.
     typealias Hold = (isolated (any Actor)?, Input, Output) async -> Output
 
-    /// One expectation: the calls it matches, how many it wants, and how a report names them.
+    /// One expectation: the calls it matches, how many it wants, how a report names them, and
+    /// where the test set it.
     struct Expectation {
         /// Whether a call matches. A test's own closure comes in `@Sendable`; the equality check
         /// captures only the expected input, which is `Sendable` whenever the spy is.
         let matches: (Input) -> Bool
+        /// How many matching calls it wants.
         let times: Int
+        /// How a report names the calls it matches.
         let description: String
+        /// The `expect` call, where `.verifiesMocks` reports it when it isn't met.
+        let site: ExpectationSite?
     }
 
     /// Every input, oldest first.
@@ -188,27 +198,57 @@ final class Ledger<Input, Output> {
             handedOut = 0
             expectations.removeAll()
             isStrict = false
+            reported.removeAll()
         }
     }
 
-    /// Adds an expectation, which makes the spy strict.
+    /// Adds an expectation, which makes the spy strict, and lists the spy with `.verifiesMocks`
+    /// when the test runs with it.
     func expect(_ expectation: Expectation) {
         synchronized {
             expectations.append(expectation)
             isStrict = true
         }
+        MockRegistry.current.get()?.register(self)
     }
 
-    /// Makes the spy strict with no expectations, so any call is unexpected.
+    /// Makes the spy strict with no expectations, so any call is unexpected, and lists the spy
+    /// with `.verifiesMocks` when the test runs with it.
     func expectNoCalls() {
         synchronized {
             isStrict = true
         }
+        MockRegistry.current.get()?.register(self)
     }
 
-    /// Every expectation not met and every call nobody expected, in words. Empty when the spy
-    /// isn't strict.
-    func problems() -> [String] {
+    /// Every problem, in words, for ``verify(sourceLocation:)``, which remembers them so
+    /// `.verifiesMocks` doesn't report them again.
+    func reportProblems() -> [String] {
+        let messages = problems().map(\.message)
+        synchronized {
+            reported += messages
+        }
+        return messages
+    }
+
+    /// The problems that ``reportProblems()`` hasn't reported, one for each, so a problem that
+    /// happens twice and was reported once is left once.
+    func unreportedProblems() -> [VerificationProblem] {
+        var left = synchronized {
+            reported
+        }
+        return problems().filter { problem in
+            guard let index = left.firstIndex(of: problem.message) else {
+                return true
+            }
+            left.remove(at: index)
+            return false
+        }
+    }
+
+    /// Every expectation not met and every call nobody expected, each with the `expect` it is
+    /// about. Empty when the spy isn't strict.
+    private func problems() -> [VerificationProblem] {
         let snapshot: (calls: [Input], expected: [Expectation], strict: Bool) = synchronized {
             (recordedCalls, expectations, isStrict)
         }
@@ -217,18 +257,19 @@ final class Ledger<Input, Output> {
         guard snapshot.strict else {
             return []
         }
-        let missed: [String] = expected.compactMap { expectation -> String? in
+        let missed = expected.compactMap { expectation -> VerificationProblem? in
             let count = calls.filter(expectation.matches).count
             guard count != expectation.times else {
                 return nil
             }
-            return "expected \(Self.times(expectation.times)) with \(expectation.description), "
+            let message = "expected \(Self.times(expectation.times)) with \(expectation.description), "
                 + "got \(Self.times(count))"
+            return VerificationProblem(message: message, site: expectation.site)
         }
-        let unexpected: [String] = calls.filter { input in
+        let unexpected = calls.filter { input in
             !expected.contains { $0.matches(input) }
         }.map { input in
-            "unexpected call with \(String(describing: input))"
+            VerificationProblem(message: "unexpected call with \(String(describing: input))", site: nil)
         }
         return missed + unexpected
     }

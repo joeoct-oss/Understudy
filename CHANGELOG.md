@@ -6,6 +6,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Added
 
+- `.verifiesMocks`, a Swift Testing trait for a test or a suite (Swift 6.1 or later): every spy given an expectation during the test is verified when it ends, so a forgotten `verify()` can't pass silently. An unmet expectation is reported at its `expect` line, and a call nobody expected at the test; a spy with no expectations is never checked, and a problem `verify()` already reported isn't reported again. `expect` gains a defaulted `sourceLocation`, so existing calls compile unchanged.
 - `.spi.yml`, so the Swift Package Index builds the package and hosts the API docs of `Understudy` and `UnderstudySamples`.
 - A coverage report on Codecov for main and each pull request (the **Coverage report** workflow). `scripts/check-coverage.sh` writes the measured lines as one LCOV file when `COVERAGE_LCOV` names a path. The coverage gate itself is unchanged.
 
