@@ -30,6 +30,10 @@ reviews:
   in_progress_fortune: false
   poem: false
   review_status: false
+  # "CodeRabbit" is a required check on main: it is pending while the review runs, and a review
+  # that stops on an error fails it, so nothing merges unreviewed.
+  commit_status: true
+  fail_commit_status: true
   # Use "@coderabbitai configuration" to see the resolved config when needed.
   review_info: false
   # No "Prompt for AI Agents" block under every inline comment.
