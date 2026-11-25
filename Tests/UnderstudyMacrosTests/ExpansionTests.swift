@@ -328,6 +328,30 @@ struct ExpansionTests {
                 """
         ),
         Accepted(
+            name: "static requirements and properties, on classes, actors and protocols",
+            source: """
+                @GenerateSpies
+                public final class SpyClock: Clock {
+                    @Spied static func now() -> Date?
+                    @Spied class func ticks() -> Int
+                    @SpiedProperty static var zone: String = "UTC"
+                    @SpiedProperty static var offset: Int
+                    @Spied func sleep(for seconds: Int) async
+                }
+
+                @GenerateSpies
+                actor SpyTimer: Timer {
+                    @Spied static func start() throws
+                }
+
+                @GenerateSpies
+                protocol Calendar {
+                    static var zone: String { get set }
+                    static func today() -> String
+                }
+                """
+        ),
+        Accepted(
             name: "actors",
             source: """
                 @GenerateSpies
@@ -378,8 +402,9 @@ struct ExpansionTests {
                            "'index' uses 'Key' inside another type; write its double by hand", column: 45),
         refusedRequirement("a generic inside another generic type", "func load<Value>(_ key: String) -> Result<Value, Error>",
                            "'load' uses 'Value' inside another type; write its double by hand", column: 47),
-        refusedRequirement("a static requirement", "static func shared() -> Int",
-                           "'shared' is static; write its double by hand", column: 24),
+        refusedRequirement("a static requirement with no obvious answer", "static func now() -> Date",
+                           "'now' is static, so no initializer takes its first answer, and 'Date' has no "
+                               + "obvious one; make it optional, or write its double by hand", column: 24),
         refusedRequirement("a mutating requirement", "mutating func reset()",
                            "'reset' is mutating; @GenerateSpies writes classes and actors", column: 26),
         refusedRequirement("a typed throws of a generic parameter", "func load<Failure: Error>() throws(Failure)",
@@ -398,8 +423,9 @@ struct ExpansionTests {
                         "'token' is a let; declare it as a var", column: 24),
         refusedProperty("a property with accessors", "var token: String { \"\" }",
                         "'token' is @SpiedProperty, so give it no accessors", column: 24),
-        refusedProperty("a static property", "static var shared: Int",
-                        "'shared' is static; write its double by hand", column: 31),
+        refusedProperty("a static property with no obvious value", "static var zone: TimeZone",
+                        "'zone' is static, so no initializer takes its first answer, and 'TimeZone' has no "
+                            + "obvious one; make it optional, or write its double by hand", column: 31),
         refusedProperty("a property with no type", "var token",
                         "'token' has no type; write its type", column: 24),
         refusedProperty("a tuple of properties", "var (first, second): (Int, Int)",
