@@ -1,17 +1,19 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # CodeRabbit reviews every pull request here on its free open-source plan. It adds to the
-# existing review and replaces nothing. The review reads CODE_STYLE.md, the one home for the
-# code style, and stays to inline comments: the extras that add noise to a pull request are
-# off, and nothing writes commits, edits the PR description or comments on issues.
+# existing review and replaces nothing. It only reviews: nothing writes commits, edits the
+# PR description or comments on issues. Code style lives in CODE_STYLE.md (read through
+# knowledge_base); the path instructions below only add what a reviewer can check in a diff.
 language: en-US
 tone_instructions: >-
-  Plain, short English. Report only blockers and should-fix items, each as an inline comment
-  with the reason. No praise, no summaries, and no nitpicks that CODE_STYLE.md doesn't ask for.
+  Plain, short English. Only blockers and should-fix items, each as one inline comment that
+  names the rule it breaks and why. No praise, no recaps, no nitpicks that CODE_STYLE.md does
+  not ask for.
 enable_free_tier: true
 
 reviews:
-  profile: chill
-  # Keep the PR description as the author wrote it.
+  # Only critical and major, high-impact findings go inline.
+  profile: quiet
+  # Keep the PR description as the author wrote it. Never put "@coderabbitai summary" in it.
   high_level_summary: false
   high_level_summary_in_walkthrough: false
   # The walkthrough comment can't be turned off, so it stays small and folded.
@@ -28,10 +30,18 @@ reviews:
   in_progress_fortune: false
   poem: false
   review_status: false
+  # Use "@coderabbitai configuration" to see the resolved config when needed.
   review_info: false
+  # No "Prompt for AI Agents" block under every inline comment.
+  enable_prompt_for_ai_agents: false
+  # A maintainer reviews every PR; no automatic slop labelling.
+  slop_detection:
+    enabled: false
   auto_review:
     enabled: true
     drafts: false
+    # Review every push; the default pauses after 5 reviewed commits.
+    auto_pause_after_reviewed_commits: 0
   # Nothing pushes commits or opens pull requests on its own.
   finishing_touches:
     docstrings:
@@ -58,34 +68,87 @@ reviews:
       requirements: >-
         One plain imperative sentence that says exactly what changes, with no prefix, no
         issue or ticket number and no jargon.
+    # Advisory only: a breaking API change must be recorded for package users.
+    custom_checks:
+      - name: "Breaking change recorded"
+        mode: warning
+        instructions: >-
+          Fail if the PR removes or renames a public or open declaration under Sources/,
+          changes a public signature, argument label or default argument, removes a public
+          protocol conformance, adds a protocol requirement without a default, adds a case to
+          a public enum, raises a platform minimum or swift-tools-version in Package.swift,
+          or changes what a public macro generates, and CHANGELOG.md gains no entry under
+          Unreleased that says it is breaking. Additions alone pass.
+  # Generated or build output; nothing in it is reviewable by reading.
   path_filters:
-    - "!Package.resolved"
+    - "!**/Package.resolved"
+    - "!**/.build/**"
+    - "!**/.swiftpm/**"
   path_instructions:
     - path: "Sources/**/*.swift"
       instructions: >-
-        Swift 6 with strict concurrency. Check the change against CODE_STYLE.md. Flag any API
-        newer than the oldest platform in Package.swift that isn't behind an availability
-        check, any isolation that isn't written out, and any code a macro writes that a
-        person wouldn't write by hand.
+        Swift 6 language mode with strict concurrency. Code must build with Swift 6.0
+        through the newest release, on iOS 13, macOS 10.15 and Linux. Flag: an API newer
+        than the platform floor in Package.swift without an availability check; Swift 6.2+
+        syntax (@concurrent, nonisolated(nonsending)) not behind #if compiler(>=6.2);
+        @unchecked Sendable or nonisolated(unsafe) without a comment naming the lock that
+        guards the state; @preconcurrency on a conformance; a mutable global or static var;
+        an unstructured Task where async let or a task group would do; a semaphore or other
+        blocking wait on async work; a Task in deinit that captures self; @objc, #selector,
+        KVO, NSClassFromString or other Objective-C runtime APIs (Linux has none);
+        URLSession without importing FoundationNetworking under
+        #if canImport(FoundationNetworking). Flag a breaking change to public API (removed,
+        renamed, relabelled or retyped declaration, dropped Sendable, changed default
+        argument, new protocol requirement without a default, new public enum case, changed
+        isolation of a public async function) that CHANGELOG.md does not record as breaking.
+        Raise a concurrency issue only with a realistic sequence that triggers it. Do not
+        flag: missing Sendable on actors or global-actor types; a sending parameter;
+        nonisolated on a member that reads only let state; a missing @MainActor
+        (nonisolated is the right library default); @unchecked Sendable on a type whose
+        mutable state is behind a lock named in a comment; a plain import Foundation.
+    - path: "Sources/*Macros/**/*.swift"
+      instructions: >-
+        swift-syntax macro implementation. Flag fatalError, preconditionFailure, try! or
+        force-unwraps on the user's syntax; emit a Diagnostic with a clear message instead,
+        plus a FixIt when the correction is mechanical. Flag generated code that names types
+        without qualification where user code could shadow them (write Swift.Int, not Int).
+        Flag an attached macro whose names: list misses a member it generates. Flag generated
+        code a person wouldn't write by hand. Flag swift-syntax APIs newer than the oldest
+        supported swift-syntax major that are not behind #if canImport(SwiftSyntaxNNN). A
+        change in what a public macro generates is a public API change.
     - path: "Tests/**/*.swift"
       instructions: >-
-        Swift Testing only. Each test pins one promise the package makes to its user and
-        reaches the code only the way that user does (public API, or the compiler for macro
-        tests). Flag a test that checks private state or internal order, counts or timing,
-        that sleeps, that compares the text a macro writes, or that repeats another test's
-        promise. A spy's calls, call count and call order are its public promise, so tests may
-        check them. Every @Test needs a display name that states its promise as a plain
-        sentence.
+        Swift Testing only (import Testing, no XCTest). Each test pins one promise the
+        package makes to its user and reaches the code only the way that user does: public
+        API, or the compiler by using a macro in source. Flag a test that checks private
+        state or internal order, counts or timing; that sleeps to wait for an event instead
+        of awaiting it or using confirmation; that compares the text a macro writes; or that
+        repeats another test's promise. Never suggest assertMacroExpansion, expandedSource or
+        any other comparison of macro output text: CODE_STYLE.md tests macros by behaviour on
+        purpose. Every @Test needs a display name that states its promise as a plain
+        sentence. Flag a force-unwrap where try #require belongs, and exit tests or
+        attachments not behind #if compiler(>=6.2). Do not flag: a test that checks a spy's
+        calls, call count or call order (that is the spy's public promise); @unchecked
+        Sendable on a lock-protected spy; @MainActor on a test; .serialized on a suite that
+        shares state; withKnownIssue that gives a reason.
+    - path: "Package.swift"
+      instructions: >-
+        Flag: swift-tools-version above 6.0; swiftLanguageVersions instead of
+        swiftLanguageModes; a raised platform minimum (semver-major); defaultIsolation or
+        any other Swift 6.2-only setting; unsafeFlags; exact, branch or revision dependency
+        requirements; a swift-syntax range narrower than before or narrower than the majors
+        the supported toolchains ship; a new dependency.
     - path: ".github/workflows/**"
       instructions: >-
         Actions are pinned to a commit SHA, each job gets only the permissions it uses, and
-        only free GitHub-hosted runners are used.
+        only free GitHub-hosted runners are used. Flag a change that drops the Linux job or
+        the oldest supported Swift toolchain from the test matrix.
     - path: "CHANGELOG.md"
       instructions: >-
         Keep a Changelog format. New user-facing changes go under Unreleased, in plain words
-        a package user understands.
+        a package user understands; breaking changes say they are breaking.
   tools:
-    # No SwiftLint setup in this package; its default rules disagree with CODE_STYLE.md.
+    # No SwiftLint config in this package; the profile-generated rules disagree with CODE_STYLE.md.
     swiftlint:
       enabled: false
     markdownlint:
@@ -110,6 +173,8 @@ chat:
   auto_reply: true
 
 knowledge_base:
+  # The one home for the code style. Keep any AGENTS.md or CLAUDE.md consistent with it,
+  # since CodeRabbit reads those by default too.
   code_guidelines:
     enabled: true
     filePatterns:
