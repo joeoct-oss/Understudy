@@ -292,14 +292,14 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         return [
             """
             /// The static spies of one test, or of every test that runs without `.freshSpies(_:)`.
-            \(raw: prefix)final class Statics: Sendable {
+            \(raw: prefix)final class __UnderstudyStatics: Sendable {
             \(raw: spies.joined(separator: "\n"))
             }
             """,
-            "private static let \(raw: box) = TaskLocal(wrappedValue: Statics())",
+            "private static let \(raw: box) = TaskLocal(wrappedValue: __UnderstudyStatics())",
             """
             \(raw: prefix)static let withFreshSpies: \(raw: fresh) = { test in
-            try await \(raw: typeName).\(raw: box).withValue(Statics()) {
+            try await \(raw: typeName).\(raw: box).withValue(__UnderstudyStatics()) {
             try await test()
             }
             }
