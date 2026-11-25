@@ -190,6 +190,17 @@ let expectedOrder = ["save", "send"]
 #expect(order.names == expectedOrder)
 ```
 
+Or watch them all in one block. `watch(_:as:)` still adds a spy later on:
+
+```swift
+let order = CallOrder {
+    Watched(store.saveSpy, as: "save")
+    Watched(sync.sendSpy, as: "send")
+}
+```
+
+Either way, the order sees only calls made after it starts watching.
+
 ## Strict mocks
 
 Tell a spy what to expect, and `verify()` reports every expected call that didn't happen and every call nobody expected, as Swift Testing issues at your test's line:
