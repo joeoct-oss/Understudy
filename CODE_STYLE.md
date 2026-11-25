@@ -4,9 +4,13 @@ This package follows Waypoint's [CODE_STYLE.md](https://github.com/joeoct-oss/Wa
 
 Rules of this package's own:
 
-## Foundation only
+## Swift only
 
-The library imports Foundation and nothing else, and has no dependencies, so it builds on Linux and every Apple platform and costs a test target almost nothing to add. No macros and no swift-syntax.
+Everything is Swift: the runtime imports Foundation and nothing else, and the macros are built on swift-syntax, the package's one dependency, so it builds on Linux and every Apple platform. No Objective-C runtime tricks.
+
+## Macros write what a person would
+
+The code a macro writes reads like a double written by hand: a stored spy per requirement and a body that calls it. Every expansion has a test that shows the code it writes, and every requirement a macro can't write gets an error that says what to do instead.
 
 ## Every isolation is written, and the spies carry none
 

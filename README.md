@@ -4,7 +4,7 @@
 
 # Understudy
 
-Pure Swift building blocks for test doubles. A `Spy` keeps every call a test double receives and answers as the test scripts, so you can write stubs, spies, mocks and fakes by hand in a few lines. No macros, no code generation, no dependencies.
+Test doubles for Swift, written by Swift macros. Put `@Understudy` on a double in your test target and it writes a spy for every requirement: each call is kept, and each answer is scripted by the test. Stubs, spies, mocks and fakes, in a line per requirement, checked by the compiler against your protocol.
 
 ## Install
 
@@ -12,7 +12,7 @@ Add the package, and the product to your test targets:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/joeoct-oss/Understudy", from: "0.1.0"),
+    .package(url: "https://github.com/joeoct-oss/Understudy", from: "0.2.0"),
 ],
 targets: [
     .testTarget(
@@ -27,28 +27,46 @@ targets: [
 
 ## Example
 
+Write the double in your test target. Mark each requirement `@Spied` and give it no body; the macro writes the body and a spy named after the requirement:
+
 ```swift
 import Testing
 import Understudy
 
+@Understudy
 final class SpyCatalog: Catalog {
-    let productByID = Spy<Int, Product?>(returning: nil)
-
-    func product(id: Int) -> Product? {
-        productByID(id)
-    }
+    @Spied func product(id: Int) -> Product?
+    @Spied func refresh() async throws
 }
 
 @Test
 func showsTheProductItWasOpenedWith() {
     let catalog = SpyCatalog()
-    catalog.productByID.willReturn(.apple)
+    catalog.productSpy.willReturn(.apple)
 
     let screen = ProductScreen(id: Product.apple.id, catalog: catalog)
 
     let expectedIDs = [Product.apple.id]
     #expect(screen.title == "Apple")
-    #expect(catalog.productByID.calls == expectedIDs)
+    #expect(catalog.productSpy.calls == expectedIDs)
+}
+```
+
+Your shipped code doesn't change and never depends on Understudy. A requirement that returns something other than `Void` or an optional needs its answer when the double is created, such as `SpyClock(now: 10)`, so a double can't be called with nothing scripted. Overloads add their argument labels, such as `removeIdSpy` and `removeNamedSpy`.
+
+On a protocol you own, `@Understudy` writes the spy class next to it instead, such as `ClockSpy` for `Clock`. That protocol's target then depends on Understudy.
+
+### Spies by hand
+
+The macros write calls to `Spy` and `ThrowingSpy`, which you can also use on their own, for a double the macros don't cover, such as one with properties or generic requirements:
+
+```swift
+final class SpyCatalog: Catalog {
+    let productSpy = Spy<Int, Product?>(returning: nil)
+
+    func product(id: Int) -> Product? {
+        productSpy(id)
+    }
 }
 ```
 
