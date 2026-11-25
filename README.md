@@ -21,6 +21,7 @@ Swift macros that write your test doubles: mark a requirement, and every call is
 - [Actors](#actors)
 - [Doubles for your own protocols](#doubles-for-your-own-protocols)
 - [Spies by hand](#spies-by-hand)
+- [Sample values](#sample-values)
 - [What the macros refuse](#what-the-macros-refuse)
 
 ## Requirements
@@ -31,7 +32,7 @@ Swift macros that write your test doubles: mark a requirement, and every call is
 
 ## Install
 
-Add the package, and add the product to your **test targets only**. Your shipped code never depends on Understudy.
+Add the package, and add the `Understudy` product to your **test targets only**. Your shipped code never depends on it. The one product meant for shipped targets is [`UnderstudySamples`](#sample-values), whose code is in debug builds only.
 
 ```swift
 dependencies: [
@@ -280,6 +281,61 @@ final class SpyCatalog: Catalog {
 ```
 
 `ThrowingSpy` does the same for functions that throw. In an async function, call `await productSpy.respond(to: id)` instead, so the test can hold the call. All three work under Swift 6 strict concurrency, in main-actor and `Sendable` doubles alike.
+
+## Sample values
+
+`@Sample` on a struct writes `static func sample(...)`, so a test gets a complete value in one call and names only what it is about. It lives in its own product, `UnderstudySamples`, which knows nothing about spies. Add it to the target that declares the struct, even an app target:
+
+```swift
+.target(
+    name: "App",
+    dependencies: [
+        .product(name: "UnderstudySamples", package: "Understudy"),
+    ]
+),
+```
+
+```swift
+import UnderstudySamples
+
+@Sample
+public struct Product: Equatable {
+    let id: UUID
+    let name: String
+    let price: Decimal
+    var stock: Int = 5
+    @SampleDefault("EGP") let currency: String
+    let seller: Seller    // Seller has @Sample too
+}
+
+// In a test
+let free = Product.sample(price: 0)
+```
+
+`sample(...)` has one parameter per property the memberwise initializer takes, each with a default:
+
+| Type | Default |
+|---|---|
+| `String`, `Substring` | `""` |
+| Whole and decimal numbers, `Decimal` | `0` |
+| `Bool` | `false` |
+| Optionals | `nil` |
+| Arrays, dictionaries, sets | empty |
+| `Date` | `Date(timeIntervalSince1970: 0)` |
+| `UUID` | `00000000-0000-0000-0000-000000000000` |
+| `URL` | `https://example.com` |
+| Any other type | its own `.sample()` |
+
+A property's own initial value is its default, and `@SampleDefault(value)` sets another. A `let` that has its value, a computed property and a static one aren't parameters.
+
+`sample(...)` is written inside `#if DEBUG`, so a release build carries none of it, while the import and the attribute still build. It is as visible as the struct, so a test that imports a module without `@testable` can call a public struct's sample.
+
+Its limits:
+- **Structs only.** A class, an enum or an actor has no memberwise initializer to call.
+- **The struct needs its memberwise initializer**, or another that takes every stored property. A struct with only its own initializer stops at `Self(...)`.
+- **A type with no default and no `@Sample`**, such as a closure or a type you don't own, stops the build at its parameter with the compiler's "has no member 'sample'". The macro sees one struct's code, so it can't tell such a type from a `@Sample` one. Give the property a default: `@SampleDefault(Money(amount: 0))`. Write the value's type in full, because the attribute can't see the property's type.
+- **A nested type must be as visible as the struct.** A public struct's `sample` can't use an internal type's `.sample()` as a default.
+- **Every stored property needs a type** written out, such as `var stock: Int = 5`.
 
 ## What the macros refuse
 
