@@ -29,7 +29,8 @@ import Foundation
 ///
 /// **What `advance` promises.** It wakes each sleep whose deadline the window reaches, in
 /// deadline order, with `now` set to that deadline as it wakes. A woken task reads `now` as
-/// the deadline it woke at until it sleeps again, so its next sleep counts from when it woke.
+/// the deadline it woke at until it sleeps again, or until the end of the next advance, so its
+/// next sleep counts from when it woke.
 /// After each wake, `advance` lets the other tasks run until the woken task sleeps on the clock
 /// again, even across actors and the main actor, and that sleep is woken in the same call when
 /// it falls inside the window. It waits for that for up to 10 ms of real time, which is also how
@@ -135,7 +136,7 @@ public final class TestClock: Clock, @unchecked Sendable {
     private var nextSleeperID = 0
 
     /// The clock's time, which starts at zero and moves only when the test moves it. A task the
-    /// clock woke reads the deadline it woke at, until it sleeps again.
+    /// clock woke reads the deadline it woke at, until it sleeps again or the next advance ends.
     public var now: Instant {
         let task = withUnsafeCurrentTask { $0?.hashValue }
         return synchronized {
