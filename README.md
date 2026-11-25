@@ -4,35 +4,20 @@
 
 # Understudy
 
-Swift macros that write your test doubles: mark a requirement, and every call is kept and every answer is scripted by the test.
+Test doubles for Swift, written by Swift macros. Mark what your double stands in for, and Understudy keeps every call and answers as the test scripts.
 
-- [Requirements](#requirements)
-- [Install](#install)
-- [Quick start](#quick-start)
-- [Spy on a function](#spy-on-a-function)
-- [Script answers](#script-answers)
-- [Properties](#properties)
-- [Hold an async call](#hold-an-async-call)
-- [Wait for a call](#wait-for-a-call)
-- [Call order](#call-order)
-- [Strict mocks](#strict-mocks)
-- [Reset a spy](#reset-a-spy)
-- [Generic functions](#generic-functions)
-- [Actors](#actors)
-- [Doubles for your own protocols](#doubles-for-your-own-protocols)
-- [Spies by hand](#spies-by-hand)
-- [Sample values](#sample-values)
-- [What the macros refuse](#what-the-macros-refuse)
+It has two tools, in two products:
 
-## Requirements
+- **Spies** (`Understudy`): `@GenerateSpies` writes a test double for a protocol. Each function and property gets a spy that records its calls and gives scripted answers.
+- **Sample values** (`UnderstudySamples`): `@Sample` writes `sample(...)` for a struct, so a test gets a complete value in one call.
 
-- Swift 6.0 or later, on Apple platforms (iOS 13, macOS 10.15, tvOS 13, watchOS 6, visionOS 1) and Linux.
-- swift-syntax 602 or later, below 700. SwiftPM picks it for you unless your project pins an older one.
-- Swift Testing for `verify()`. Everything else works with any test framework.
+**Contents:** [Install](#install) · [Quick start](#quick-start) · [Spies](#spies) · [Sample values](#sample-values) · [What the macros refuse](#what-the-macros-refuse)
 
 ## Install
 
-Add the package, and add the `Understudy` product to your **test targets only**. Your shipped code never depends on it. The one product meant for shipped targets is [`UnderstudySamples`](#sample-values), whose code is in debug builds only.
+Understudy needs Swift 6.0 or later and runs on Apple platforms (iOS 13, macOS 10.15, tvOS 13, watchOS 6, visionOS 1) and Linux. Its one dependency is swift-syntax 602 or later, which SwiftPM picks for you.
+
+Add the package, then add `Understudy` to your **test targets**. Your shipped code never depends on it.
 
 ```swift
 dependencies: [
@@ -48,6 +33,8 @@ targets: [
     ),
 ]
 ```
+
+To use `@Sample`, add `UnderstudySamples` to the target that declares your structs, even an app target. See [Sample values](#sample-values).
 
 ## Quick start
 
@@ -83,11 +70,25 @@ func showsTheProductItWasOpenedWith() {
 }
 ```
 
-The macro writes the function's body and a spy named after it, `productSpy`. The compiler checks the double against your protocol, so it can't drift from the real thing.
+The macro writes the function's body and a spy named after it: `productSpy`. Because the class conforms to your protocol, the compiler keeps the double in step with the real thing.
 
-## Spy on a function
+## Spies
 
-Each spy keeps every call in order:
+- [Read the calls](#read-the-calls)
+- [Script answers](#script-answers)
+- [Properties](#properties)
+- [Async calls](#async-calls)
+- [Call order](#call-order)
+- [Strict mocks](#strict-mocks)
+- [Reset](#reset)
+- [Generic functions](#generic-functions)
+- [Actors](#actors)
+- [Doubles next to your protocol](#doubles-next-to-your-protocol)
+- [Spies by hand](#spies-by-hand)
+
+### Read the calls
+
+Each spy keeps every call, in order:
 
 ```swift
 catalog.productSpy.calls      // [7, 9]
@@ -96,11 +97,11 @@ catalog.productSpy.lastCall   // 9
 catalog.productSpy.wasCalled  // true
 ```
 
-A function with several parameters keeps them as a labelled tuple, so `search(for query: String, limit: Int)` gives `searchSpy.lastCall?.query` and `searchSpy.lastCall?.limit`. Overloads add their labels to the spy's name, such as `removeIdSpy` for `remove(id:)` and `removeNamedSpy` for `remove(named:)`.
+A function with several parameters records them as a labelled tuple: `search(for query: String, limit: Int)` gives `searchSpy.lastCall?.query` and `searchSpy.lastCall?.limit`. Overloads add their labels to the spy's name, such as `removeIdSpy` for `remove(id:)` and `removeNamedSpy` for `remove(named:)`.
 
-## Script answers
+### Script answers
 
-A function that returns `Void` or an optional answers `()` or `nil` until you script it. Any other function needs its answer when the double is made, so a double can never be called with nothing scripted:
+A function that returns `Void` or an optional answers `()` or `nil` until you script it. Any other function takes its answer when the double is made, so a double is never called with nothing to answer:
 
 ```swift
 @GenerateSpies
@@ -112,18 +113,18 @@ final class SpyPricing: Pricing {
 let pricing = SpyPricing(price: 10, load: "")
 ```
 
-Then change the answer at any point in the test:
+Change the answer at any point in the test:
 
 ```swift
 pricing.priceSpy.willReturn(12)               // every later call
 pricing.priceSpy.willReturnNext(1, then: 2)   // the next two calls, then back to 12
 pricing.priceSpy.willAnswer { $0 * 100 }      // worked out from the input
 
-pricing.loadSpy.willThrow(LoadError.offline)  // throwing functions
+pricing.loadSpy.willThrow(LoadError.offline)  // a function that throws
 pricing.loadSpy.willGiveNext(.failure(LoadError.offline), then: .success("ok"))
 ```
 
-## Properties
+### Properties
 
 Mark a `var` with `@SpiedProperty` and give it only a type. A property that isn't optional takes its first value when the double is made:
 
@@ -144,27 +145,19 @@ session.userSpy.willReturn("bo")
 
 A set changes what later gets answer, as a real property would.
 
-Or put the first value at the declaration with `@Recorded`, a property wrapper. `$user` is the property's spy:
+To give the first value at the declaration instead, use the `@Recorded` property wrapper. `$user` is its spy, and it works in a double written by hand too:
 
 ```swift
-@GenerateSpies
-final class SpySession: Session {
-    @SpiedProperty var token: String    // first value in the init: tokenSpy
-    @Recorded var user = "ana"          // first value here: $user
-}
+@Recorded var user = "ana"
 
-let session = SpySession(token: "abc")
-session.user = "bo"
-session.$user.sets          // ["bo"]
+session.$user.sets
 ```
 
-`@Recorded` works in a class written by hand too, with no macro at all. Pick either per property. Two places need `@SpiedProperty`:
-- **Actors.** A test would need `await` to read an actor's `$user`, so `@GenerateSpies` refuses `@Recorded` there.
-- **`Sendable` classes.** A wrapped property's storage is a `var`, which a `Sendable` class can't hold. Mark the double `@unchecked Sendable` if you'd rather keep `@Recorded`; its spy is safe to share.
+Use `@SpiedProperty` in an actor, where reading `$user` would need `await`, and in a `Sendable` class, which can't hold the wrapper's `var` storage.
 
-## Hold an async call
+### Async calls
 
-To check what the screen shows while it waits, hold the next call, then resume it with the answer you choose:
+**Hold a call** to check what the screen shows while it waits, then resume it with the answer you choose:
 
 ```swift
 let refresh = catalog.refreshSpy.holdNextCall()
@@ -178,11 +171,9 @@ await task.value
 #expect(!screen.isLoading)
 ```
 
-`resume(throwing:)` fails the call instead, and `resumeWithScriptedAnswer()` gives the answer the spy was scripted with. Calls you don't hold answer at once.
+`resume(throwing:)` fails the call instead, and `resumeWithScriptedAnswer()` gives the scripted answer. Calls you don't hold answer at once.
 
-## Wait for a call
-
-When the code under test calls the double from another task, wait for the call instead of sleeping:
+**Wait for a call** made from another task, instead of sleeping:
 
 ```swift
 screen.startPolling()
@@ -191,16 +182,17 @@ let id = try #require(await catalog.productSpy.nextCall())
 #expect(id == 7)
 ```
 
-`nextCall()` gives each call once, in order, or `nil` when none comes within the time you give it (`within:`, one second by default).
+`nextCall()` gives each call once, in order, or `nil` when none comes in time (`within:`, one second by default).
 
-## Call order
+### Call order
 
 To check the order of calls across spies, watch them with one `CallOrder`:
 
 ```swift
-let order = CallOrder()
-order.watch(store.saveSpy, as: "save")
-order.watch(sync.sendSpy, as: "send")
+let order = CallOrder {
+    Watched(store.saveSpy, as: "save")
+    Watched(sync.sendSpy, as: "send")
+}
 
 checkout.complete()
 
@@ -208,18 +200,9 @@ let expectedOrder = ["save", "send"]
 #expect(order.names == expectedOrder)
 ```
 
-Or watch them all in one block. `watch(_:as:)` still adds a spy later on:
+`order.watch(spy, as: name)` adds a spy later. The order sees only calls made after it starts watching.
 
-```swift
-let order = CallOrder {
-    Watched(store.saveSpy, as: "save")
-    Watched(sync.sendSpy, as: "send")
-}
-```
-
-Either way, the order sees only calls made after it starts watching.
-
-## Strict mocks
+### Strict mocks
 
 Tell a spy what to expect, and `verify()` reports every expected call that didn't happen and every call nobody expected, as Swift Testing issues at your test's line:
 
@@ -232,11 +215,11 @@ checkout.complete()
 analytics.trackSpy.verify()
 ```
 
-`expectNoCalls()` makes any call a failure. A spy with no expectations stays lenient, so you only pay for strictness where you ask for it.
+`expectNoCalls()` makes any call a failure. A spy with no expectations stays lenient. `verify()` needs Swift Testing; everything else works with any test framework.
 
-## Reset a spy
+### Reset
 
-`reset()` forgets what happened so far: the calls (a property's gets and sets), where `nextCall()` was, and the expectations. It keeps what the test scripted, so you can check one step of a test at a time. A `CallOrder` keeps the names it already has; make a new one for the next step:
+`reset()` forgets what happened so far (the calls, a property's gets and sets, where `nextCall()` was, and the expectations) and keeps the scripted answers. Use it to check one step of a test at a time:
 
 ```swift
 checkout.addItem(.apple)
@@ -248,26 +231,27 @@ let expectedEvents = ["checkout"]
 #expect(analytics.trackSpy.calls == expectedEvents)
 ```
 
-## Generic functions
+A `CallOrder` keeps the names it has; make a new one for the next step.
 
-A generic function can be `@Spied` when each generic parameter is a whole parameter type, or the whole return type (`T` or `T?`). The spy records it as `any` of its constraints, or `Any` when it has none, and the answer is cast back to the type the caller asks for:
+### Generic functions
+
+A generic function can be `@Spied` when each generic parameter is a whole parameter type or the whole return type (`T` or `T?`). The spy records it as `any` of its constraints, or `Any`, and casts the answer back to the type the caller asks for:
 
 ```swift
 @GenerateSpies
 final class SpyCache: Cache {
-    @Spied func store<Value: Codable>(_ value: Value, for key: String)   // storeSpy records (value: any Codable, key: String)
-    @Spied func value<Value: Decodable>(for key: String) -> Value?      // valueSpy answers (any Decodable)?
+    @Spied func value<Value: Decodable>(for key: String) -> Value?
 }
 
 cache.valueSpy.willReturn(42)
 let count: Int? = cache.value(for: "count")   // 42
 ```
 
-An answer of the wrong type stops the test with a message naming the spy, the answer's type and the type asked for.
+An answer of the wrong type stops the test with a message naming the spy and both types.
 
-## Actors
+### Actors
 
-`@GenerateSpies` works on an actor the same way as on a class. The spies are `nonisolated`, so a test reads them without `await`:
+`@GenerateSpies` works on an actor as on a class. The spies are `nonisolated`, so a test reads them without `await`:
 
 ```swift
 @GenerateSpies
@@ -279,9 +263,9 @@ try await store.save(.apple)
 #expect(store.saveSpy.callCount == 1)
 ```
 
-## Doubles for your own protocols
+### Doubles next to your protocol
 
-On a protocol in your own code, `@GenerateSpies` writes the double next to it, named after the protocol with `Spy` added:
+On a protocol in your own code, `@GenerateSpies` writes the double next to it, named with `Spy` added:
 
 ```swift
 @GenerateSpies
@@ -293,9 +277,9 @@ protocol Clock {
 let clock = ClockSpy(now: 0)
 ```
 
-This makes that protocol's target depend on Understudy, so prefer the class form when the protocol lives in shipped code. A protocol that inherits `Actor` gets an actor spy. A protocol that inherits another protocol (other than `Sendable`, `AnyObject` or `Actor`) needs the class form too, because the macro can't see the inherited requirements.
+That protocol's target then depends on Understudy, so prefer the class form for protocols in shipped code. A protocol that inherits `Actor` gets an actor spy. One that inherits any other protocol, except `Sendable` and `AnyObject`, needs the class form, because the macro can't see the inherited requirements.
 
-## Spies by hand
+### Spies by hand
 
 The macros write calls to `Spy`, `ThrowingSpy` and `PropertySpy`. Use them yourself for anything the macros don't cover:
 
@@ -309,20 +293,11 @@ final class SpyCatalog: Catalog {
 }
 ```
 
-`ThrowingSpy` does the same for functions that throw. In an async function, call `await productSpy.respond(to: id)` instead, so the test can hold the call. All three work under Swift 6 strict concurrency, in main-actor and `Sendable` doubles alike.
+`ThrowingSpy` does the same for functions that throw. In an async function, call `await productSpy.respond(to: id)`, so the test can hold the call. All three work under Swift 6 strict concurrency, in main-actor and `Sendable` doubles alike.
 
 ## Sample values
 
-`@Sample` on a struct writes `static func sample(...)`, so a test gets a complete value in one call and names only what it is about. It lives in its own product, `UnderstudySamples`, which knows nothing about spies. Add it to the target that declares the struct, even an app target:
-
-```swift
-.target(
-    name: "App",
-    dependencies: [
-        .product(name: "UnderstudySamples", package: "Understudy"),
-    ]
-),
-```
+`@Sample` on a struct writes `static func sample(...)`, with a default for every property, so a test names only the values it is about:
 
 ```swift
 import UnderstudySamples
@@ -341,34 +316,43 @@ public struct Product: Equatable {
 let free = Product.sample(price: 0)
 ```
 
-`sample(...)` has one parameter per property the memberwise initializer takes, each with a default:
+Add `UnderstudySamples` to the target that declares the struct. It knows nothing about spies, and `sample(...)` is compiled in debug builds only, so a release build carries none of it:
+
+```swift
+.target(
+    name: "App",
+    dependencies: [
+        .product(name: "UnderstudySamples", package: "Understudy"),
+    ]
+),
+```
+
+The defaults:
 
 | Type | Default |
 |---|---|
 | `String`, `Substring` | `""` |
-| Whole and decimal numbers, `Decimal` | `0` |
+| Numbers, `Decimal` | `0` |
 | `Bool` | `false` |
 | Optionals | `nil` |
 | Arrays, dictionaries, sets | empty |
 | `Date` | `Date(timeIntervalSince1970: 0)` |
-| `UUID` | `00000000-0000-0000-0000-000000000000` |
+| `UUID` | all zeros |
 | `URL` | `https://example.com` |
 | Any other type | its own `.sample()` |
 
-A property's own initial value is its default, and `@SampleDefault(value)` sets another. A `let` that has its value, a computed property and a static one aren't parameters.
-
-`sample(...)` is written inside `#if DEBUG`, so a release build carries none of it, while the import and the attribute still build. It is as visible as the struct, so a test that imports a module without `@testable` can call a public struct's sample.
+A property's own initial value is its default, and `@SampleDefault(value)` sets another. A `let` with a value, a computed property and a static one aren't parameters. `sample(...)` is as visible as the struct.
 
 Its limits:
-- **Structs only.** A class, an enum or an actor has no memberwise initializer to call.
-- **The struct needs its memberwise initializer**, or another that takes every stored property. A struct with only its own initializer stops at `Self(...)`.
-- **A type with no default and no `@Sample`**, such as a closure or a type you don't own, stops the build at its parameter with the compiler's "has no member 'sample'". The macro sees one struct's code, so it can't tell such a type from a `@Sample` one. Give the property a default: `@SampleDefault(Money(amount: 0))`. Write the value's type in full, because the attribute can't see the property's type.
-- **A nested type must be as visible as the struct.** A public struct's `sample` can't use an internal type's `.sample()` as a default.
-- **Every stored property needs a type** written out, such as `var stock: Int = 5`.
+
+- **Structs only**, with their memberwise initializer (or one that takes every stored property).
+- **Every stored property needs a written type**, such as `var stock: Int = 5`.
+- **A type with no default and no `@Sample`**, such as a closure, stops the build with "has no member 'sample'". Give it one: `@SampleDefault(Money(amount: 0))`.
+- **A nested type must be as visible as the struct**, so a public struct can't default to an internal type's `.sample()`.
 
 ## What the macros refuse
 
-Each of these is a compile error at the line it's about, with what to do instead. All of them can be written with [spies by hand](#spies-by-hand).
+Each of these is a compile error at the line it's about, saying what to do instead. You can write any of them with [spies by hand](#spies-by-hand).
 
 | Requirement | Why |
 |---|---|
