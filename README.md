@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".github/assets/icon.svg" alt="Understudy icon: a mask with a dashed second mask behind it" width="128">
+</p>
+
 # Understudy
 
 Pure Swift building blocks for test doubles. A `Spy` keeps every call a test double receives and answers as the test scripts, so you can write stubs, spies, mocks and fakes by hand in a few lines. No macros, no code generation, no dependencies.
