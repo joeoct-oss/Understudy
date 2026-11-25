@@ -45,6 +45,14 @@ jobs:
           COVERAGE_LCOV: coverage.lcov
         run: scripts/check-coverage.sh
 
+      # Codecov's action needs curl, which the Swift image removes after installing the toolchain.
+      - name: Install curl for the upload
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        run: |
+          apt-get -q update
+          apt-get -q install -y curl ca-certificates
+          rm -rf /var/lib/apt/lists/*
+
       - name: Upload to Codecov
         if: ${{ !github.event.pull_request.head.repo.fork }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1

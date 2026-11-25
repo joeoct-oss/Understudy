@@ -1,0 +1,6 @@
+# Settings for the Swift Package Index, which builds the package on each platform and Swift version
+# it supports and hosts the API docs of both products.
+version: 1
+builder:
+  configs:
+    - documentation_targets: [Understudy, UnderstudySamples]

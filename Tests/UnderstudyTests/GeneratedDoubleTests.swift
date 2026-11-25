@@ -22,7 +22,7 @@ struct GeneratedDoubleTests {
         case offline
     }
 
-    @Test
+    @Test("A generated requirement records its input and gives the standing answer")
     func requirementRecordsItsInputAndGivesTheStandingAnswer() {
         let catalog = SpyCatalog(product: "apple")
 
@@ -33,7 +33,7 @@ struct GeneratedDoubleTests {
         #expect(catalog.productSpy.calls == expectedIDs)
     }
 
-    @Test
+    @Test("The initializer gives an obvious first answer when the test passes none")
     func initAsksOnlyForAnswersWithNoObviousDefault() {
         let shop = SpyShop()
 
@@ -57,7 +57,7 @@ struct GeneratedDoubleTests {
         #expect(codes == noCodes)
     }
 
-    @Test
+    @Test("The initializer still takes every answer a test passes")
     func initStillTakesEveryAnswerItTookBefore() {
         let shop = SpyShop(isOpen: true, name: "Corner", stock: 9, tags: ["new"])
 
@@ -68,7 +68,7 @@ struct GeneratedDoubleTests {
         #expect(shop.tags() == expectedTags)
     }
 
-    @Test
+    @Test("Static spies answer what the test scripts and record calls and sets")
     func staticSpyAnswersWhatTheTestScripts() {
         SpyStopwatch.elapsedSpy.willReturn(5)
         CalendarSpy.todaySpy.willReturn("Monday")
@@ -86,7 +86,7 @@ struct GeneratedDoubleTests {
         #expect(zone == "")
     }
 
-    @Test
+    @Test("Optional and Void answers need nothing at creation and still record calls")
     func optionalAndVoidAnswersNeedNothingAtCreation() {
         let catalog = SpyCatalog(product: "apple")
 
@@ -99,7 +99,7 @@ struct GeneratedDoubleTests {
         #expect(catalog.refreshSpy.callCount == 1)
     }
 
-    @Test
+    @Test("Overloads get spies named with their labels")
     func overloadsGetSpiesNamedWithTheirLabels() {
         let catalog = SpyCatalog(product: "apple")
 
@@ -112,7 +112,7 @@ struct GeneratedDoubleTests {
         #expect(catalog.removeNamedSpy.calls == expectedNames)
     }
 
-    @Test
+    @Test("An async throwing requirement throws the scripted error and records the call")
     func throwingAndAsyncRequirementsUseAThrowingSpy() async {
         let loader = SpyLoader(load: "data")
         loader.loadSpy.willThrow(LoadError.offline)
@@ -124,7 +124,7 @@ struct GeneratedDoubleTests {
         #expect(loader.loadSpy.calls == expectedPaths)
     }
 
-    @Test
+    @Test("A typed throws requirement throws the scripted error")
     func typedThrowsRequirementThrowsTheScriptedError() async {
         let auth = SpyAuth(signIn: "ana")
         let protocolAuth = AuthSpy(signIn: "ana")
@@ -139,7 +139,7 @@ struct GeneratedDoubleTests {
         }
     }
 
-    @Test
+    @Test("A typed throws requirement returns the scripted answer and records the call")
     func typedThrowsRequirementReturnsTheScriptedAnswer() async throws {
         let auth = SpyAuth(signIn: "ana")
         let protocolAuth = AuthSpy(signIn: "bo")
@@ -157,7 +157,7 @@ struct GeneratedDoubleTests {
         #expect(auth.refreshSpy.callCount == 1)
     }
 
-    @Test
+    @Test("An async requirement can be held until the test resumes it")
     func asyncRequirementCanBeHeldUntilTheTestResumesIt() async throws {
         let loader = SpyLoader(load: "scripted")
         let clock = ClockSpy(now: 0)
@@ -182,7 +182,7 @@ struct GeneratedDoubleTests {
         #expect(data == "held")
     }
 
-    @Test
+    @Test("Spied properties keep every set and answer gets")
     func propertiesKeepEverySetAndAnswerGets() {
         var expired = false
         let session = SpySession(user: "ana", onExpire: { expired = true })
@@ -200,7 +200,7 @@ struct GeneratedDoubleTests {
         #expect(expired)
     }
 
-    @Test
+    @Test("A spied property declared with a value starts with it")
     func spiedPropertyWithAValueStartsWithIt() {
         let session = SpyProfile()
 
@@ -213,7 +213,7 @@ struct GeneratedDoubleTests {
         #expect(session.user == "bo")
     }
 
-    @Test
+    @Test("A spied property with a value keeps every set in a Sendable class")
     func spiedPropertyWithAValueWorksInASendableClass() async {
         let account = SpyAccount()
 
@@ -228,7 +228,7 @@ struct GeneratedDoubleTests {
         #expect(account.userSpy.sets.count == 10)
     }
 
-    @Test
+    @Test("A spied property with a value keeps its sets in an actor")
     func spiedPropertyWithAValueWorksInAnActor() async {
         let counter = SpyCounter()
 
@@ -239,7 +239,7 @@ struct GeneratedDoubleTests {
         #expect(counter.countSpy.value == 1)
     }
 
-    @Test
+    @Test("Generic methods record their inputs and answer with the type the caller asks for")
     func genericMethodsRecordTheirInputsAndAnswerAsTheCallerAsks() async throws {
         let cache = SpyCache(load: 7)
         cache.valueSpy.willReturn("cached")
@@ -256,7 +256,7 @@ struct GeneratedDoubleTests {
         #expect(number == 7)
     }
 
-    @Test
+    @Test("A generic parameter inside an array or optional is recorded")
     func genericArrayParameterIsRecorded() {
         let bag = SpyBag(all: [], lookup: [:], unique: [])
 
@@ -270,7 +270,7 @@ struct GeneratedDoubleTests {
         #expect(bag.putSpy.lastCall?.first as? String == "b")
     }
 
-    @Test
+    @Test("A generic answer inside a collection comes back as the caller's type")
     func genericArrayAnswerComesBackTyped() {
         let bag = SpyBag(all: [3], lookup: ["a": 1], unique: [5])
         let protocolBag = ShelfSpy(all: ["x"])
@@ -292,7 +292,7 @@ struct GeneratedDoubleTests {
         #expect(bag.uniqueSpy.lastCall == Set([5, 6]))
     }
 
-    @Test
+    @Test("A protocol's generic method gets a spy that records and answers")
     func protocolGenericMethodGetsASpy() {
         let reader = ReaderSpy(read: 3.5)
 
@@ -303,7 +303,7 @@ struct GeneratedDoubleTests {
         #expect(value == 3.5)
     }
 
-    @Test
+    @Test("An actor double records calls and properties, read without await")
     func actorDoubleRecordsCallsAndPropertiesReadWithoutAwait() async throws {
         let store = SpyStore(count: 1, name: "main")
 
@@ -318,7 +318,7 @@ struct GeneratedDoubleTests {
         #expect(name == "main")
     }
 
-    @Test
+    @Test("An actor protocol gets an actor spy that records and answers")
     func actorProtocolGetsAnActorSpy() async {
         let ledger = LedgerSpy(total: 5)
 
@@ -330,7 +330,7 @@ struct GeneratedDoubleTests {
         #expect(total == 5)
     }
 
-    @Test
+    @Test("A protocol's properties get property spies")
     func protocolPropertiesGetPropertySpies() {
         let settings = SettingsSpy(volume: 3)
 
@@ -343,7 +343,7 @@ struct GeneratedDoubleTests {
         #expect(theme == nil)
     }
 
-    @Test
+    @Test("A main actor double records values that aren't Sendable")
     @MainActor
     func mainActorDoubleRecordsValuesThatAreNotSendable() async {
         let gate = SpyGate(isOpen: true)
@@ -362,7 +362,7 @@ struct GeneratedDoubleTests {
         #expect(ran.callCount == 1)
     }
 
-    @Test
+    @Test("A closure answer is taken at creation and runs when called")
     func closureAnswerIsTakenAtCreation() {
         let ran = Spy<Void, Void>()
         let factory = SpyHandlerFactory(
@@ -379,7 +379,7 @@ struct GeneratedDoubleTests {
         #expect(ran.callCount == 3)
     }
 
-    @Test
+    @Test("Variadic and opaque parameters are recorded")
     func variadicAndOpaqueParametersAreRecorded() {
         let printer = SpyPrinter()
 
@@ -391,7 +391,7 @@ struct GeneratedDoubleTests {
         #expect(printer.showSpy.lastCall as? Int == 7)
     }
 
-    @Test
+    @Test("Doubles of every access level and isolation build and record calls")
     @MainActor
     func doublesOfEveryAccessLevelAndIsolationBuildAndRecord() async {
         let gate = SpyOpenGate(isOpen: true)
@@ -416,7 +416,7 @@ struct GeneratedDoubleTests {
         #expect(log.writeSpy.calls == expectedLines)
     }
 
-    @Test
+    @Test("A protocol gets a spy class next to it that records and answers")
     func protocolGetsASpyClassNextToIt() async {
         let clock = ClockSpy(now: 10)
 
@@ -428,7 +428,7 @@ struct GeneratedDoubleTests {
         #expect(clock.sleepSpy.calls == expectedDurations)
     }
 
-    @Test
+    @Test("A Sendable protocol's spy keeps every call from concurrent tasks")
     func sendableProtocolGetsASendableSpy() async {
         let sink = EventSinkSpy()
 
