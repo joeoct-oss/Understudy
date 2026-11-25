@@ -132,6 +132,45 @@ struct ExpansionTests {
         #expect(diagnostics == expected)
     }
 
+    /// A refusal with one clear fix, and the double once the fix-it is applied.
+    struct Fixed: CustomTestStringConvertible, Sendable {
+        let name: String
+        let source: String
+        let fixIt: String
+        let fixed: String
+
+        var testDescription: String {
+            name
+        }
+    }
+
+    @Test("Each refusal with one clear fix offers it, and applying it gives the fixed code", arguments: fixed)
+    func eachRefusalWithOneFixOffersIt(_ double: Fixed) throws {
+        let file = Parser.parse(source: double.source)
+        let context = BasicMacroExpansionContext(
+            sourceFiles: [file: .init(moduleName: "TestModule", fullFilePath: "test.swift")]
+        )
+        _ = file.expand(
+            macroSpecs: Self.macros,
+            contextGenerator: { syntax in
+                BasicMacroExpansionContext(sharingWith: context, lexicalContext: syntax.allMacroLexicalContexts())
+            },
+            indentationWidth: .spaces(4)
+        )
+        let fixIts = context.diagnostics.flatMap(\.fixIts)
+        let fixIt = try #require(fixIts.first)
+        var source = Array(double.source.utf8)
+        for case .replace(let old, let new) in fixIt.changes {
+            let start = context.location(for: old.position, anchoredAt: old, fileName: "test.swift").offset
+            source.replaceSubrange(start..<start + old.totalLength.utf8Length, with: Array(new.description.utf8))
+        }
+
+        #expect(fixIts.count == 1)
+        #expect(fixIt.message.message == double.fixIt)
+        #expect(fixIt.message.fixItID == MessageID(domain: "Understudy", id: "fix-it"))
+        #expect(String(decoding: source, as: UTF8.self) == double.fixed)
+    }
+
     /// Expands the macros in `source`, and gives the expanded file and each diagnostic as
     /// "line:column: source: message".
     private func expand(_ source: String) -> (Syntax, [String]) {
@@ -389,6 +428,37 @@ struct ExpansionTests {
         ),
     ]
 
+    static let fixed: [Fixed] = [
+        fixedMember("a let", "@SpiedProperty let token: String", "Replace 'let' with 'var'",
+                    "@SpiedProperty var token: String"),
+        fixedMember("a body", "@Spied func write(_ text: String) {}", "Remove the body",
+                    "@Spied func write(_ text: String)"),
+        fixedMember("a parameter with no name", "@Spied func move(_: Int)", "Add a name",
+                    "@Spied func move(_ <#name#>: Int)"),
+        fixedMember("a property with no type", "@SpiedProperty var token", "Add a type",
+                    "@SpiedProperty var token: <#Type#>"),
+        fixedMember("a property with a value and no type", "@SpiedProperty var token = 0", "Add a type",
+                    "@SpiedProperty var token: <#Type#> = 0"),
+        Fixed(
+            name: "@Recorded in an actor",
+            source: "@GenerateSpies\nactor SpyStore {\n    @Recorded var count = 0\n}",
+            fixIt: "Replace '@Recorded' with '@SpiedProperty'",
+            fixed: "@GenerateSpies\nactor SpyStore {\n    @SpiedProperty var count = 0\n}"
+        ),
+        Fixed(
+            name: "@Recorded in a Sendable class",
+            source: "@GenerateSpies\nfinal class SpyStore: Sendable {\n    @Understudy.Recorded var count = 0\n}",
+            fixIt: "Replace '@Recorded' with '@SpiedProperty'",
+            fixed: "@GenerateSpies\nfinal class SpyStore: Sendable {\n    @SpiedProperty var count = 0\n}"
+        ),
+    ]
+
+    /// A double whose one member, on line 3, is refused with a fix-it that makes it `fixed`.
+    private static func fixedMember(_ name: String, _ member: String, _ fixIt: String, _ fixed: String) -> Fixed {
+        let double = { (member: String) in "@GenerateSpies\nfinal class SpyStore: Store {\n    \(member)\n}" }
+        return Fixed(name: name, source: double(member), fixIt: fixIt, fixed: double(fixed))
+    }
+
     static let refused: [Refused] = [
         refusedRequirement("a generic with a where clause", "func load<Value>(_ key: String) -> Value where Value: Codable",
                            "'load' has a where clause; write its double by hand", column: 17),
@@ -467,6 +537,19 @@ struct ExpansionTests {
                 + "each property with @SpiedProperty or @Recorded, and the get and set of each subscript with @Spied",
             line: 1,
             column: 1
+        ),
+        Refused(
+            name: "@Recorded in a Sendable class",
+            source: """
+                @GenerateSpies
+                final class SpySession: Session, Sendable {
+                    @Recorded var user = "ana"
+                }
+                """,
+            message: "'user' is @Recorded, which a Sendable class can't hold, because a wrapped property's "
+                + "storage is a var; use @SpiedProperty",
+            line: 3,
+            column: 19
         ),
         Refused(
             name: "@Recorded in an actor",
