@@ -19,10 +19,16 @@ extension Requirement {
             .joined()
         let isolation = declaration.modifiers.contains { $0.name.text == "nonisolated" } ? "nonisolated " : ""
         let effects = (isAsync ? " async" : "") + (throwsError ? " throws" : "")
-        let signature = "\(forwarderName)(\(forwarderParameters))\(effects)"
+        // Only the generic parameter it returns stays generic: the others reach the spy as their
+        // `any` type, which the forwarder takes.
+        let generics = declaration.genericParameterClause?.parameters
+            .first { $0.name.text == returnedGeneric }
+            .map { "<" + $0.with(\.trailingComma, nil).trimmedDescription + ">" } ?? ""
+        let returned = declaration.signature.returnClause?.type.trimmedDescription ?? "Void"
+        let signature = "\(forwarderName)\(generics)(\(forwarderParameters))\(effects)"
         return """
-            \(raw: actors)private \(raw: isolation)func \(raw: signature) -> \(raw: output) {
-            return \(raw: call(on: spy))
+            \(raw: actors)private \(raw: isolation)func \(raw: signature) -> \(raw: returned) {
+            \(raw: body(on: spy))
             }
             """
     }

@@ -21,8 +21,8 @@ public struct SpiedMacro: BodyMacro {
         guard let function = declaration.as(FunctionDeclSyntax.self) else {
             throw UnderstudyError("@Spied goes on a function")
         }
-        guard isInsideUnderstudyClass(context) else {
-            throw UnderstudyError("@Spied needs @Understudy on the class it is in")
+        guard isInsideUnderstudyType(context) else {
+            throw UnderstudyError("@Spied needs @Understudy on the class or actor it is in")
         }
         // `@Understudy` explains a requirement it can't write, at the requirement. The body only has
         // to compile until the person fixes it.
@@ -35,12 +35,13 @@ public struct SpiedMacro: BodyMacro {
         return ["return \(raw: attempt)\(raw: wait)self.\(raw: call)"]
     }
 
-    /// Whether the declaration is a member of a class marked `@Understudy`.
-    static func isInsideUnderstudyClass(_ context: some MacroExpansionContext) -> Bool {
-        guard let type = context.lexicalContext.first?.as(ClassDeclSyntax.self) else {
+    /// Whether the declaration is a member of a class or an actor marked `@Understudy`.
+    static func isInsideUnderstudyType(_ context: some MacroExpansionContext) -> Bool {
+        guard let type = context.lexicalContext.first,
+              let attributes = type.as(ClassDeclSyntax.self)?.attributes ?? type.as(ActorDeclSyntax.self)?.attributes else {
             return false
         }
-        return type.attributes.contains { element in
+        return attributes.contains { element in
             let name = element.as(AttributeSyntax.self)?.attributeName.trimmedDescription
             return name == "Understudy" || name == "Understudy.Understudy"
         }
@@ -49,6 +50,6 @@ public struct SpiedMacro: BodyMacro {
     /// The statements that call a spy directly and return its answer, for the spy class
     /// `@Understudy` writes next to a protocol.
     static func body(of requirement: Requirement, spy: String) -> CodeBlockItemListSyntax {
-        "return \(raw: requirement.call(on: spy))"
+        "\(raw: requirement.body(on: spy))"
     }
 }

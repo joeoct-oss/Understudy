@@ -50,8 +50,26 @@ struct ExpansionTests {
 
         #expect(diagnostics.isEmpty)
         #expect(!expanded.hasError)
-        #expect(!expanded.description.contains("fatalError"))
+        #expect(!expanded.description.contains(Self.refusedBody))
     }
+
+    /// A generic answer of the wrong type can't be tested by calling it, because it stops the
+    /// process. What the person sees is this message, so the test checks the double says it.
+    @Test
+    func genericAnswerOfTheWrongTypeStopsWithTheSpyAndBothTypes() {
+        let (expanded, _) = expand("""
+            @Understudy
+            final class SpyCache: Cache {
+                @Spied func value<Value: Decodable>(for key: String) -> Value
+            }
+            """)
+
+        let message = #"@Understudy: valueSpy answered \(type(of: __understudy_answer)), not \(Value.self)"#
+        #expect(expanded.description.contains(message))
+    }
+
+    /// The body `@Spied` writes for a requirement `@Understudy` refused.
+    private static let refusedBody = "@Understudy can't write this requirement"
 
     @Test(arguments: refused)
     func refusesWhatItCannotWriteAtTheRequirement(_ double: Refused) {
@@ -172,6 +190,40 @@ struct ExpansionTests {
                 """
         ),
         Accepted(
+            name: "simple generic methods",
+            source: """
+                @Understudy
+                final class SpyCache: Cache {
+                    @Spied func store<Value: Codable>(_ value: Value, for key: String)
+                    @Spied func value<Value: Decodable>(for key: String) -> Value?
+                    @Spied func load<Value>(_ key: String) async throws -> Value
+                    @Spied func all<Value: Sendable & Codable>(_ values: Value...)
+                }
+
+                @Understudy
+                protocol Settings {
+                    func read<Value: Decodable>(_ key: String) -> Value
+                }
+                """
+        ),
+        Accepted(
+            name: "actors",
+            source: """
+                @Understudy
+                actor SpyStore: Store {
+                    @Spied func save(_ item: String) async throws
+                    @Spied nonisolated func name() -> String
+                    @SpiedProperty var count: Int
+                }
+
+                @Understudy
+                protocol Ledger: Actor {
+                    var total: Int { get }
+                    func add(_ amount: Int)
+                }
+                """
+        ),
+        Accepted(
             name: "protocols you own",
             source: """
                 @Understudy
@@ -193,12 +245,18 @@ struct ExpansionTests {
     ]
 
     static let refused: [Refused] = [
-        refusedRequirement("a generic requirement", "func load<Value>(_ key: String) -> Value",
-                           "'load' is generic; write its double by hand", column: 17),
+        refusedRequirement("a generic with a where clause", "func load<Value>(_ key: String) -> Value where Value: Codable",
+                           "'load' has a where clause; write its double by hand", column: 17),
+        refusedRequirement("a generic parameter pack", "func load<each Value>(_ keys: repeat each Value)",
+                           "'load' takes a parameter pack; write its double by hand", column: 17),
+        refusedRequirement("a generic inside a parameter's type", "func save<Value>(_ values: [Value])",
+                           "'save' uses 'Value' inside another type; write its double by hand", column: 39),
+        refusedRequirement("a generic inside the return type", "func load<Value>(_ key: String) -> [Value]",
+                           "'load' uses 'Value' inside another type; write its double by hand", column: 47),
         refusedRequirement("a static requirement", "static func shared() -> Int",
                            "'shared' is static; write its double by hand", column: 24),
         refusedRequirement("a mutating requirement", "mutating func reset()",
-                           "'reset' is mutating; @Understudy writes classes", column: 26),
+                           "'reset' is mutating; @Understudy writes classes and actors", column: 26),
         refusedRequirement("typed throws", "func load() throws(LoadError) -> Int",
                            "'load' uses typed throws; write its double by hand", column: 17),
         refusedRequirement("rethrows", "func each(_ body: () throws -> Void) rethrows",
@@ -269,7 +327,7 @@ struct ExpansionTests {
                     func write(_ text: String) {}
                 }
                 """,
-            message: "attach it to a class or a protocol",
+            message: "attach it to a class, an actor or a protocol",
             line: 1,
             column: 1
         ),
@@ -280,7 +338,7 @@ struct ExpansionTests {
                     @Spied func ping()
                 }
                 """,
-            message: "@Spied needs @Understudy on the class it is in",
+            message: "@Spied needs @Understudy on the class or actor it is in",
             line: 2,
             column: 5
         ),
@@ -291,7 +349,7 @@ struct ExpansionTests {
                     @SpiedProperty var token: String?
                 }
                 """,
-            message: "@SpiedProperty needs @Understudy on the class it is in",
+            message: "@SpiedProperty needs @Understudy on the class or actor it is in",
             line: 2,
             column: 5
         ),
@@ -313,7 +371,7 @@ struct ExpansionTests {
                     @Spied func ping()
                 }
                 """,
-            message: "@Spied needs @Understudy on the class it is in",
+            message: "@Spied needs @Understudy on the class or actor it is in",
             line: 2,
             column: 5
         ),
@@ -339,7 +397,7 @@ struct ExpansionTests {
                 }
                 """,
             message: "'Session' has a requirement that is neither a function nor a property; "
-                + "write its double by hand, or use @Understudy on a class",
+                + "write its double by hand, or use @Understudy on a class or an actor",
             line: 3,
             column: 5
         ),
@@ -352,7 +410,7 @@ struct ExpansionTests {
                 }
                 """,
             message: "'Child' inherits 'Base', whose requirements this macro can't see; "
-                + "use @Understudy on a class that conforms to 'Child' instead",
+                + "use @Understudy on a class or an actor that conforms to 'Child' instead",
             line: 2,
             column: 15
         ),

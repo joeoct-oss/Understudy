@@ -56,6 +56,9 @@ struct Requirement: SpiedMember {
     let returnsOptional: Bool
     /// Whether the answer is a closure, which the double's initializer must take `@escaping`.
     let returnsFunction: Bool
+    /// The generic parameter the requirement returns, as `T` or `T?`, whose answer the body casts
+    /// back; `nil` when it returns no generic parameter.
+    let returnedGeneric: String?
 
     /// The spy's input type: nothing, the one parameter's type, or a labelled tuple of them all.
     var input: String {
@@ -89,6 +92,26 @@ struct Requirement: SpiedMember {
 
     var answerType: String {
         (returnsFunction ? "@escaping " : "") + output
+    }
+
+    /// The statements that call `spy` and return its answer, cast back to the generic parameter
+    /// the requirement returns. A wrong-typed answer stops the test, naming the spy and both types.
+    func body(on spy: String) -> String {
+        guard let generic = returnedGeneric else {
+            return "return " + call(on: spy)
+        }
+        let answer = "__understudy_answer"
+        let wrongType = "fatalError(\"@Understudy: \(spy) answered \\(type(of: \(answer))), not \\(\(generic).self)\")"
+        let fetch = returnsOptional
+            ? "guard let \(answer) = \(call(on: spy)) else {\nreturn nil\n}"
+            : "let \(answer) = \(call(on: spy))"
+        return """
+            \(fetch)
+            guard let typed = \(answer) as? \(generic) else {
+            \(wrongType)
+            }
+            return typed
+            """
     }
 
     /// The call that records the input and gives the answer: through `respond(to:)` when the
@@ -140,15 +163,13 @@ struct Requirement: SpiedMember {
     init(_ declaration: FunctionDeclSyntax) throws {
         self.declaration = declaration
         let where_ = "'\(declaration.name.text)'"
-        if declaration.genericParameterClause != nil {
-            throw UnderstudyError("\(where_) is generic; write its double by hand", at: declaration.name)
-        }
+        let generics = try Self.erasedGenerics(of: declaration, in: where_)
         let modifiers = declaration.modifiers.map(\.name.text)
         if modifiers.contains("static") || modifiers.contains("class") {
             throw UnderstudyError("\(where_) is static; write its double by hand", at: declaration.name)
         }
         if modifiers.contains("mutating") {
-            throw UnderstudyError("\(where_) is mutating; @Understudy writes classes", at: declaration.name)
+            throw UnderstudyError("\(where_) is mutating; @Understudy writes classes and actors", at: declaration.name)
         }
         let signature = declaration.signature
         let throwsClause = signature.effectSpecifiers?.throwsClause
@@ -171,11 +192,20 @@ struct Requirement: SpiedMember {
             } ?? false
             return Parameter(
                 name: name,
-                type: try Self.storedType(of: parameter, in: where_),
+                type: try Self.storedType(of: parameter, generics: generics, in: where_),
                 escapes: escapes
             )
         }
-        if let returnType = signature.returnClause?.type {
+        returnedGeneric = try signature.returnClause.flatMap { clause in
+            try Self.returnedGeneric(clause.type, generics: generics, in: where_)
+        }
+        if let generic = returnedGeneric, let erased = generics[generic] {
+            let optional = signature.returnClause?.type.is(OptionalTypeSyntax.self) == true
+            output = optional ? "(\(erased))?" : erased
+            returnsNothing = false
+            returnsOptional = optional
+            returnsFunction = false
+        } else if let returnType = signature.returnClause?.type {
             let text = returnType.trimmedDescription
             if returnType.is(SomeOrAnyTypeSyntax.self), text.hasPrefix("some ") {
                 throw UnderstudyError("\(where_) returns an opaque type; write its double by hand", at: declaration.name)
@@ -209,9 +239,58 @@ struct Requirement: SpiedMember {
         return false
     }
 
-    /// The type a spy records for a parameter: `@escaping` dropped, `some` turned into `any`, and a
-    /// variadic parameter as an array.
-    private static func storedType(of parameter: FunctionParameterSyntax, in where_: String) throws -> String {
+    /// Each generic parameter's name, and the type its spy records it as: `any` of its constraints,
+    /// or `Any` when it has none. Refuses what a spy can't record: a `where` clause or a pack.
+    private static func erasedGenerics(of declaration: FunctionDeclSyntax, in where_: String) throws -> [String: String] {
+        guard let clause = declaration.genericParameterClause else {
+            return [:]
+        }
+        if declaration.genericWhereClause != nil || clause.genericWhereClause != nil {
+            throw UnderstudyError("\(where_) has a where clause; write its double by hand", at: declaration.name)
+        }
+        var generics: [String: String] = [:]
+        for parameter in clause.parameters {
+            if parameter.specifier != nil {
+                throw UnderstudyError("\(where_) takes a parameter pack; write its double by hand", at: declaration.name)
+            }
+            generics[parameter.name.text] = parameter.inheritedType.map { "any " + $0.trimmedDescription } ?? "Any"
+        }
+        return generics
+    }
+
+    /// The generic parameter a return type is, `T` or `T?`; `nil` when it mentions none. Refuses a
+    /// generic parameter inside another type, such as `[T]`.
+    private static func returnedGeneric(
+        _ type: TypeSyntax,
+        generics: [String: String],
+        in where_: String
+    ) throws -> String? {
+        let whole = type.as(OptionalTypeSyntax.self)?.wrappedType ?? type
+        if generics[whole.trimmedDescription] != nil {
+            return whole.trimmedDescription
+        }
+        try refuseNested(type, generics: generics, in: where_)
+        return nil
+    }
+
+    /// Refuses a type that mentions a generic parameter without being it.
+    private static func refuseNested(_ type: some SyntaxProtocol, generics: [String: String], in where_: String) throws {
+        if let name = type.tokens(viewMode: .sourceAccurate).first(where: { generics[$0.text] != nil })?.text {
+            throw UnderstudyError(
+                "\(where_) uses '\(name)' inside another type; write its double by hand",
+                at: type
+            )
+        }
+    }
+
+    /// The type a spy records for a parameter: `@escaping` dropped, `some` turned into `any`, a
+    /// generic parameter as the type ``erasedGenerics(of:in:)`` gives it, and a variadic parameter
+    /// as an array.
+    private static func storedType(
+        of parameter: FunctionParameterSyntax,
+        generics: [String: String],
+        in where_: String
+    ) throws -> String {
         var type = parameter.type
         if let attributed = type.as(AttributedTypeSyntax.self) {
             if attributed.specifiers.contains(where: { $0.trimmedDescription.hasPrefix("inout") }) {
@@ -230,6 +309,11 @@ struct Requirement: SpiedMember {
             type = TypeSyntax(attributed.with(\.attributes, kept))
         }
         var text = type.trimmedDescription
+        if let erased = generics[text] {
+            text = erased
+        } else {
+            try refuseNested(type, generics: generics, in: where_)
+        }
         if let someOrAny = type.as(SomeOrAnyTypeSyntax.self), someOrAny.someOrAnySpecifier.text == "some" {
             text = "any " + someOrAny.constraint.trimmedDescription
         }

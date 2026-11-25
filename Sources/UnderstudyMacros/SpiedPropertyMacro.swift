@@ -21,8 +21,8 @@ public struct SpiedPropertyMacro: AccessorMacro {
         guard let variable = declaration.as(VariableDeclSyntax.self) else {
             throw UnderstudyError("@SpiedProperty goes on a var")
         }
-        guard SpiedMacro.isInsideUnderstudyClass(context) else {
-            throw UnderstudyError("@SpiedProperty needs @Understudy on the class it is in")
+        guard SpiedMacro.isInsideUnderstudyType(context) else {
+            throw UnderstudyError("@SpiedProperty needs @Understudy on the class or actor it is in")
         }
         // `@Understudy` explains a property it can't write, at the property.
         guard let property = try? Property(variable, inProtocol: false) else {

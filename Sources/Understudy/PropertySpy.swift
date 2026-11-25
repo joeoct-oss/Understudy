@@ -74,6 +74,15 @@ public final class PropertySpy<Value> {
         }
     }
 
+    /// Forgets every get and every set, so the test can check what happens next on its own. Keeps
+    /// the value later gets answer.
+    public func reset() {
+        synchronized {
+            gets = 0
+            setValues.removeAll()
+        }
+    }
+
     /// Counts a get and answers it: what the property's getter calls.
     public func get() -> Value {
         synchronized {

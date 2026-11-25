@@ -22,9 +22,11 @@
 /// #expect(catalog.productSpy.calls == expectedIDs)
 /// ```
 ///
-/// On a protocol you own, it writes a class named after the protocol with `Spy` added, such as
-/// `CatalogSpy`, next to it. The protocol's target then depends on Understudy. A protocol that
-/// inherits another, other than `Sendable` or `AnyObject`, needs the class form.
+/// On an actor, it writes the same members, with spies a test reads without `await`. On a
+/// protocol you own, it writes a class named after the protocol with `Spy` added, such as
+/// `CatalogSpy`, next to it, or an actor when the protocol inherits `Actor`. The protocol's target
+/// then depends on Understudy. A protocol that inherits another, other than `Sendable`,
+/// `AnyObject` or `Actor`, needs the class form.
 ///
 /// Each spy is named after its requirement with `Spy` added, such as `productSpy`; overloads add
 /// their argument labels, such as `removeIdSpy` and `removeNamedSpy`. A requirement with several
@@ -32,8 +34,10 @@
 /// The double's initializer asks for the answer of every requirement that returns something other
 /// than `Void` or an optional, and the value of every property that isn't optional, so a double
 /// can't be called with nothing scripted. A property gets a ``PropertySpy``. An async requirement
-/// goes through ``Spy/respond(to:isolation:)``, so the test can hold the call. Subscripts, static
-/// and generic requirements are written by hand.
+/// goes through ``Spy/respond(to:isolation:)``, so the test can hold the call. A generic
+/// parameter that is a whole parameter type, or the whole return type, is recorded as `any` of
+/// its constraints, and the answer is cast back. Subscripts and static requirements are written
+/// by hand.
 @attached(member, names: arbitrary)
 @attached(peer, names: suffixed(Spy))
 public macro Understudy() = #externalMacro(module: "UnderstudyMacros", type: "UnderstudyMacro")

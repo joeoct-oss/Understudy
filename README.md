@@ -16,6 +16,9 @@ Swift macros that write your test doubles: mark a requirement, and every call is
 - [Wait for a call](#wait-for-a-call)
 - [Call order](#call-order)
 - [Strict mocks](#strict-mocks)
+- [Reset a spy](#reset-a-spy)
+- [Generic functions](#generic-functions)
+- [Actors](#actors)
 - [Doubles for your own protocols](#doubles-for-your-own-protocols)
 - [Spies by hand](#spies-by-hand)
 - [What the macros refuse](#what-the-macros-refuse)
@@ -31,7 +34,7 @@ Add the package, and add the product to your **test targets only**. Your shipped
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/joeoct-oss/Understudy", from: "0.3.0"),
+    .package(url: "https://github.com/joeoct-oss/Understudy", from: "0.4.0"),
 ],
 targets: [
     .testTarget(
@@ -200,6 +203,51 @@ analytics.trackSpy.verify()
 
 `expectNoCalls()` makes any call a failure. A spy with no expectations stays lenient, so you only pay for strictness where you ask for it.
 
+## Reset a spy
+
+`reset()` forgets what happened so far: the calls (a property's gets and sets), where `nextCall()` was, and the expectations. It keeps what the test scripted, so you can check one step of a test at a time. A `CallOrder` keeps the names it already has; make a new one for the next step:
+
+```swift
+checkout.addItem(.apple)
+analytics.trackSpy.reset()
+
+checkout.complete()
+
+let expectedEvents = ["checkout"]
+#expect(analytics.trackSpy.calls == expectedEvents)
+```
+
+## Generic functions
+
+A generic function can be `@Spied` when each generic parameter is a whole parameter type, or the whole return type (`T` or `T?`). The spy records it as `any` of its constraints, or `Any` when it has none, and the answer is cast back to the type the caller asks for:
+
+```swift
+@Understudy
+final class SpyCache: Cache {
+    @Spied func store<Value: Codable>(_ value: Value, for key: String)   // storeSpy records (value: any Codable, key: String)
+    @Spied func value<Value: Decodable>(for key: String) -> Value?      // valueSpy answers (any Decodable)?
+}
+
+cache.valueSpy.willReturn(42)
+let count: Int? = cache.value(for: "count")   // 42
+```
+
+An answer of the wrong type stops the test with a message naming the spy, the answer's type and the type asked for.
+
+## Actors
+
+`@Understudy` works on an actor the same way as on a class. The spies are `nonisolated`, so a test reads them without `await`:
+
+```swift
+@Understudy
+actor SpyStore: Store {
+    @Spied func save(_ item: Item) async throws
+}
+
+try await store.save(.apple)
+#expect(store.saveSpy.callCount == 1)
+```
+
 ## Doubles for your own protocols
 
 On a protocol in your own code, `@Understudy` writes the double next to it, named after the protocol with `Spy` added:
@@ -214,7 +262,7 @@ protocol Clock {
 let clock = ClockSpy(now: 0)
 ```
 
-This makes that protocol's target depend on Understudy, so prefer the class form when the protocol lives in shipped code. A protocol that inherits another (other than `Sendable` or `AnyObject`) needs the class form too, because the macro can't see the inherited requirements.
+This makes that protocol's target depend on Understudy, so prefer the class form when the protocol lives in shipped code. A protocol that inherits `Actor` gets an actor spy. A protocol that inherits another protocol (other than `Sendable`, `AnyObject` or `Actor`) needs the class form too, because the macro can't see the inherited requirements.
 
 ## Spies by hand
 
@@ -238,10 +286,11 @@ Each of these is a compile error at the line it's about, with what to do instead
 
 | Requirement | Why |
 |---|---|
-| Generic functions, `static` members | A stored spy has one input and output type, and belongs to one instance. |
+| `static` members | A stored spy belongs to one instance. |
+| A generic parameter inside another type (`[T]`, `Result<T, E>`), a `where` clause, a parameter pack | A spy records one input type, so only a whole generic parameter can be stood in for. |
 | Typed `throws`, `rethrows` | The spy throws `any Error`, so it can't keep the promise. |
 | `inout` or `@autoclosure` parameters, opaque (`some`) return types | A spy can't keep or hand back these safely. |
-| `mutating` functions | The macro writes classes. |
+| `mutating` functions | The macro writes classes and actors. |
 | A parameter named `_` with no internal name | The body has no name to pass to the spy; name it. |
 | Two requirements that would share a spy name | Rename one, or give the overloads different labels. |
 | A protocol that inherits another, or has associated types, subscripts or initializers | The macro can't see or write them; use the class form or write it by hand. |
