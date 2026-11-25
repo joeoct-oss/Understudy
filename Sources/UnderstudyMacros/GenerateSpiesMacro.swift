@@ -315,15 +315,15 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
                 """
             )
         }
-        let fresh = "@Sendable (_ test: () async throws -> Void) async throws -> Void"
+        let fresh = "@Sendable (_ test: () async throws -> Swift.Void) async throws -> Swift.Void"
         return [
             """
             /// The static spies of one test, or of every test that runs without `.freshSpies(_:)`.
-            \(raw: prefix)final class __UnderstudyStatics: Sendable {
+            \(raw: prefix)final class __UnderstudyStatics: Swift.Sendable {
             \(raw: spies.joined(separator: "\n"))
             }
             """,
-            "private static let \(raw: box) = TaskLocal(wrappedValue: __UnderstudyStatics())",
+            "private static let \(raw: box) = _Concurrency.TaskLocal(wrappedValue: __UnderstudyStatics())",
             """
             \(raw: prefix)static let withFreshSpies: \(raw: fresh) = { test in
             try await \(raw: typeName).\(raw: box).withValue(__UnderstudyStatics()) {

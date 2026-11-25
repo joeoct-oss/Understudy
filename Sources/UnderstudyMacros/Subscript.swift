@@ -32,13 +32,13 @@ struct Subscript: SpiedMember {
     /// The get spy's input: the one index's type, or a labelled tuple of them all.
     var input: String {
         guard parameters.count > 1 else {
-            return parameters.first?.type ?? "Void"
+            return parameters.first?.type ?? "Swift.Void"
         }
         return "(" + parameters.map { "\($0.name): \($0.type)" }.joined(separator: ", ") + ")"
     }
 
     var spyType: String {
-        "Spy<\(input), \(output)>"
+        "Understudy.Spy<\(input), \(output)>"
     }
 
     /// A spy that keeps each set as a labelled tuple of the indices and the new value.
@@ -47,7 +47,7 @@ struct Subscript: SpiedMember {
             return nil
         }
         let fields = parameters.map { "\($0.name): \($0.type)" } + ["newValue: \(output)"]
-        return "Spy<(\(fields.joined(separator: ", "))), Void>"
+        return "Understudy.Spy<(\(fields.joined(separator: ", "))), Swift.Void>"
     }
 
     var needsAnswer: Bool {

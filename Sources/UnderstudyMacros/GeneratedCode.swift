@@ -25,7 +25,7 @@ extension Requirement {
         let generics = declaration.genericParameterClause?.parameters
             .first { $0.name.text == returnedParameter }
             .map { "<" + $0.with(\.trailingComma, nil).trimmedDescription + ">" } ?? ""
-        let returned = declaration.signature.returnClause?.type.trimmedDescription ?? "Void"
+        let returned = declaration.signature.returnClause?.type.trimmedDescription ?? "Swift.Void"
         let signature = "\(forwarderName)\(generics)(\(forwarderParameters))\(effects)"
         let kind = isStatic ? "static func" : "func"
         return """
