@@ -116,11 +116,20 @@ public final class TestClock: Clock, @unchecked Sendable {
     /// ``cancelSleeper(_:)`` change it.
     private var starting: Set<Int> = []
 
-    /// The time each woken task reads as ``now`` until it sleeps again: the deadline it woke at.
-    /// So the task's next sleep counts from when it woke, even when it gets there after the
-    /// advance has moved on. `var` because tasks wake and sleep; only ``wait(_:)`` and
-    /// ``takeSleeper(dueBy:)`` change it.
-    private var wokenAt: [Int: Instant] = [:]
+    /// The time each woken task reads as ``now`` until it sleeps again: the deadline it woke at,
+    /// with the number of advances that had finished when it woke. So the task's next sleep
+    /// counts from when it woke, even when it gets there after the advance has moved on.
+    ///
+    /// A task is known by its identity, which a new task can reuse once the old one ends. So an
+    /// entry lasts only until the end of the advance after the one that woke the task, and a
+    /// task that ends without sleeping again can't lend its time to a later one beyond that.
+    /// `var` because tasks wake and sleep; only ``wait(_:)``, ``takeSleeper(dueBy:)`` and
+    /// ``forgetOldWakes()`` change it.
+    private var wokenAt: [Int: (instant: Instant, advance: Int)] = [:]
+
+    /// How many advances, and runs, have finished. `var` because each one adds one; only
+    /// ``forgetOldWakes()`` changes it.
+    private var finishedAdvances = 0
 
     /// The id the next sleep gets. `var` because each sleep takes one.
     private var nextSleeperID = 0
@@ -130,7 +139,7 @@ public final class TestClock: Clock, @unchecked Sendable {
     public var now: Instant {
         let task = withUnsafeCurrentTask { $0?.hashValue }
         return synchronized {
-            task.flatMap { wokenAt[$0] } ?? current
+            task.flatMap { wokenAt[$0]?.instant } ?? current
         }
     }
 
@@ -166,7 +175,7 @@ public final class TestClock: Clock, @unchecked Sendable {
     /// Moves the clock on by `duration`, waking every sleep it reaches, in deadline order. See
     /// the type's documentation for what it promises about the work each wake starts.
     public func advance(by duration: Duration) async {
-        await advance(to: now.advanced(by: duration))
+        await advance(to: synchronized { current }.advanced(by: duration))
     }
 
     /// Moves the clock to `deadline`, waking every sleep it reaches, in deadline order, with
@@ -208,6 +217,16 @@ public final class TestClock: Clock, @unchecked Sendable {
             sleeper.continuation.resume()
             await settle(after: sleeper)
         }
+        forgetOldWakes()
+    }
+
+    /// Counts the advance that just finished, and forgets the wakes of the one before it, whose
+    /// tasks have had a whole advance to sleep again.
+    private func forgetOldWakes() {
+        synchronized {
+            finishedAdvances += 1
+            wokenAt = wokenAt.filter { $0.value.advance >= finishedAdvances - 1 }
+        }
     }
 
     /// Yields to the other tasks, so the work `woken` started runs on to its next suspension:
@@ -240,9 +259,10 @@ public final class TestClock: Clock, @unchecked Sendable {
                 return .failure(CancellationError())
             }
             if sleeper.deadline <= current {
-                // A woken task that got here after the advance passed this deadline catches up.
-                if let task = sleeper.task, wokenAt[task] != nil {
-                    wokenAt[task] = sleeper.deadline
+                // A woken task that got here after the advance passed this deadline catches up,
+                // but its time never goes back.
+                if let task = sleeper.task, let woken = wokenAt[task] {
+                    wokenAt[task] = (max(woken.instant, sleeper.deadline), woken.advance)
                 }
                 return .success(())
             }
@@ -276,7 +296,7 @@ public final class TestClock: Clock, @unchecked Sendable {
             let sleeper = sleepers.remove(at: next)
             moveNow(to: sleeper.deadline)
             if let task = sleeper.task {
-                wokenAt[task] = sleeper.deadline
+                wokenAt[task] = (sleeper.deadline, finishedAdvances)
             }
             return sleeper
         }

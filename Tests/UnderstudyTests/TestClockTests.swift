@@ -198,6 +198,40 @@ struct TestClockTests {
     }
 
     @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
+    @Test("A woken task's time never goes back when it sleeps until an instant already passed", .timeLimit(.minutes(1)))
+    func wokenTaskTimeNeverGoesBack() async throws {
+        let clock = TestClock()
+        let wokeAt = Spy<TestClock.Instant, Void>()
+
+        async let napped: Void = napUntilThreeThenTwo(on: clock, to: wokeAt)
+        await clock.advance(by: .seconds(5))
+        try await napped
+
+        let three = TestClock.Instant(offset: .seconds(3))
+        let expected = [three, three]
+        #expect(wokeAt.calls == expected)
+    }
+
+    @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
+    @Test(
+        "Advancing by a duration from a task the clock woke moves on from the clock's time",
+        .timeLimit(.minutes(1))
+    )
+    func advanceByFromAWokenTaskStartsAtTheClocksTime() async throws {
+        let clock = TestClock()
+        let gate = Spy<Int, Void>()
+        let held = gate.holdNextCall()
+
+        async let napped: Void = napThenAdvance(on: clock, behind: gate)
+        await clock.advance(by: .seconds(5))
+        _ = await held.arrived()
+        held.resume(returning: ())
+        try await napped
+
+        #expect(clock.now == TestClock.Instant(offset: .seconds(6)))
+    }
+
+    @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
     @Test(
         "A sleep that another task starts during an advance is woken when its deadline falls inside it",
         .timeLimit(.minutes(1))
@@ -337,6 +371,23 @@ private func napPastTheAdvance(
     try await napThenReadTheTime(on: clock, for: .seconds(1), to: wokeAt)
     await gate.respond(to: 1)
     try await napThenReadTheTime(on: clock, for: .seconds(1), to: wokeAt)
+}
+
+/// Sleeps until 3, then until 2, which has passed, reading the time after each.
+@available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
+private func napUntilThreeThenTwo(on clock: TestClock, to wokeAt: Spy<TestClock.Instant, Void>) async throws {
+    try await clock.sleep(until: TestClock.Instant(offset: .seconds(3)))
+    wokeAt(clock.now)
+    try await clock.sleep(until: TestClock.Instant(offset: .seconds(2)))
+    wokeAt(clock.now)
+}
+
+/// Sleeps one second, waits at the gate while the test advances, then advances by one second.
+@available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
+private func napThenAdvance(on clock: TestClock, behind gate: Spy<Int, Void>) async throws {
+    try await clock.sleep(for: .seconds(1))
+    await gate.respond(to: 1)
+    await clock.advance(by: .seconds(1))
 }
 
 /// Sleeps until 1, then signals the listener, which the clock never woke.
