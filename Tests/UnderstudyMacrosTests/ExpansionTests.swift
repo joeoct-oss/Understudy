@@ -55,7 +55,7 @@ struct ExpansionTests {
 
     /// A generic answer of the wrong type can't be tested by calling it, because it stops the
     /// process. What the person sees is this message, so the test checks the double says it.
-    @Test("A generic answer of the wrong type stops with the spy's name and both types")
+    @Test("A generic answer of the wrong type gets a stop message naming the spy and both types")
     func genericAnswerOfTheWrongTypeStopsWithTheSpyAndBothTypes() {
         let (expanded, _) = expand("""
             @GenerateSpies
@@ -70,7 +70,7 @@ struct ExpansionTests {
 
     /// An error of another type than a typed `throws` names stops the process too, so the test
     /// checks the double says which spy threw it, and both types.
-    @Test("A typed throws error of another type stops with the spy's name and both types")
+    @Test("A typed throws error of another type gets a stop message naming the spy and both types")
     func typedThrowsWithAnotherErrorTypeStopsNamingTheSpy() {
         let (expanded, _) = expand("""
             @GenerateSpies
