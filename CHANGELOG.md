@@ -4,6 +4,8 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+## 0.2.0 - 2026-11-25
+
 ### Added
 
 - `@Understudy`, a macro that writes a test double. On a class in a test target, it writes a spy and a body for every requirement marked `@Spied` and declared with no body, and an initializer that asks for every answer with no safe default. On a protocol, it writes a spy class next to it, named after the protocol with `Spy` added.
