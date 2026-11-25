@@ -23,6 +23,7 @@
 /// ``SpiedProperty()``. In an actor, use ``SpiedProperty()``: an actor's `$name` would need
 /// `await`. A `Sendable` class can't hold it, because a wrapped property's storage is a `var`; use
 /// ``SpiedProperty()`` with a first value, `@SpiedProperty var user: String = "ana"`.
+/// ``GenerateSpies()`` refuses it in both, with a fix-it that makes it `@SpiedProperty`.
 ///
 /// Conformances:
 /// - `Sendable` when `Value` is `Sendable`: it stores only its ``PropertySpy``, which is then

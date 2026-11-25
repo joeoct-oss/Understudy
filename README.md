@@ -432,7 +432,7 @@ Its limits:
 
 ## What the macros refuse
 
-Each of these is a compile error at the line it's about, saying what to do instead. You can write any of them with [spies by hand](#spies-by-hand).
+Each of these is a compile error at the line it's about, saying what to do instead. Where there is one clear fix, such as `let` to `var`, removing a `@Spied` function's body, naming a parameter, adding a property's type, or `@Recorded` to `@SpiedProperty` in an actor or a `Sendable` class, your editor offers it as a fix-it. You can write any of them with [spies by hand](#spies-by-hand).
 
 | Requirement | Why |
 |---|---|
