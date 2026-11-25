@@ -200,8 +200,8 @@ struct Requirement: SpiedMember {
             return "return " + call(on: spy)
         }
         let answer = "__understudy_answer"
-        let wrongType =
-            "Swift.fatalError(\"@GenerateSpies: \(spy) answered \\(Swift.type(of: \(answer))), not \\(\(generic).self)\")"
+        let wrongType = "Swift.fatalError(\"@GenerateSpies: \(spy) answered "
+            + "\\(Swift.type(of: \(answer))), not \\(\(generic).self)\")"
         let fetch = returnsOptional
             ? "guard let \(answer) = \(call(on: spy)) else {\nreturn nil\n}"
             : "let \(answer) = \(call(on: spy))"
