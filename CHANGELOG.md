@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Added
+
+- `@Sample`, in the new product `UnderstudySamples`: on a struct, it writes `static func sample(...)`, with one parameter per stored property, each with a default, so a test gets a complete value in one call, such as `Product.sample(price: 0)`. `@SampleDefault(value)` sets a property's default. The sample is written for debug builds only, and is as visible as the struct.
+
 ### Fixed
 
 - Understudy now asks for swift-syntax 602 or later. It said 600, but the macros don't build with 600, and 601 gives a wrong extra error for a `@SpiedProperty` with accessors, so a project that resolved either got a broken Understudy.
