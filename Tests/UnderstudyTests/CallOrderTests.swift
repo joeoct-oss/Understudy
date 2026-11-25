@@ -28,4 +28,65 @@ struct CallOrderTests {
         let expected = ["save", "send", "save"]
         #expect(order.names == expected)
     }
+
+    @Test
+    func callOrderBuilderWatchesEverySpyInIt() throws {
+        let save = ThrowingSpy<String, Void>(returning: ())
+        let send = Spy<String, Void>()
+        let order = CallOrder {
+            Watched(save, as: "save")
+            Watched(send, as: "send")
+        }
+
+        send("hello")
+        try save("cart")
+        send("saved")
+
+        let expected = ["send", "save", "send"]
+        #expect(order.names == expected)
+    }
+
+    @Test
+    func callOrderBuilderSeesOnlyLaterCalls() {
+        let send = Spy<String, Void>()
+        send("before watching")
+
+        let order = CallOrder {
+            Watched(send, as: "send")
+        }
+        send("after")
+
+        let expected = ["send"]
+        #expect(order.names == expected)
+    }
+
+    @Test
+    func aBuiltOrderCanWatchMoreSpiesLater() {
+        let save = Spy<String, Void>()
+        let send = Spy<String, Void>()
+        let order = CallOrder {
+            Watched(save, as: "save")
+        }
+
+        send("not watched yet")
+        order.watch(send, as: "send")
+        send("watched")
+        save("cart")
+
+        let expected = ["send", "save"]
+        #expect(order.names == expected)
+    }
+
+    @Test
+    func aWatchCanBeAppliedToAnOrderByHand() {
+        let send = Spy<String, Void>()
+        let order = CallOrder()
+        let watch = Watched(send, as: "send")
+
+        watch(order)
+        send("hello")
+
+        let expected = ["send"]
+        #expect(order.names == expected)
+    }
 }
