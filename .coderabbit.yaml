@@ -127,7 +127,7 @@ reviews:
         through the newest release, on iOS 13, macOS 10.15 and Linux. Flag: an API newer
         than the platform floor in Package.swift without an availability check; Swift 6.1+
         syntax or library API (6.2's @concurrent and nonisolated(nonsending), InlineArray,
-        Span, Mutex from Synchronization) not behind #if compiler(>=6.x); @unchecked Sendable
+        Span) not behind #if compiler(>=6.x); @unchecked Sendable
         or nonisolated(unsafe) without a comment naming the lock that guards the state;
         @preconcurrency on a conformance; a mutable global or static var; an unstructured Task
         where async let or a task group would do; a semaphore or other blocking wait on async
