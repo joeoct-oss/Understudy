@@ -36,7 +36,7 @@ Add the package, and add the `Understudy` product to your **test targets only**.
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/joeoct-oss/Understudy", from: "0.4.0"),
+    .package(url: "https://github.com/joeoct-oss/Understudy", from: "0.5.0"),
 ],
 targets: [
     .testTarget(

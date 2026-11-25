@@ -4,6 +4,8 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+## 0.5.0 - 2026-11-25
+
 ### Added
 
 - `@Sample`, in the new product `UnderstudySamples`: on a struct, it writes `static func sample(...)`, with one parameter per stored property, each with a default, so a test gets a complete value in one call, such as `Product.sample(price: 0)`. `@SampleDefault(value)` sets a property's default. The sample is written for debug builds only, and is as visible as the struct.
