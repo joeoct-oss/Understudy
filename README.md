@@ -244,7 +244,7 @@ Each of these is a compile error at the line it's about, with what to do instead
 | `mutating` functions | The macro writes classes. |
 | A parameter named `_` with no internal name | The body has no name to pass to the spy; name it. |
 | Two requirements that would share a spy name | Rename one, or give the overloads different labels. |
-| A protocol that inherits another, or has subscripts or initializers | The macro can't see or write them; use the class form or write it by hand. |
+| A protocol that inherits another, or has associated types, subscripts or initializers | The macro can't see or write them; use the class form or write it by hand. |
 
 ## License
 
