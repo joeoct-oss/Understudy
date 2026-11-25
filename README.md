@@ -4,7 +4,7 @@
 
 # Understudy
 
-Test doubles for Swift, written by Swift macros. Mark what your double stands in for, and Understudy keeps every call and answers as the test scripts.
+**Test doubles that write themselves.** Mark the functions and properties your double stands in for, and Understudy's Swift macros record every call and answer the way your test says.
 
 It has two tools, in two products:
 
