@@ -97,7 +97,9 @@ reviews:
     # clean-code checks below are CodeRabbit's alone.
     - path: "**/*.swift"
       instructions: >-
-        Shared code style, each a should-fix with the rule named. Empty braces have one space
+        Shared code style. Report each broken rule as an inline should-fix finding (major
+        severity) that names the rule, never as a nitpick or trivial item: this package has no
+        linter, so review is the only check. Empty braces have one space
         inside, `{ }`, never `{}` (empty collection literals and braces inside string literals or
         test source fixtures are not braces). A type or extension with members opens its brace on
         the declaration line, puts each member on its own line and lists one enum case per line.
@@ -138,7 +140,8 @@ reviews:
         changed default argument, new protocol requirement without a default, new public enum
         case, changed isolation of a public async function) that CHANGELOG.md does not record
         as breaking. Raise a concurrency issue only with a realistic sequence that triggers it.
-        Clean code, as should-fix items: a function longer than about 40 lines, or nested more
+        Clean code, each as an inline should-fix finding (major severity), never a nitpick: a
+        function longer than about 40 lines, or nested more
         than three levels deep, that reads better split into named functions; a name that
         doesn't say what it holds or does (abbreviations, single letters outside a short
         closure or loop, vague words such as data, info, helper, manager, util, temp or flag);
@@ -166,7 +169,8 @@ reviews:
         expansion needs, not the source style.
     - path: "Tests/**/*.swift"
       instructions: >-
-        Swift Testing only (import Testing, no XCTest). Each test pins one promise the package
+        Swift Testing only (import Testing, no XCTest). Report each broken rule below as an
+        inline should-fix finding (major severity), never as a nitpick. Each test pins one promise the package
         makes to its user, is named after it and reaches the code only the way that user does:
         the public API, or the compiler by using a macro in source. Every @Test has a display
         name that states its promise as a plain sentence in sentence case with no full stop,
