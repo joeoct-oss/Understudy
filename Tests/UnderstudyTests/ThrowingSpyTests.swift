@@ -40,6 +40,8 @@ struct ThrowingSpyTests {
         }
         let expected = [4]
         #expect(spy.calls == expected)
+        #expect(spy.lastCall == 4)
+        #expect(spy.wasCalled)
     }
 
     @Test

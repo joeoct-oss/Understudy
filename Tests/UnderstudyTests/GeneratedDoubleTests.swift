@@ -75,27 +75,71 @@ struct GeneratedDoubleTests {
     @MainActor
     func mainActorDoubleRecordsValuesThatAreNotSendable() {
         let gate = SpyGate(isOpen: true)
+        let screen = Screen(title: "Cart")
         let ran = Spy<Void, Void>()
 
-        gate.requireAccount(for: "checkout") {
+        gate.requireAccount(for: screen) {
             ran()
         }
         gate.requireAccountSpy.lastCall?.action()
 
         #expect(gate.isOpen())
-        #expect(gate.requireAccountSpy.lastCall?.reason == "checkout")
+        #expect(gate.requireAccountSpy.lastCall?.screen === screen)
         #expect(ran.callCount == 1)
     }
 
     @Test
     func closureAnswerIsTakenAtCreation() {
         let ran = Spy<Void, Void>()
-        let factory = SpyHandlerFactory(makeHandler: { ran() })
+        let factory = SpyHandlerFactory(
+            makeHandler: { ran() },
+            makeSendableHandler: { ran() },
+            makeWrappedHandler: { ran() }
+        )
 
         factory.makeHandler()()
+        factory.makeSendableHandler()()
+        factory.makeWrappedHandler()()
 
         #expect(factory.makeHandlerSpy.callCount == 1)
-        #expect(ran.callCount == 1)
+        #expect(ran.callCount == 3)
+    }
+
+    @Test
+    func variadicAndOpaqueParametersAreRecorded() {
+        let printer = SpyPrinter()
+
+        printer.print("a", "b")
+        printer.show(7)
+
+        let expectedLines = [["a", "b"]]
+        #expect(printer.printSpy.calls == expectedLines)
+        #expect(printer.showSpy.lastCall as? Int == 7)
+    }
+
+    @Test
+    @MainActor
+    func doublesOfEveryAccessLevelAndIsolationBuildAndRecord() async {
+        let gate = SpyOpenGate(isOpen: true)
+        let adder = SpyAdder(sum: 6)
+        let scheduler = SpyScheduler()
+        let clock = PublicClockSpy(now: 1)
+        let log = FileLogSpy()
+
+        let open = gate.isOpen()
+        let total = adder.sum(1, 2, 3)
+        scheduler.schedule { @Sendable in }
+        let now = clock.now()
+        log.write("saved")
+
+        let expectedNumbers = [[1, 2, 3]]
+        let expectedLines = ["saved"]
+        #expect(open)
+        #expect(total == 6)
+        #expect(adder.sumSpy.calls == expectedNumbers)
+        #expect(scheduler.scheduleSpy.callCount == 1)
+        #expect(now == 1)
+        #expect(log.writeSpy.calls == expectedLines)
     }
 
     @Test
@@ -165,8 +209,17 @@ private final class SpyLoader: Loader {
 /// Asks for an account before an action, on the main actor.
 @MainActor
 private protocol AccountGate: AnyObject {
-    func requireAccount(for reason: String, then action: @escaping () -> Void)
+    func requireAccount(for screen: Screen, then action: @escaping () -> Void)
     func isOpen() -> Bool
+}
+
+/// A screen, a class that isn't `Sendable`.
+private final class Screen {
+    let title: String
+
+    init(title: String) {
+        self.title = title
+    }
 }
 
 /// An account gate that keeps each request and runs nothing, so the test decides.
@@ -176,13 +229,88 @@ private protocol AccountGate: AnyObject {
 @Understudy
 @MainActor
 private final class SpyGate: AccountGate {
-    @Spied func requireAccount(for reason: String, then action: @escaping () -> Void)
+    @Spied func requireAccount(for screen: Screen, then action: @escaping () -> Void)
     @Spied func isOpen() -> Bool
+}
+
+/// Prints lines and shows values.
+private protocol Printer {
+    func print(_ lines: String...)
+    func show(_ value: some Equatable)
+}
+
+/// A printer that keeps what it was given.
+///
+/// Conformances:
+/// - `Printer`, so a test can pass it where a printer is expected.
+@Understudy
+private final class SpyPrinter: Printer {
+    @Spied func print(_ lines: String...)
+    @Spied func show(_ value: some Equatable)
+}
+
+/// A gate any thread may ask whether it is open, owned by the main actor.
+@MainActor
+public protocol OpenGate {
+    nonisolated func isOpen() -> Bool
+}
+
+/// An open, main-actor gate whose answer the test chose.
+///
+/// Conformances:
+/// - `OpenGate`, so a test can pass it where a gate is expected.
+@Understudy
+@MainActor
+open class SpyOpenGate: OpenGate {
+    @Spied nonisolated public func isOpen() -> Bool
+}
+
+/// Adds any count of numbers.
+public protocol Adder {
+    func sum(_ numbers: Int...) -> Int
+}
+
+/// A public adder that keeps every list of numbers it was given.
+///
+/// Conformances:
+/// - `Adder`, so a test can pass it where an adder is expected.
+@Understudy
+public final class SpyAdder: Adder {
+    @Spied public func sum(_ numbers: Int...) -> Int
+}
+
+/// Runs work later, on any thread.
+private protocol Scheduler {
+    func schedule(_ work: @escaping @Sendable () -> Void)
+}
+
+/// A scheduler that keeps the work and never runs it.
+///
+/// Conformances:
+/// - `Scheduler`, so a test can pass it where a scheduler is expected.
+@Understudy
+private final class SpyScheduler: Scheduler {
+    @Spied func schedule(_ work: @escaping @Sendable () -> Void)
+}
+
+/// Tells the time, for code in other modules too.
+@Understudy
+@MainActor
+public protocol PublicClock: AnyObject {
+    func now() -> Int
+}
+
+/// Writes lines to a file in this file only.
+@Understudy
+fileprivate protocol FileLog {
+    func write(_ line: String)
 }
 
 /// Makes the handler a screen runs when it is tapped.
 private protocol HandlerFactory {
     func makeHandler() -> () -> Void
+    func makeSendableHandler() -> @Sendable () -> Void
+    func makeWrappedHandler() -> (() -> Void)
 }
 
 /// A handler factory that gives the closure the test chose.
@@ -192,6 +320,8 @@ private protocol HandlerFactory {
 @Understudy
 private final class SpyHandlerFactory: HandlerFactory {
     @Spied func makeHandler() -> () -> Void
+    @Spied func makeSendableHandler() -> @Sendable () -> Void
+    @Spied func makeWrappedHandler() -> (() -> Void)
 }
 
 /// Tells the time and waits, so a test can control both.

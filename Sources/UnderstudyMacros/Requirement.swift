@@ -93,22 +93,22 @@ struct Requirement {
         baseName = declaration.name.text
         let where_ = "'\(declaration.name.text)'"
         if declaration.genericParameterClause != nil {
-            throw UnderstudyError("\(where_) is generic; write its double by hand", at: declaration)
+            throw UnderstudyError("\(where_) is generic; write its double by hand", at: declaration.name)
         }
         let modifiers = declaration.modifiers.map(\.name.text)
         if modifiers.contains("static") || modifiers.contains("class") {
-            throw UnderstudyError("\(where_) is static; write its double by hand", at: declaration)
+            throw UnderstudyError("\(where_) is static; write its double by hand", at: declaration.name)
         }
         if modifiers.contains("mutating") {
-            throw UnderstudyError("\(where_) is mutating; @Understudy writes classes", at: declaration)
+            throw UnderstudyError("\(where_) is mutating; @Understudy writes classes", at: declaration.name)
         }
         let signature = declaration.signature
         let throwsClause = signature.effectSpecifiers?.throwsClause
         if throwsClause?.type != nil {
-            throw UnderstudyError("\(where_) uses typed throws; write its double by hand", at: declaration)
+            throw UnderstudyError("\(where_) uses typed throws; write its double by hand", at: declaration.name)
         }
         if throwsClause?.throwsSpecifier.tokenKind == .keyword(.rethrows) {
-            throw UnderstudyError("\(where_) rethrows; write its double by hand", at: declaration)
+            throw UnderstudyError("\(where_) rethrows; write its double by hand", at: declaration.name)
         }
         throwsError = throwsClause != nil
         labels = signature.parameterClause.parameters.map(\.firstName.text)
@@ -129,7 +129,7 @@ struct Requirement {
         if let returnType = signature.returnClause?.type {
             let text = returnType.trimmedDescription
             if returnType.is(SomeOrAnyTypeSyntax.self), text.hasPrefix("some ") {
-                throw UnderstudyError("\(where_) returns an opaque type; write its double by hand", at: declaration)
+                throw UnderstudyError("\(where_) returns an opaque type; write its double by hand", at: declaration.name)
             }
             output = text
             returnsNothing = text == "Void" || text == "()"
@@ -206,7 +206,7 @@ func spyNames(for requirements: [Requirement]) throws -> [String] {
     for (requirement, name) in zip(requirements, names) where !seen.insert(name).inserted {
         throw UnderstudyError(
             "two requirements would both be spied on as '\(name)'; rename one",
-            at: requirement.declaration
+            at: requirement.declaration.name
         )
     }
     return names

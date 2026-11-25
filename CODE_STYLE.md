@@ -19,3 +19,9 @@ A spy has no actor, so main-actor doubles and `Sendable` doubles can both hold o
 ## Supports the platforms in Package.swift
 
 No API newer than the oldest platform in `Package.swift` (iOS 13, macOS 10.15), unless it is behind an availability check. For example, `NSLock.withLock` needs iOS 17, so the lock is taken by hand.
+
+## Tests prove behaviour, and every line is tested
+
+Tests check what a person using the package sees: what a spy keeps and answers, how a generated double behaves once the compiler builds it, and which code the macros accept or refuse, with the message and the place it points to. No test compares the text a macro writes, since that is how it works, not what it promises. One promise has one test; a test that repeats another's promise is merged into it.
+
+Everything runs on Linux, in the cloud and in CI, with no Mac. `scripts/check-coverage.sh` runs the tests with coverage and fails on any line of `Sources/` that no test runs, except the compiler plugin's entry point.
