@@ -15,8 +15,8 @@ import Understudy
 /// stalling it. The sleeping work runs in `async let` children, which the limit cancels.
 @Suite("Test clock")
 struct TestClockTests {
-    /// How many times the actor-hop test runs, one after another, so the runs measure the clock
-    /// rather than a thousand tests competing for threads: the release gate for `advance`.
+    // How many times the actor-hop test runs, one after another, so the runs measure the clock
+    // rather than a thousand tests competing for threads: the release gate for `advance`.
     private static let hopRuns = 1_000
 
     @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
@@ -138,10 +138,10 @@ struct TestClockTests {
 
         async let napped: Void = napOnTheMainActor(on: clock, to: log)
         await clock.advance(by: .seconds(1))
-        let wokeInsideTheAdvance = log.wasCalled
         try await napped
 
-        #expect(wokeInsideTheAdvance)
+        let expected = ["main actor"]
+        #expect(log.calls == expected)
     }
 
     @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
@@ -158,21 +158,43 @@ struct TestClockTests {
 
     @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
     @Test(
-        "Woken work that hops across actors before its next sleep is woken again in the same advance",
+        "Woken work that hops across actors and the main actor between sleeps wakes at each deadline",
         .serialized,
         .timeLimit(.minutes(1)),
         arguments: 0..<hopRuns
     )
     func wokenWorkThatHopsAcrossActorsSettles(_ run: Int) async throws {
         let clock = TestClock()
-        let log = Spy<String, Void>()
+        let wokeAt = Spy<TestClock.Instant, Void>()
 
-        async let hopped: Void = napAndHop(on: clock, times: 3, to: log)
+        async let hopped: Void = napAndHop(on: clock, times: 3, to: wokeAt)
         await clock.advance(by: .seconds(3))
-        let wokenInsideTheAdvance = log.callCount
         try await hopped
 
-        #expect(wokenInsideTheAdvance == 3)
+        let expected = (1...3).map { TestClock.Instant(offset: .seconds($0)) }
+        #expect(wokeAt.calls == expected)
+    }
+
+    @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
+    @Test(
+        "A woken task that sleeps again only after the advance returned still counts from when it woke",
+        .timeLimit(.minutes(1))
+    )
+    func lateSleepCountsFromTheWakeDeadline() async throws {
+        let clock = TestClock()
+        let gate = Spy<Int, Void>()
+        let held = gate.holdNextCall()
+        let wokeAt = Spy<TestClock.Instant, Void>()
+
+        async let napped: Void = napPastTheAdvance(on: clock, behind: gate, to: wokeAt)
+        await clock.advance(by: .seconds(5))
+        _ = await held.arrived()
+        held.resume(returning: ())
+        try await napped
+
+        let expected = [TestClock.Instant(offset: .seconds(1)), TestClock.Instant(offset: .seconds(2))]
+        #expect(wokeAt.calls == expected)
+        #expect(clock.now == TestClock.Instant(offset: .seconds(5)))
     }
 
     @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
@@ -292,16 +314,29 @@ private func napOnTheMainActor(on clock: TestClock, to log: Spy<String, Void>) a
 /// Sleeps a second at a time, and after each wake hops to two actors and the main actor before
 /// the next sleep.
 @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
-private func napAndHop(on clock: TestClock, times: Int, to log: Spy<String, Void>) async throws {
+private func napAndHop(on clock: TestClock, times: Int, to wokeAt: Spy<TestClock.Instant, Void>) async throws {
     let inbox = Inbox()
     let outbox = Outbox()
     for _ in 1...times {
         try await clock.sleep(for: .seconds(1))
-        let letter = await outbox.send(await inbox.take())
+        _ = await outbox.send(await inbox.take())
         await MainActor.run {
-            log(letter)
+            wokeAt(clock.now)
         }
     }
+}
+
+/// Sleeps a second, then waits behind `gate`, which the test opens only after its advance has
+/// returned, then sleeps another second.
+@available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
+private func napPastTheAdvance(
+    on clock: TestClock,
+    behind gate: Spy<Int, Void>,
+    to wokeAt: Spy<TestClock.Instant, Void>
+) async throws {
+    try await napThenReadTheTime(on: clock, for: .seconds(1), to: wokeAt)
+    await gate.respond(to: 1)
+    try await napThenReadTheTime(on: clock, for: .seconds(1), to: wokeAt)
 }
 
 /// Sleeps until 1, then signals the listener, which the clock never woke.

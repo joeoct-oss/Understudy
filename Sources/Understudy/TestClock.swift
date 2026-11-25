@@ -28,14 +28,16 @@ import Foundation
 /// `CancellationError`, as the system clocks do.
 ///
 /// **What `advance` promises.** It wakes each sleep whose deadline the window reaches, in
-/// deadline order, with `now` set to that deadline as it wakes. After each wake, it lets the
-/// other tasks run until the woken task sleeps on the clock again, even across actors and the
-/// main actor, and that sleep is woken in the same call when it falls inside the window. When
-/// the woken task doesn't sleep again, and before the first wake, it lets them run for about
-/// 10 ms of real time, so tasks just started reach their first sleep. Swift has no public way to
-/// know when every task has reached its next suspension, so this is a generous wait, not a
-/// guarantee: a task that waits on something other than this clock, such as real I/O, may not
-/// be done when `advance` returns.
+/// deadline order, with `now` set to that deadline as it wakes. A woken task reads `now` as
+/// the deadline it woke at until it sleeps again, so its next sleep counts from when it woke.
+/// After each wake, `advance` lets the other tasks run until the woken task sleeps on the clock
+/// again, even across actors and the main actor, and that sleep is woken in the same call when
+/// it falls inside the window. It waits for that for up to 10 ms of real time, which is also how
+/// long it lets work run before the first wake, so tasks just started reach their first sleep.
+/// Swift has no public way to know when every task has reached its next suspension, so a woken
+/// task that takes longer, such as one that waits on real I/O, may still be running when
+/// `advance` returns. It never misses its deadlines, though: a sleep it starts later, inside the
+/// window the clock has passed, returns at once.
 ///
 /// Conformances:
 /// - `Clock`, so it goes wherever the code under test asks for an `any Clock<Duration>`.
@@ -76,10 +78,13 @@ public final class TestClock: Clock, @unchecked Sendable {
     /// A sleep that waits for the clock: when it wakes, the task that sleeps, and the
     /// continuation that resumes it.
     private struct Sleeper {
+        /// Tells this sleep apart from the others, so cancellation finds it.
         let id: Int
+        /// When the sleep wakes.
         let deadline: Instant
         /// The sleeping task's identity, so ``settle(after:)`` sees when it sleeps again.
         let task: Int?
+        /// Resumes the sleeping task, or throws in it when the sleep is cancelled.
         let continuation: CheckedContinuation<Void, any Error>
     }
 
@@ -111,13 +116,21 @@ public final class TestClock: Clock, @unchecked Sendable {
     /// ``cancelSleeper(_:)`` change it.
     private var starting: Set<Int> = []
 
+    /// The time each woken task reads as ``now`` until it sleeps again: the deadline it woke at.
+    /// So the task's next sleep counts from when it woke, even when it gets there after the
+    /// advance has moved on. `var` because tasks wake and sleep; only ``wait(_:)`` and
+    /// ``takeSleeper(dueBy:)`` change it.
+    private var wokenAt: [Int: Instant] = [:]
+
     /// The id the next sleep gets. `var` because each sleep takes one.
     private var nextSleeperID = 0
 
-    /// The clock's time, which starts at zero and moves only when the test moves it.
+    /// The clock's time, which starts at zero and moves only when the test moves it. A task the
+    /// clock woke reads the deadline it woke at, until it sleeps again.
     public var now: Instant {
-        synchronized {
-            current
+        let task = withUnsafeCurrentTask { $0?.hashValue }
+        return synchronized {
+            task.flatMap { wokenAt[$0] } ?? current
         }
     }
 
@@ -160,11 +173,7 @@ public final class TestClock: Clock, @unchecked Sendable {
     /// ``now`` set to each sleep's deadline as it wakes. An instant before ``now`` moves nothing,
     /// because the clock never goes back.
     public func advance(to deadline: Instant) async {
-        await settle(after: nil)
-        while let sleeper = takeSleeper(dueBy: deadline) {
-            sleeper.continuation.resume()
-            await settle(after: sleeper)
-        }
+        await wakeSleepers(dueBy: deadline)
     }
 
     /// Lets work that is ready run, without moving the clock: a task just started reaches its
@@ -177,11 +186,7 @@ public final class TestClock: Clock, @unchecked Sendable {
     /// loop of sleeps runs to its end. ``now`` is then the last deadline. Code that always
     /// starts another sleep, such as a repeating timer, keeps it running.
     public func run() async {
-        await settle(after: nil)
-        while let sleeper = takeSleeper(dueBy: nil) {
-            sleeper.continuation.resume()
-            await settle(after: sleeper)
-        }
+        await wakeSleepers(dueBy: nil)
     }
 
     /// Runs `body` while holding the lock.
@@ -193,6 +198,16 @@ public final class TestClock: Clock, @unchecked Sendable {
             lock.unlock()
         }
         return body()
+    }
+
+    /// Lets ready work run, then wakes each sleep due by `limit`, earliest first, letting the work
+    /// each wake starts run before the next; `nil` wakes every sleep, however far off.
+    private func wakeSleepers(dueBy limit: Instant?) async {
+        await settle(after: nil)
+        while let sleeper = takeSleeper(dueBy: limit) {
+            sleeper.continuation.resume()
+            await settle(after: sleeper)
+        }
     }
 
     /// Yields to the other tasks, so the work `woken` started runs on to its next suspension:
@@ -225,7 +240,14 @@ public final class TestClock: Clock, @unchecked Sendable {
                 return .failure(CancellationError())
             }
             if sleeper.deadline <= current {
+                // A woken task that got here after the advance passed this deadline catches up.
+                if let task = sleeper.task, wokenAt[task] != nil {
+                    wokenAt[task] = sleeper.deadline
+                }
                 return .success(())
+            }
+            if let task = sleeper.task {
+                wokenAt[task] = nil
             }
             sleepers.append(sleeper)
             return nil
@@ -253,6 +275,9 @@ public final class TestClock: Clock, @unchecked Sendable {
             }
             let sleeper = sleepers.remove(at: next)
             moveNow(to: sleeper.deadline)
+            if let task = sleeper.task {
+                wokenAt[task] = sleeper.deadline
+            }
             return sleeper
         }
     }
