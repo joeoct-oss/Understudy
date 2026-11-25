@@ -23,7 +23,7 @@ extension Requirement {
         // Only the generic parameter it returns stays generic: the others reach the spy as their
         // `any` type, which the forwarder takes.
         let generics = declaration.genericParameterClause?.parameters
-            .first { $0.name.text == returnedGeneric }
+            .first { $0.name.text == returnedParameter }
             .map { "<" + $0.with(\.trailingComma, nil).trimmedDescription + ">" } ?? ""
         let returned = declaration.signature.returnClause?.type.trimmedDescription ?? "Void"
         let signature = "\(forwarderName)\(generics)(\(forwarderParameters))\(effects)"

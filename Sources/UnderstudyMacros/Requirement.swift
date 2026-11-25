@@ -38,6 +38,14 @@ extension SpiedMember {
 
 /// One function requirement a double stands in for, read from its declaration.
 struct Requirement: SpiedMember {
+    /// A type with a generic parameter in it, as its spy records it.
+    struct Erased {
+        /// The type the spy records, such as `[any Tag]` for `[T]`.
+        let type: String
+        /// The generic parameter's name, such as `T`.
+        let parameter: String
+    }
+
     /// One parameter: the name the body uses and the type the spy records.
     struct Parameter {
         let name: String
@@ -59,9 +67,12 @@ struct Requirement: SpiedMember {
     let returnsOptional: Bool
     /// Whether the answer is a closure, which the double's initializer must take `@escaping`.
     let returnsFunction: Bool
-    /// The generic parameter the requirement returns, as `T` or `T?`, whose answer the body casts
-    /// back; `nil` when it returns no generic parameter.
+    /// The type the body casts the answer back to when the requirement returns a generic
+    /// parameter, or an array, a dictionary or a set of one, such as `T` or `[T]` (`T` for `T?`);
+    /// `nil` when it returns none.
     let returnedGeneric: String?
+    /// The generic parameter in ``returnedGeneric``, which the forwarder keeps generic.
+    let returnedParameter: String?
 
     /// The spy's input type: nothing, the one parameter's type, or a labelled tuple of them all.
     var input: String {
@@ -234,16 +245,20 @@ struct Requirement: SpiedMember {
                 escapes: escapes
             )
         }
-        returnedGeneric = try signature.returnClause.flatMap { clause in
-            try Self.returnedGeneric(clause.type, generics: generics, in: where_)
-        }
-        if let generic = returnedGeneric, let erased = generics[generic] {
-            let optional = signature.returnClause?.type.is(OptionalTypeSyntax.self) == true
-            output = optional ? "(\(erased))?" : erased
+        let returnType = signature.returnClause?.type
+        let unwrapped = returnType?.as(OptionalTypeSyntax.self)?.wrappedType ?? returnType
+        if let returnType, let unwrapped, let erased = Self.erased(unwrapped, generics: generics) {
+            let optional = returnType.is(OptionalTypeSyntax.self)
+            output = optional ? "(\(erased.type))?" : erased.type
+            returnedGeneric = unwrapped.trimmedDescription
+            returnedParameter = erased.parameter
             returnsNothing = false
             returnsOptional = optional
             returnsFunction = false
-        } else if let returnType = signature.returnClause?.type {
+        } else if let returnType {
+            try Self.refuseNested(returnType, generics: generics, in: where_)
+            returnedGeneric = nil
+            returnedParameter = nil
             let text = returnType.trimmedDescription
             if returnType.is(SomeOrAnyTypeSyntax.self), text.hasPrefix("some ") {
                 throw UnderstudyError("\(where_) returns an opaque type; write its double by hand", at: declaration.name)
@@ -255,6 +270,8 @@ struct Requirement: SpiedMember {
                 || text.hasPrefix("Optional<")
             returnsFunction = Self.isFunction(returnType)
         } else {
+            returnedGeneric = nil
+            returnedParameter = nil
             output = "Void"
             returnsNothing = true
             returnsOptional = false
@@ -299,19 +316,38 @@ struct Requirement: SpiedMember {
         return generics
     }
 
-    /// The generic parameter a return type is, `T` or `T?`; `nil` when it mentions none. Refuses a
-    /// generic parameter inside another type, such as `[T]`.
-    private static func returnedGeneric(
-        _ type: TypeSyntax,
-        generics: [String: String],
-        in where_: String
-    ) throws -> String? {
-        let whole = type.as(OptionalTypeSyntax.self)?.wrappedType ?? type
-        if generics[whole.trimmedDescription] != nil {
-            return whole.trimmedDescription
+    /// The type a spy records for a type that is a generic parameter, or an array, an optional, a
+    /// dictionary's value or a set of one, with that parameter's name; `nil` for any other type.
+    /// A set is recorded as `Set<AnyHashable>`, because `any` of a protocol isn't `Hashable`.
+    static func erased(_ type: TypeSyntax, generics: [String: String]) -> Erased? {
+        func generic(_ element: some SyntaxProtocol) -> Erased? {
+            let name = element.trimmedDescription
+            return generics[name].map { Erased(type: $0, parameter: name) }
         }
-        try refuseNested(type, generics: generics, in: where_)
+        if let whole = generic(type) {
+            return whole
+        }
+        if let array = type.as(ArrayTypeSyntax.self), let element = generic(array.element) {
+            return Erased(type: "[\(element.type)]", parameter: element.parameter)
+        }
+        if let optional = type.as(OptionalTypeSyntax.self), let wrapped = generic(optional.wrappedType) {
+            return Erased(type: "(\(wrapped.type))?", parameter: wrapped.parameter)
+        }
+        if let dictionary = type.as(DictionaryTypeSyntax.self), !mentionsGeneric(dictionary.key, generics),
+           let value = generic(dictionary.value) {
+            return Erased(type: "[\(dictionary.key.trimmedDescription): \(value.type)]", parameter: value.parameter)
+        }
+        if let set = type.as(IdentifierTypeSyntax.self), set.name.text == "Set",
+           let arguments = set.genericArgumentClause?.arguments, arguments.count == 1,
+           let element = arguments.first.flatMap({ generic($0.argument) }) {
+            return Erased(type: "Set<AnyHashable>", parameter: element.parameter)
+        }
         return nil
+    }
+
+    /// Whether a type mentions a generic parameter anywhere in it.
+    private static func mentionsGeneric(_ type: some SyntaxProtocol, _ generics: [String: String]) -> Bool {
+        type.tokens(viewMode: .sourceAccurate).contains { generics[$0.text] != nil }
     }
 
     /// Refuses a type that mentions a generic parameter without being it.
@@ -350,8 +386,8 @@ struct Requirement: SpiedMember {
             type = TypeSyntax(attributed.with(\.attributes, kept))
         }
         var text = type.trimmedDescription
-        if let erased = generics[text] {
-            text = erased
+        if let erased = erased(type, generics: generics) {
+            text = erased.type
         } else {
             try refuseNested(type, generics: generics, in: where_)
         }
