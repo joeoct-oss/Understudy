@@ -13,7 +13,7 @@ import Understudy
 /// by hand or by `@GenerateSpies`.
 @Suite("Recorded properties")
 struct RecordedTests {
-    @Test
+    @Test("A Recorded property keeps its gets and sets")
     func recordedPropertyKeepsItsGetsAndSets() {
         let session = HandSession()
 
@@ -28,7 +28,7 @@ struct RecordedTests {
         #expect(session.$user.getCount == 2)
     }
 
-    @Test
+    @Test("A Recorded property answers what the test scripts")
     func recordedPropertyAnswersWhatTheTestScripts() {
         let session = HandSession()
 
@@ -38,7 +38,7 @@ struct RecordedTests {
         #expect(session.$user.sets.isEmpty)
     }
 
-    @Test
+    @Test("Resetting a Recorded property forgets its gets and sets and keeps its value")
     func recordedPropertyForgetsItsGetsAndSetsOnReset() {
         let session = HandSession()
         session.user = "bo"
@@ -50,7 +50,7 @@ struct RecordedTests {
         #expect(session.user == "bo")
     }
 
-    @Test
+    @Test("A Recorded property works inside a generated double")
     func recordedPropertyWorksInsideAGeneratedDouble() async throws {
         let session = GeneratedSession(token: "abc")
 
@@ -63,7 +63,7 @@ struct RecordedTests {
         #expect(session.refreshSpy.callCount == 1)
     }
 
-    @Test
+    @Test("A generated double can have only Recorded properties")
     func aGeneratedDoubleCanHaveOnlyRecordedProperties() {
         let session = RecordedOnlySession()
 

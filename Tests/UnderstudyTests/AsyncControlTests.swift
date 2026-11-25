@@ -25,7 +25,7 @@ struct AsyncControlTests {
     /// How long a test waits for something that must not happen.
     private static let shortWait = 0.05
 
-    @Test
+    @Test("A held call waits until the test resumes it, then returns what the test gave")
     func heldCallWaitsUntilTheTestResumesIt() async {
         let spy = Spy<Int, String>(returning: "scripted")
         let returned = Spy<String, Void>()
@@ -45,7 +45,7 @@ struct AsyncControlTests {
         #expect(returned.calls == expected)
     }
 
-    @Test
+    @Test("Every task waiting for a held call sees its input")
     func everyTaskWaitingForAHeldCallSeesIt() async {
         let spy = Spy<Int, Void>()
         let held = spy.holdNextCall()
@@ -63,7 +63,7 @@ struct AsyncControlTests {
         #expect(inputs == expected)
     }
 
-    @Test
+    @Test("A held call can be resumed with the spy's scripted answer")
     func heldCallCanGiveItsScriptedAnswer() async {
         let spy = Spy<Void, String>(returning: "scripted")
         let held = spy.holdNextCall()
@@ -78,7 +78,7 @@ struct AsyncControlTests {
         #expect(answer == "scripted")
     }
 
-    @Test
+    @Test("A call resumed before it arrives returns at once with that answer")
     func callResumedBeforeItArrivesReturnsAtOnce() async {
         let spy = Spy<Int, String>(returning: "scripted")
         let held = spy.holdNextCall()
@@ -89,7 +89,7 @@ struct AsyncControlTests {
         #expect(answer == "early")
     }
 
-    @Test
+    @Test("Only the first resume of a held call counts")
     func onlyTheFirstResumeCounts() async {
         let spy = Spy<Int, String>(returning: "scripted")
         let held = spy.holdNextCall()
@@ -101,7 +101,7 @@ struct AsyncControlTests {
         #expect(answer == "first")
     }
 
-    @Test
+    @Test("Holding applies to one call, and later calls get the scripted answer")
     func holdingAppliesToOneCallAndOthersAnswerAtOnce() async {
         let spy = Spy<Int, String>(returning: "scripted")
         let held = spy.holdNextCall()
@@ -116,7 +116,7 @@ struct AsyncControlTests {
         #expect(spy.calls == expected)
     }
 
-    @Test
+    @Test("A held call on a throwing spy can be resumed with an error or an answer")
     func throwingHeldCallCanThrowOrReturn() async throws {
         let loader = ThrowingSpy<String, Int>(returning: 0)
         let failing = loader.holdNextCall()
@@ -132,7 +132,7 @@ struct AsyncControlTests {
         #expect(answer == 3)
     }
 
-    @Test
+    @Test("Waiting for a held call that never arrives gives nil")
     func heldCallThatNeverArrivesGivesNothing() async {
         let spy = Spy<Int, Void>()
         let held = spy.holdNextCall()
@@ -142,7 +142,7 @@ struct AsyncControlTests {
         #expect(input == nil)
     }
 
-    @Test
+    @Test("nextCall gives the input of a call made from another task")
     func nextCallSeesAnAsyncCallFromAnotherTask() async {
         let spy = Spy<Int, Void>()
 
@@ -154,7 +154,7 @@ struct AsyncControlTests {
         #expect(input == 5)
     }
 
-    @Test
+    @Test("nextCall gives every call once, in order, even calls made before waiting")
     func nextCallGivesEveryCallOnceInOrderEvenIfMadeBeforeWaiting() async {
         let loader = ThrowingSpy<String, Int>(returning: 0)
         _ = try? loader("a")
@@ -169,7 +169,7 @@ struct AsyncControlTests {
         #expect(third == nil)
     }
 
-    @Test
+    @Test("A call made after a wait ran out goes to the next wait")
     func callAfterAWaitRanOutGoesToTheNextWait() async {
         let spy = Spy<Int, Void>()
 

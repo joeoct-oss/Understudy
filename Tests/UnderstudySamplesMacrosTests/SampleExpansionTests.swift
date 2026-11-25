@@ -43,7 +43,7 @@ struct SampleExpansionTests {
         }
     }
 
-    @Test(arguments: accepted)
+    @Test("Sample accepts every struct it can write", arguments: accepted)
     func acceptsEveryStructItCanWrite(_ sample: Accepted) {
         let (expanded, diagnostics) = expand(sample.source)
 
@@ -53,7 +53,7 @@ struct SampleExpansionTests {
     }
 
     /// A release build must carry no `sample(...)`, and an app target must still build in release.
-    @Test
+    @Test("The sample is written for debug builds only")
     func sampleIsWrittenForDebugBuildsOnly() throws {
         let (expanded, _) = expand("""
             @Sample
@@ -73,7 +73,7 @@ struct SampleExpansionTests {
 
     /// A test that imports the module without `@testable` can call the sample of a public or
     /// package struct, and an internal struct's sample stays internal.
-    @Test(arguments: visibilities)
+    @Test("The sample is as visible as its struct", arguments: visibilities)
     func sampleIsAsVisibleAsItsStruct(declaration: String, access: String?) throws {
         let (expanded, _) = expand("""
             @Sample
@@ -88,7 +88,7 @@ struct SampleExpansionTests {
         #expect(written == access)
     }
 
-    @Test(arguments: refused)
+    @Test("Sample refuses what it can't write, where the problem is", arguments: refused)
     func refusesWhatItCannotWriteWhereTheProblemIs(_ sample: Refused) {
         let (_, diagnostics) = expand(sample.source)
 
