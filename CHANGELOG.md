@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Changed
+
+- The README is rewritten for a first-time user: what Understudy is (spies and sample values), install, a quick start, then each tool with one short example. Every example is compiled and run against the current API.
+
 ## 0.5.0 - 2026-11-25
 
 ### Added
