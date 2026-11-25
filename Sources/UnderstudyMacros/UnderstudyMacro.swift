@@ -127,7 +127,7 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
                 return nil
             }
             guard function.body == nil else {
-                throw UnderstudyError("'\(function.name.text)' is @Spied, so give it no body", at: function)
+                throw UnderstudyError("'\(function.name.text)' is @Spied, so give it no body", at: function.name)
             }
             return try Requirement(function)
         }

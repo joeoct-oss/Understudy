@@ -75,27 +75,46 @@ struct GeneratedDoubleTests {
     @MainActor
     func mainActorDoubleRecordsValuesThatAreNotSendable() {
         let gate = SpyGate(isOpen: true)
+        let screen = Screen(title: "Cart")
         let ran = Spy<Void, Void>()
 
-        gate.requireAccount(for: "checkout") {
+        gate.requireAccount(for: screen) {
             ran()
         }
         gate.requireAccountSpy.lastCall?.action()
 
         #expect(gate.isOpen())
-        #expect(gate.requireAccountSpy.lastCall?.reason == "checkout")
+        #expect(gate.requireAccountSpy.lastCall?.screen === screen)
         #expect(ran.callCount == 1)
     }
 
     @Test
     func closureAnswerIsTakenAtCreation() {
         let ran = Spy<Void, Void>()
-        let factory = SpyHandlerFactory(makeHandler: { ran() })
+        let factory = SpyHandlerFactory(
+            makeHandler: { ran() },
+            makeSendableHandler: { ran() },
+            makeWrappedHandler: { ran() }
+        )
 
         factory.makeHandler()()
+        factory.makeSendableHandler()()
+        factory.makeWrappedHandler()()
 
         #expect(factory.makeHandlerSpy.callCount == 1)
-        #expect(ran.callCount == 1)
+        #expect(ran.callCount == 3)
+    }
+
+    @Test
+    func variadicAndOpaqueParametersAreRecorded() {
+        let printer = SpyPrinter()
+
+        printer.print("a", "b")
+        printer.show(7)
+
+        let expectedLines = [["a", "b"]]
+        #expect(printer.printSpy.calls == expectedLines)
+        #expect(printer.showSpy.lastCall as? Int == 7)
     }
 
     @Test
@@ -165,8 +184,17 @@ private final class SpyLoader: Loader {
 /// Asks for an account before an action, on the main actor.
 @MainActor
 private protocol AccountGate: AnyObject {
-    func requireAccount(for reason: String, then action: @escaping () -> Void)
+    func requireAccount(for screen: Screen, then action: @escaping () -> Void)
     func isOpen() -> Bool
+}
+
+/// A screen, a class that isn't `Sendable`.
+private final class Screen {
+    let title: String
+
+    init(title: String) {
+        self.title = title
+    }
 }
 
 /// An account gate that keeps each request and runs nothing, so the test decides.
@@ -176,13 +204,31 @@ private protocol AccountGate: AnyObject {
 @Understudy
 @MainActor
 private final class SpyGate: AccountGate {
-    @Spied func requireAccount(for reason: String, then action: @escaping () -> Void)
+    @Spied func requireAccount(for screen: Screen, then action: @escaping () -> Void)
     @Spied func isOpen() -> Bool
+}
+
+/// Prints lines and shows values.
+private protocol Printer {
+    func print(_ lines: String...)
+    func show(_ value: some Equatable)
+}
+
+/// A printer that keeps what it was given.
+///
+/// Conformances:
+/// - `Printer`, so a test can pass it where a printer is expected.
+@Understudy
+private final class SpyPrinter: Printer {
+    @Spied func print(_ lines: String...)
+    @Spied func show(_ value: some Equatable)
 }
 
 /// Makes the handler a screen runs when it is tapped.
 private protocol HandlerFactory {
     func makeHandler() -> () -> Void
+    func makeSendableHandler() -> @Sendable () -> Void
+    func makeWrappedHandler() -> (() -> Void)
 }
 
 /// A handler factory that gives the closure the test chose.
@@ -192,6 +238,8 @@ private protocol HandlerFactory {
 @Understudy
 private final class SpyHandlerFactory: HandlerFactory {
     @Spied func makeHandler() -> () -> Void
+    @Spied func makeSendableHandler() -> @Sendable () -> Void
+    @Spied func makeWrappedHandler() -> (() -> Void)
 }
 
 /// Tells the time and waits, so a test can control both.

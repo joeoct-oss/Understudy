@@ -12,6 +12,9 @@ import Understudy
 /// A spy keeps every call and answers as the test scripts.
 @Suite("Spy")
 struct SpyTests {
+    /// How many tasks call at once.
+    private static let concurrentCallCount = 1_000
+
     @Test
     func keepsEveryInputInOrder() {
         let spy = Spy<Int, Void>()
@@ -109,5 +112,22 @@ struct SpyTests {
         spy(5)
 
         #expect(spy.lastCall == 5)
+    }
+
+    @Test
+    func keepsEveryCallFromConcurrentTasks() async {
+        let spy = Spy<Int, Void>()
+
+        await withTaskGroup(of: Void.self) { group in
+            for index in 0..<Self.concurrentCallCount {
+                group.addTask {
+                    spy(index)
+                }
+            }
+        }
+
+        let expected = Set(0..<Self.concurrentCallCount)
+        #expect(spy.callCount == Self.concurrentCallCount)
+        #expect(Set(spy.calls) == expected)
     }
 }

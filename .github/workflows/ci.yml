@@ -35,11 +35,10 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
-      - name: Build with warnings as errors
-        run: swift build --build-tests -Xswiftc -warnings-as-errors
-
-      - name: Test
-        run: swift test --skip-build
+      # Builds with warnings as errors, runs every test, and fails on any line of the sources that
+      # no test runs.
+      - name: Test, with warnings as errors and every line covered
+        run: scripts/check-coverage.sh -Xswiftc -warnings-as-errors
 
       - name: Test with the thread sanitizer
         run: swift test --sanitize=thread

@@ -6,300 +6,325 @@
 //  Copyright © 2026 Yousef Mohamed. MIT License.
 //
 
+import SwiftDiagnostics
+import SwiftParser
+import SwiftSyntax
 import SwiftSyntaxMacroExpansion
-import SwiftSyntaxMacrosGenericTestSupport
+import SwiftSyntaxMacros
 import Testing
 import UnderstudyMacros
 
-/// The code `@Understudy` writes, and how it explains a requirement it can't write.
-@Suite("Macro expansion")
+/// What a person writing a double sees from the macros: every requirement they can write is
+/// accepted and given a body, and every one they can't is refused at that requirement, with what to
+/// do instead. How the generated doubles behave is tested where the compiler builds them, in
+/// `GeneratedDoubleTests`.
+@Suite("Macros accept what they can write and explain what they can't")
 struct ExpansionTests {
-    @Test
-    func classGetsSpiesForwardersAndAnInitializerForEachAnswer() {
-        expand(
-            """
-            @Understudy
-            final class SpyCatalog: Catalog {
-                @Spied func product(id: Int) -> String
-                @Spied func refresh()
-            }
-            """,
-            into: """
-            final class SpyCatalog: Catalog {
-                func product(id: Int) -> String {
-                    return self.__understudy_product(id: id)
-                }
-                func refresh() {
-                    return self.__understudy_refresh()
-                }
+    /// A double the macros must accept.
+    struct Accepted: CustomTestStringConvertible, Sendable {
+        let name: String
+        let source: String
 
-                let productSpy: Spy<Int, String>
-
-                let refreshSpy = Spy<Void, Void>(returning: ())
-
-                /// Creates the double with the answer each requirement gives until the test scripts another.
-                init(product: String) {
-                    self.productSpy = .init(returning: product)
-                }
-
-                private func __understudy_product(id: Int) -> String {
-                    return self.productSpy(id)
-                }
-
-                private func __understudy_refresh() -> Void {
-                    return self.refreshSpy()
-                }
-            }
-            """
-        )
+        var testDescription: String {
+            name
+        }
     }
 
-    @Test
-    func protocolGetsASpyClassNextToIt() {
-        expand(
-            """
-            @Understudy
-            @MainActor
-            public protocol Clock {
-                func now() -> Int
-                func wait(for seconds: Int, tolerance: Int) async throws
-            }
-            """,
-            into: """
-            @MainActor
-            public protocol Clock {
-                func now() -> Int
-                func wait(for seconds: Int, tolerance: Int) async throws
-            }
+    /// A double the macros must refuse, with the message and where it points: the requirement, not
+    /// the attribute, whenever there is one.
+    struct Refused: CustomTestStringConvertible, Sendable {
+        let name: String
+        let source: String
+        let message: String
+        let line: Int
+        let column: Int
 
-            /// A spy for `Clock`, written by `@Understudy`.
-            @MainActor
-            public final class ClockSpy: Clock {
-                public let nowSpy: Spy<Void, Int>
-
-                public let waitSpy = ThrowingSpy<(seconds: Int, tolerance: Int), Void>(returning: ())
-
-                public init(now: Int) {
-                    self.nowSpy = .init(returning: now)
-                }
-
-                public func now() -> Int {
-                    return self.nowSpy()
-                }
-
-                public func wait(for seconds: Int, tolerance: Int) async throws {
-                    return try self.waitSpy((seconds: seconds, tolerance: tolerance))
-                }
-            }
-            """
-        )
+        var testDescription: String {
+            name
+        }
     }
 
-    @Test
-    func overloadsGetSpiesNamedWithTheirLabels() {
-        expand(
-            """
-            @Understudy
-            final class SpyCatalog: Catalog {
-                @Spied func remove(id: Int)
-                @Spied func remove(named name: String)
-            }
-            """,
-            into: """
-            final class SpyCatalog: Catalog {
-                func remove(id: Int) {
-                    return self.__understudy_remove(id: id)
-                }
-                func remove(named name: String) {
-                    return self.__understudy_remove(named: name)
-                }
+    @Test(arguments: accepted)
+    func acceptsEveryRequirementItCanWrite(_ double: Accepted) {
+        let (expanded, diagnostics) = expand(double.source)
 
-                let removeIdSpy = Spy<Int, Void>(returning: ())
-
-                let removeNamedSpy = Spy<String, Void>(returning: ())
-
-                private func __understudy_remove(id: Int) -> Void {
-                    return self.removeIdSpy(id)
-                }
-
-                private func __understudy_remove(named name: String) -> Void {
-                    return self.removeNamedSpy(name)
-                }
-            }
-            """
-        )
+        #expect(diagnostics.isEmpty)
+        #expect(!expanded.hasError)
+        #expect(!expanded.description.contains("fatalError"))
     }
 
-    @Test
-    func genericRequirementIsExplained() {
-        expand(
-            """
-            @Understudy
-            final class SpyStore: Store {
-                @Spied func load<Value>(_ key: String) -> Value
-            }
-            """,
-            into: """
-            final class SpyStore: Store {
-                func load<Value>(_ key: String) -> Value {
-                    fatalError("@Understudy can't write this requirement")
-                }
-            }
-            """,
-            diagnostics: [
-                DiagnosticSpec(
-                    message: "@Understudy: 'load' is generic; write its double by hand",
-                    line: 3,
-                    column: 5
-                ),
-            ]
-        )
+    @Test(arguments: refused)
+    func refusesWhatItCannotWriteAtTheRequirement(_ double: Refused) {
+        let (_, diagnostics) = expand(double.source)
+
+        let expected = [
+            "\(double.line):\(double.column): understudy.error: @Understudy: \(double.message)",
+        ]
+        #expect(diagnostics == expected)
     }
 
-    @Test
-    func protocolPropertyIsExplained() {
-        expand(
-            """
-            @Understudy
-            protocol Session {
-                var token: String { get }
-            }
-            """,
-            into: """
-            protocol Session {
-                var token: String { get }
-            }
-            """,
-            diagnostics: [
-                DiagnosticSpec(
-                    message: "@Understudy: 'Session' has a requirement that isn't a function; write its double by hand, or use @Understudy on a class",
-                    line: 3,
-                    column: 5
-                ),
-            ]
+    /// Expands the macros in `source`, and gives the expanded file and each diagnostic as
+    /// "line:column: source: message".
+    private func expand(_ source: String) -> (Syntax, [String]) {
+        let file = Parser.parse(source: source)
+        let context = BasicMacroExpansionContext(
+            sourceFiles: [file: .init(moduleName: "TestModule", fullFilePath: "test.swift")]
         )
-    }
-
-    @Test
-    func overloadsThatDifferOnlyInTypesAreExplained() {
-        expand(
-            """
-            @Understudy
-            final class SpyLog: Log {
-                @Spied func write(_ text: String)
-                @Spied func write(_ number: Int)
-            }
-            """,
-            into: """
-            final class SpyLog: Log {
-                func write(_ text: String) {
-                    return self.__understudy_write(text)
-                }
-                func write(_ number: Int) {
-                    return self.__understudy_write(number)
-                }
-            }
-            """,
-            diagnostics: [
-                DiagnosticSpec(
-                    message: "@Understudy: two requirements would both be spied on as 'writeSpy'; rename one",
-                    line: 4,
-                    column: 5
-                ),
-            ]
-        )
-    }
-
-    @Test
-    func classWithNothingSpiedIsExplained() {
-        expand(
-            """
-            @Understudy
-            final class SpyLog: Log {
-                func write(_ text: String) {}
-            }
-            """,
-            into: """
-            final class SpyLog: Log {
-                func write(_ text: String) {}
-            }
-            """,
-            diagnostics: [
-                DiagnosticSpec(
-                    message: "@Understudy: mark each requirement to stand in for with @Spied, and give it no body",
-                    line: 1,
-                    column: 1
-                ),
-            ]
-        )
-    }
-
-    @Test
-    func spiedOutsideAnUnderstudyClassIsExplained() {
-        expand(
-            """
-            final class Lonely {
-                @Spied func ping()
-            }
-            """,
-            into: """
-            final class Lonely {
-                func ping()
-            }
-            """,
-            diagnostics: [
-                DiagnosticSpec(
-                    message: "@Understudy: @Spied needs @Understudy on the class it is in",
-                    line: 2,
-                    column: 5
-                ),
-            ]
-        )
-    }
-
-    @Test
-    func protocolThatInheritsAnotherIsExplained() {
-        expand(
-            """
-            @Understudy
-            protocol Child: Base, Sendable {
-                func ping()
-            }
-            """,
-            into: """
-            protocol Child: Base, Sendable {
-                func ping()
-            }
-            """,
-            diagnostics: [
-                DiagnosticSpec(
-                    message: "@Understudy: 'Child' inherits 'Base', whose requirements this macro can't see; use @Understudy on a class that conforms to 'Child' instead",
-                    line: 2,
-                    column: 15
-                ),
-            ]
-        )
-    }
-
-    private func expand(
-        _ source: String,
-        into expected: String,
-        diagnostics: [DiagnosticSpec] = [],
-        sourceLocation: SourceLocation = #_sourceLocation
-    ) {
-        assertMacroExpansion(
-            source,
-            expandedSource: expected,
-            diagnostics: diagnostics,
+        let expanded = file.expand(
             macroSpecs: Self.macros,
-            failureHandler: { failure in
-                Issue.record(Comment(rawValue: failure.message), sourceLocation: sourceLocation)
-            }
+            contextGenerator: { syntax in
+                BasicMacroExpansionContext(sharingWith: context, lexicalContext: syntax.allMacroLexicalContexts())
+            },
+            indentationWidth: .spaces(4)
         )
+        let diagnostics = context.diagnostics.map { diagnostic in
+            let location = context.location(
+                for: diagnostic.position,
+                anchoredAt: diagnostic.node,
+                fileName: "test.swift"
+            )
+            let source = diagnostic.diagnosticID == Self.understudyError ? "understudy.error" : "other"
+            return "\(location.line):\(location.column): \(source): \(diagnostic.message)"
+        }
+        return (expanded, diagnostics)
     }
+
+    /// The identifier of every error Understudy reports, so tools can tell its errors apart.
+    private static let understudyError = MessageID(domain: "Understudy", id: "error")
 
     private static let macros: [String: MacroSpec] = [
         "Understudy": MacroSpec(type: UnderstudyMacro.self),
         "Spied": MacroSpec(type: SpiedMacro.self),
     ]
+
+    static let accepted: [Accepted] = [
+        Accepted(
+            name: "requirements with and without answers to give",
+            source: """
+                @Understudy
+                final class SpyCatalog: Catalog {
+                    @Spied func product(id: Int) -> String
+                    @Spied func search(for query: String, limit: Int) -> String?
+                    @Spied func refresh()
+                }
+                """
+        ),
+        Accepted(
+            name: "overloads with different labels",
+            source: """
+                @Understudy
+                final class SpyCatalog: Catalog {
+                    @Spied func remove(id: Int)
+                    @Spied func remove(named name: String)
+                }
+                """
+        ),
+        Accepted(
+            name: "throwing and async requirements",
+            source: """
+                @Understudy
+                final class SpyLoader: Loader {
+                    @Spied func load(path: String) async throws -> String
+                }
+                """
+        ),
+        Accepted(
+            name: "closures in and out, variadic and opaque parameters",
+            source: """
+                @Understudy
+                final class SpyFactory: Factory {
+                    @Spied func make(then action: @escaping @Sendable () -> Void)
+                    @Spied func handler() -> () -> Void
+                    @Spied func sendableHandler() -> @Sendable () -> Void
+                    @Spied func wrappedHandler() -> (() -> Void)
+                    @Spied func sum(_ numbers: Int...) -> Int
+                    @Spied func show(_ view: some View)
+                }
+                """
+        ),
+        Accepted(
+            name: "isolated and nonisolated requirements of any access level",
+            source: """
+                @Understudy
+                @MainActor
+                open class SpyGate: Gate {
+                    @Spied nonisolated func isOpen() -> Bool
+                    @Spied func open()
+                }
+
+                @Understudy
+                private final class SpyLog: Log {
+                    @Spied func write(_ text: String)
+                }
+                """
+        ),
+        Accepted(
+            name: "protocols you own",
+            source: """
+                @Understudy
+                @MainActor
+                public protocol Clock: AnyObject {
+                    func now() -> Int
+                    func sleep(for seconds: Int) async throws
+                }
+
+                @Understudy
+                fileprivate protocol EventSink: Sendable {
+                    func send(_ event: String)
+                }
+                """
+        ),
+    ]
+
+    static let refused: [Refused] = [
+        refusedRequirement("a generic requirement", "func load<Value>(_ key: String) -> Value",
+                           "'load' is generic; write its double by hand", column: 17),
+        refusedRequirement("a static requirement", "static func shared() -> Int",
+                           "'shared' is static; write its double by hand", column: 24),
+        refusedRequirement("a mutating requirement", "mutating func reset()",
+                           "'reset' is mutating; @Understudy writes classes", column: 26),
+        refusedRequirement("typed throws", "func load() throws(LoadError) -> Int",
+                           "'load' uses typed throws; write its double by hand", column: 17),
+        refusedRequirement("rethrows", "func each(_ body: () throws -> Void) rethrows",
+                           "'each' rethrows; write its double by hand", column: 17),
+        refusedRequirement("a parameter with no name", "func move(_: Int)",
+                           "'move' has a parameter with no name; name it", column: 22),
+        refusedRequirement("an opaque answer", "func body() -> some View",
+                           "'body' returns an opaque type; write its double by hand", column: 17),
+        refusedRequirement("an inout parameter", "func bump(_ value: inout Int)",
+                           "'bump' takes an inout parameter; write its double by hand", column: 22),
+        refusedRequirement("an autoclosure", "func log(_ text: @autoclosure () -> String)",
+                           "'log' takes an autoclosure; write its double by hand", column: 21),
+        Refused(
+            name: "overloads that differ only in their types",
+            source: """
+                @Understudy
+                final class SpyLog: Log {
+                    @Spied func write(_ text: String)
+                    @Spied func write(_ number: Int)
+                }
+                """,
+            message: "two requirements would both be spied on as 'writeSpy'; rename one",
+            line: 4,
+            column: 17
+        ),
+        Refused(
+            name: "a requirement with a body",
+            source: """
+                @Understudy
+                final class SpyLog: Log {
+                    @Spied func write(_ text: String) {}
+                }
+                """,
+            message: "'write' is @Spied, so give it no body",
+            line: 3,
+            column: 17
+        ),
+        Refused(
+            name: "a class with nothing spied",
+            source: """
+                @Understudy
+                final class SpyLog: Log {
+                    func write(_ text: String) {}
+                }
+                """,
+            message: "mark each requirement to stand in for with @Spied, and give it no body",
+            line: 1,
+            column: 1
+        ),
+        Refused(
+            name: "a struct",
+            source: """
+                @Understudy
+                struct SpyLog: Log {
+                    func write(_ text: String) {}
+                }
+                """,
+            message: "attach it to a class or a protocol",
+            line: 1,
+            column: 1
+        ),
+        Refused(
+            name: "@Spied outside an @Understudy class",
+            source: """
+                final class Lonely {
+                    @Spied func ping()
+                }
+                """,
+            message: "@Spied needs @Understudy on the class it is in",
+            line: 2,
+            column: 5
+        ),
+        Refused(
+            name: "@Spied in a struct",
+            source: """
+                struct Lonely {
+                    @Spied func ping()
+                }
+                """,
+            message: "@Spied needs @Understudy on the class it is in",
+            line: 2,
+            column: 5
+        ),
+        Refused(
+            name: "@Spied on something that isn't a function",
+            source: """
+                @Understudy
+                final class SpyLog: Log {
+                    @Spied func write(_ text: String)
+                    @Spied init() {}
+                }
+                """,
+            message: "@Spied goes on a function",
+            line: 4,
+            column: 5
+        ),
+        Refused(
+            name: "a protocol property",
+            source: """
+                @Understudy
+                protocol Session {
+                    var token: String { get }
+                }
+                """,
+            message: "'Session' has a requirement that isn't a function; write its double by hand, "
+                + "or use @Understudy on a class",
+            line: 3,
+            column: 5
+        ),
+        Refused(
+            name: "a protocol that inherits another",
+            source: """
+                @Understudy
+                protocol Child: Base, Sendable {
+                    func ping()
+                }
+                """,
+            message: "'Child' inherits 'Base', whose requirements this macro can't see; "
+                + "use @Understudy on a class that conforms to 'Child' instead",
+            line: 2,
+            column: 15
+        ),
+    ]
+
+    /// A double whose one requirement, on line 3, the macros can't write.
+    private static func refusedRequirement(
+        _ name: String,
+        _ requirement: String,
+        _ message: String,
+        column: Int
+    ) -> Refused {
+        Refused(
+            name: name,
+            source: """
+                @Understudy
+                final class SpyStore: Store {
+                    @Spied \(requirement)
+                }
+                """,
+            message: message,
+            line: 3,
+            column: column
+        )
+    }
 }
