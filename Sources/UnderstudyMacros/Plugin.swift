@@ -13,7 +13,7 @@ import SwiftSyntaxMacros
 @main
 struct UnderstudyPlugin: CompilerPlugin {
     let providingMacros: [any Macro.Type] = [
-        UnderstudyMacro.self,
+        GenerateSpiesMacro.self,
         SpiedMacro.self,
         SpiedPropertyMacro.self,
     ]

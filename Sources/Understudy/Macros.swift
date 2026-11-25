@@ -13,7 +13,7 @@
 /// protocol:
 ///
 /// ```swift
-/// @Understudy
+/// @GenerateSpies
 /// final class SpyCatalog: Catalog {
 ///     @Spied func product(id: Int) -> Product?
 /// }
@@ -40,13 +40,13 @@
 /// by hand.
 @attached(member, names: arbitrary)
 @attached(peer, names: suffixed(Spy))
-public macro Understudy() = #externalMacro(module: "UnderstudyMacros", type: "UnderstudyMacro")
+public macro GenerateSpies() = #externalMacro(module: "UnderstudyMacros", type: "GenerateSpiesMacro")
 
-/// Marks a function of an ``Understudy()`` class that the macro writes. Give it no body.
+/// Marks a function of a ``GenerateSpies()`` class that the macro writes. Give it no body.
 @attached(body)
 public macro Spied() = #externalMacro(module: "UnderstudyMacros", type: "SpiedMacro")
 
-/// Marks a property of an ``Understudy()`` class that the macro writes. Declare it as a `var` with
+/// Marks a property of a ``GenerateSpies()`` class that the macro writes. Declare it as a `var` with
 /// a type and nothing else; the macro writes its getter and setter, and the double's initializer
 /// takes its value unless it is optional.
 @attached(accessor)

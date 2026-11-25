@@ -6,6 +6,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## 0.4.0 - 2026-11-25
 
+### Changed
+
+- `@Understudy` is now `@GenerateSpies`, which says what it does: it writes a spy for every `@Spied` function and `@SpiedProperty` property. `@Spied` and `@SpiedProperty` keep their names. Replace `@Understudy` with `@GenerateSpies`; nothing else changes.
+
 ### Added
 
 - `reset()` on `Spy`, `ThrowingSpy` and `PropertySpy`, which forgets the calls (or gets and sets), where `nextCall(within:)` was, and the expectations, and keeps the scripted answers.

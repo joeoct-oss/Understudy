@@ -1,5 +1,5 @@
 //
-//  UnderstudyMacro.swift
+//  GenerateSpiesMacro.swift
 //  Understudy
 //
 //  Created by Yousef Mohamed <youseef.elserwey@gmail.com>.
@@ -10,9 +10,9 @@ import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// `@Understudy`: on a class, adds a spy and a private forwarder for each `@Spied` requirement; on a
+/// `@GenerateSpies`: on a class, adds a spy and a private forwarder for each `@Spied` requirement; on a
 /// protocol, writes a spy class next to it.
-public struct UnderstudyMacro: MemberMacro, PeerMacro {
+public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
     /// The spies, the forwarders and the initializer, for a class.
     public static func expansion(
         of node: AttributeSyntax,
@@ -85,7 +85,7 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
         if let other = inherited.first(where: { !known.contains($0) }) {
             throw UnderstudyError(
                 "'\(proto.name.text)' inherits '\(other)', whose requirements this macro can't see; "
-                    + "use @Understudy on a class or an actor that conforms to '\(proto.name.text)' instead",
+                    + "use @GenerateSpies on a class or an actor that conforms to '\(proto.name.text)' instead",
                 at: proto.inheritanceClause
             )
         }
@@ -98,7 +98,7 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
             }
             throw UnderstudyError(
                 "'\(proto.name.text)' has a requirement that is neither a function nor a property; "
-                    + "write its double by hand, or use @Understudy on a class or an actor",
+                    + "write its double by hand, or use @GenerateSpies on a class or an actor",
                 at: member.decl
             )
         }
@@ -118,7 +118,7 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
         let kind = isActor ? "actor" : "final class"
         return [
             """
-            /// A spy for `\(raw: name)`, written by `@Understudy`.
+            /// A spy for `\(raw: name)`, written by `@GenerateSpies`.
             \(raw: actors)\(raw: prefix)\(raw: kind) \(raw: name)Spy: \(raw: name) {
             \(raw: body)
             }

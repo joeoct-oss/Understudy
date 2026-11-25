@@ -23,7 +23,7 @@ import Foundation
 /// }
 /// ```
 ///
-/// `@Understudy` writes this for every `@Spied var`.
+/// `@GenerateSpies` writes this for every `@Spied var`.
 ///
 /// Conformances:
 /// - `@unchecked Sendable` when `Value` is `Sendable`: every stored value is read and written under
