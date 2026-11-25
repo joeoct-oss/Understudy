@@ -18,8 +18,11 @@ public struct SpiedMacro: BodyMacro {
         providingBodyFor declaration: some DeclSyntaxProtocol & WithOptionalCodeBlockSyntax,
         in context: some MacroExpansionContext
     ) throws -> [CodeBlockItemSyntax] {
+        if let accessor = declaration.as(AccessorDeclSyntax.self) {
+            return try body(of: accessor, in: context)
+        }
         guard let function = declaration.as(FunctionDeclSyntax.self) else {
-            throw UnderstudyError("@Spied goes on a function")
+            throw UnderstudyError("@Spied goes on a function, or on the get and set of a subscript")
         }
         guard isInsideUnderstudyType(context) else {
             throw UnderstudyError("@Spied needs @GenerateSpies on the class or actor it is in")
@@ -35,9 +38,35 @@ public struct SpiedMacro: BodyMacro {
         return ["return \(raw: attempt)\(raw: wait)self.\(raw: call)"]
     }
 
-    /// Whether the declaration is a member of a class or an actor marked `@GenerateSpies`.
+    /// The body of a subscript's `get` or `set` marked `@Spied`: it goes through the private
+    /// subscript `@GenerateSpies` wrote for the subscript, so an overload reaches its own spies.
+    private static func body(
+        of accessor: AccessorDeclSyntax,
+        in context: some MacroExpansionContext
+    ) throws -> [CodeBlockItemSyntax] {
+        guard let declaration = context.lexicalContext.first?.as(SubscriptDeclSyntax.self) else {
+            throw UnderstudyError("@Spied goes on a function, or on the get and set of a subscript")
+        }
+        guard isInsideUnderstudyType(context) else {
+            throw UnderstudyError("@Spied needs @GenerateSpies on the class or actor it is in")
+        }
+        // `@GenerateSpies` explains a subscript it can't write, at the subscript. The context may
+        // hold the subscript without its accessors, so only its indices are read here.
+        guard let spied = try? Subscript(declaration, checkingAccessors: false) else {
+            return ["fatalError(\"@GenerateSpies can't write this requirement\")"]
+        }
+        let target = spied.forwarderTarget
+        guard accessor.accessorSpecifier.tokenKind == .keyword(.set) else {
+            return ["return \(raw: target)"]
+        }
+        return ["\(raw: target) = newValue"]
+    }
+
+    /// Whether the declaration is a member of a class or an actor marked `@GenerateSpies`; for a
+    /// subscript's `get` or `set`, the subscript's.
     static func isInsideUnderstudyType(_ context: some MacroExpansionContext) -> Bool {
-        guard let type = context.lexicalContext.first,
+        let contexts = context.lexicalContext.drop { $0.is(SubscriptDeclSyntax.self) }
+        guard let type = contexts.first,
               let attributes = type.as(ClassDeclSyntax.self)?.attributes ?? type.as(ActorDeclSyntax.self)?.attributes else {
             return false
         }

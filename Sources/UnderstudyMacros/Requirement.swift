@@ -9,7 +9,7 @@
 import SwiftDiagnostics
 import SwiftSyntax
 
-/// A requirement a double stands in for, with its own spy: a function or a property.
+/// A requirement a double stands in for, with its own spy: a function, a property or a subscript.
 protocol SpiedMember {
     /// The name the requirement is declared with, where errors about it point.
     var nameToken: TokenSyntax { get }
@@ -23,6 +23,8 @@ protocol SpiedMember {
     var defaultAnswer: String { get }
     /// The type the initializer takes the answer as, `@escaping` for a closure the spy keeps.
     var answerType: String { get }
+    /// The type of a second spy that keeps the sets, for a settable subscript; `nil` for others.
+    var setSpyType: String? { get }
     /// What the requirement goes through to reach `spy` on a class.
     func forwarder(spy: String) -> DeclSyntax
     /// The requirement written out to call `spy`, for the spy class next to a protocol.
@@ -34,6 +36,16 @@ extension SpiedMember {
     var baseName: String {
         nameToken.text
     }
+
+    var setSpyType: String? {
+        nil
+    }
+}
+
+/// The name of the spy that keeps a subscript's sets, from the name of the one that keeps its
+/// gets: `subscriptSetSpy` for `subscriptSpy`.
+func setSpyName(for spy: String) -> String {
+    spy.dropLast(spySuffix.count) + "Set" + spySuffix
 }
 
 /// One function requirement a double stands in for, read from its declaration.
@@ -363,7 +375,7 @@ struct Requirement: SpiedMember {
     /// The type a spy records for a parameter: `@escaping` dropped, `some` turned into `any`, a
     /// generic parameter as the type ``erasedGenerics(of:in:)`` gives it, and a variadic parameter
     /// as an array.
-    private static func storedType(
+    static func storedType(
         of parameter: FunctionParameterSyntax,
         generics: [String: String],
         in where_: String

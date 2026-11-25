@@ -80,6 +80,7 @@ The macro writes the function's body and a spy named after it: `productSpy`. Bec
 - [Script answers](#script-answers)
 - [Typed throws](#typed-throws)
 - [Properties](#properties)
+- [Subscripts](#subscripts)
 - [Async calls](#async-calls)
 - [Call order](#call-order)
 - [Strict mocks](#strict-mocks)
@@ -173,6 +174,28 @@ session.$user.sets
 ```
 
 `@Recorded` can't go in an actor, where reading `$user` would need `await`, or in a `Sendable` class, which can't hold the wrapper's `var` storage.
+
+### Subscripts
+
+Swift needs a body for a subscript in a class, so mark its `get`, and its `set` if it has one, with `@Spied` and give each an empty body:
+
+```swift
+@GenerateSpies
+final class SpyList: ItemList {
+    subscript(index: Int) -> Item { @Spied get {} @Spied set {} }
+}
+
+let list = SpyList(subscript: .apple)
+list.subscriptSpy.willReturn(.pear)
+list[2] = .plum
+
+list.subscriptSpy.calls                    // the index of every get
+list.subscriptSetSpy.calls.map(\.index)    // [2]
+```
+
+Gets go to `subscriptSpy` and sets to `subscriptSetSpy`, which keeps the index and the `newValue`. A get-only subscript has only `subscriptSpy`. Several indices are kept as a labelled tuple, and overloads add the index names, such as `subscriptRowColumnSpy` for `subscript(row:column:)`.
+
+`@Spied` on a `get` or `set` needs Swift 6.4 or later. With an older Swift, use [a double next to your protocol](#doubles-next-to-your-protocol), whose subscript requirements are written the same way on every Swift version.
 
 ### Async calls
 
@@ -390,7 +413,7 @@ Each of these is a compile error at the line it's about, saying what to do inste
 | `mutating` functions | The macro writes classes and actors. |
 | A parameter named `_` with no internal name | The body has no name to pass to the spy; name it. |
 | Two requirements that would share a spy name | Rename one, or give the overloads different labels. |
-| A protocol that inherits another, or has associated types, subscripts or initializers | The macro can't see or write them; use the class form or write it by hand. |
+| A protocol that inherits another, or has associated types or initializers; a generic, `static`, `async` or throwing subscript | The macro can't see or write them; use the class form or write it by hand. |
 
 ## License
 

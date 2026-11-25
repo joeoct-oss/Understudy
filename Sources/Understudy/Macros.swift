@@ -39,13 +39,27 @@
 /// goes through ``Spy/respond(to:isolation:)``, so the test can hold the call. A generic
 /// parameter `T` is recorded as `any` of its constraints, and so is one inside an array, an
 /// optional, a dictionary's value or a set: `[T]` as `[any Tag]`, `Set<T>` as `Set<AnyHashable>`.
-/// A generic answer is cast back to the type the caller asks for. Subscripts and static
-/// requirements are written by hand.
+/// A generic answer is cast back to the type the caller asks for. A subscript gets a spy for its
+/// gets and one for its sets; see ``Spied()``. Static requirements are written by hand.
 @attached(member, names: arbitrary)
 @attached(peer, names: suffixed(Spy))
 public macro GenerateSpies() = #externalMacro(module: "UnderstudyMacros", type: "GenerateSpiesMacro")
 
 /// Marks a function of a ``GenerateSpies()`` class that the macro writes. Give it no body.
+///
+/// On a subscript, mark its `get`, and its `set` if it has one, each with an empty body, which
+/// Swift needs where a function needs none:
+///
+/// ```swift
+/// subscript(index: Int) -> Item { @Spied get {} @Spied set {} }
+///
+/// list.subscriptSpy.willReturn(.apple)
+/// #expect(list.subscriptSetSpy.calls.map(\.index) == [2])
+/// ```
+///
+/// Its gets go to `subscriptSpy`, a ``Spy`` of the index, and its sets to `subscriptSetSpy`, a
+/// ``Spy`` of the index and the new value. `@Spied` on a `get` or `set` needs Swift 6.4; a
+/// protocol's subscript requirements work on every version.
 @attached(body)
 public macro Spied() = #externalMacro(module: "UnderstudyMacros", type: "SpiedMacro")
 
@@ -56,3 +70,4 @@ public macro Spied() = #externalMacro(module: "UnderstudyMacros", type: "SpiedMa
 /// actor, where ``Recorded`` can't.
 @attached(accessor)
 public macro SpiedProperty() = #externalMacro(module: "UnderstudyMacros", type: "SpiedPropertyMacro")
+
