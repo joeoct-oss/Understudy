@@ -1,0 +1,42 @@
+# Builds and tests the package on Linux on pull requests to main.
+# Runs on Tuist runners (`tuist-linux`), like Waypoint, so CI uses the Tuist account's Linux
+# minutes instead of GitHub Actions minutes. To roll back, set `runs-on: ubuntu-latest`; the
+# Swift container makes both work the same.
+# - Draft pull requests are skipped; the check runs when a PR is ready for review and on every
+#   push after that.
+# - A newer push cancels the run still going for the same PR.
+# Apple platforms are tested on the Mac.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux build and tests
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    container: swift:6.2
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Build with warnings as errors
+        run: swift build --build-tests -Xswiftc -warnings-as-errors
+
+      - name: Test
+        run: swift test --skip-build
+
+      - name: Test with the thread sanitizer
+        run: swift test --sanitize=thread
