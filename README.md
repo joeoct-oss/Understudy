@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/assets/icon.svg" alt="Understudy icon: a mask with a dashed second mask behind it" width="128">
+  <img src=".github/assets/social-preview.png" alt="Understudy: pure Swift test doubles that stand in for the real thing. A mask with a dashed second mask behind it.">
 </p>
 
 # Understudy
