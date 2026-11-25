@@ -72,8 +72,64 @@ struct GeneratedDoubleTests {
     }
 
     @Test
+    func asyncRequirementCanBeHeldUntilTheTestResumesIt() async throws {
+        let loader = SpyLoader(load: "scripted")
+        let clock = ClockSpy(now: 0)
+        let load = loader.loadSpy.holdNextCall()
+        let sleep = clock.sleepSpy.holdNextCall()
+
+        let loading = Task {
+            try await loader.load(path: "a")
+        }
+        let sleeping = Task {
+            await clock.sleep(for: 3)
+        }
+        let path = await load.arrived()
+        let seconds = await sleep.arrived()
+        load.resume(returning: "held")
+        sleep.resume(returning: ())
+        let data = try await loading.value
+        await sleeping.value
+
+        #expect(path == "a")
+        #expect(seconds == 3)
+        #expect(data == "held")
+    }
+
+    @Test
+    func propertiesKeepEverySetAndAnswerGets() {
+        var expired = false
+        let session = SpySession(user: "ana", onExpire: { expired = true })
+
+        session.token = "abc"
+        session.token = nil
+        let user = session.user
+        session.onExpire()
+
+        let expectedTokens: [String?] = ["abc", nil]
+        #expect(session.tokenSpy.sets == expectedTokens)
+        #expect(session.token == nil)
+        #expect(user == "ana")
+        #expect(session.userSpy.getCount == 1)
+        #expect(expired)
+    }
+
+    @Test
+    func protocolPropertiesGetPropertySpies() {
+        let settings = SettingsSpy(volume: 3)
+
+        settings.volume = 5
+        let theme = settings.theme
+
+        let expectedVolumes = [5]
+        #expect(settings.volumeSpy.sets == expectedVolumes)
+        #expect(settings.volume == 5)
+        #expect(theme == nil)
+    }
+
+    @Test
     @MainActor
-    func mainActorDoubleRecordsValuesThatAreNotSendable() {
+    func mainActorDoubleRecordsValuesThatAreNotSendable() async {
         let gate = SpyGate(isOpen: true)
         let screen = Screen(title: "Cart")
         let ran = Spy<Void, Void>()
@@ -82,7 +138,9 @@ struct GeneratedDoubleTests {
             ran()
         }
         gate.requireAccountSpy.lastCall?.action()
+        await gate.present(screen)
 
+        #expect(gate.presentSpy.lastCall === screen)
         #expect(gate.isOpen())
         #expect(gate.requireAccountSpy.lastCall?.screen === screen)
         #expect(ran.callCount == 1)
@@ -211,6 +269,7 @@ private final class SpyLoader: Loader {
 private protocol AccountGate: AnyObject {
     func requireAccount(for screen: Screen, then action: @escaping () -> Void)
     func isOpen() -> Bool
+    func present(_ screen: Screen) async
 }
 
 /// A screen, a class that isn't `Sendable`.
@@ -231,6 +290,32 @@ private final class Screen {
 private final class SpyGate: AccountGate {
     @Spied func requireAccount(for screen: Screen, then action: @escaping () -> Void)
     @Spied func isOpen() -> Bool
+    @Spied func present(_ screen: Screen) async
+}
+
+/// The signed-in session, as a feature reads and changes it.
+private protocol Session: AnyObject {
+    var token: String? { get set }
+    var user: String { get }
+    var onExpire: () -> Void { get }
+}
+
+/// A session whose values the test chose, and that keeps every token set.
+///
+/// Conformances:
+/// - `Session`, so a test can pass it where a session is expected.
+@Understudy
+private final class SpySession: Session {
+    @SpiedProperty var token: String?
+    @SpiedProperty var user: String
+    @SpiedProperty var onExpire: () -> Void
+}
+
+/// Settings a screen reads and changes.
+@Understudy
+private protocol Settings: AnyObject {
+    var volume: Int { get set }
+    var theme: String? { get }
 }
 
 /// Prints lines and shows values.

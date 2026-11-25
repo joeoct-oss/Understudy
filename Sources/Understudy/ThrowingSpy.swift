@@ -6,6 +6,10 @@
 //  Copyright © 2026 Yousef Mohamed. MIT License.
 //
 
+#if canImport(Testing)
+import Testing
+#endif
+
 /// A ``Spy`` for a requirement that throws: keeps every input it is called with, in order, and
 /// returns or throws as the test scripts it.
 ///
@@ -104,6 +108,44 @@ public final class ThrowingSpy<Input, Output> {
     public func willAnswer(_ answer: @escaping @Sendable (Input) throws -> Output) {
         ledger.answerEveryCall(with: Self.computed(answer))
     }
+
+    /// Keeps `input`, then returns or throws the next answer, like calling the spy, for an async
+    /// requirement: when the test holds this call with ``holdNextCall()``, it waits until the test
+    /// resumes it. Runs in the caller's isolation, so the input never leaves it.
+    public func respond(to input: Input, isolation: isolated (any Actor)? = #isolation) async throws -> Output {
+        try await ledger.recordHolding(input).get()
+    }
+
+    /// Runs `body` on every later call, for ``CallOrder``.
+    func onEveryCall(_ body: @escaping () -> Void) {
+        ledger.watch { _ in
+            body()
+        }
+    }
+
+    /// Expects `times` calls that `matches` accepts; any call by default. The spy becomes strict:
+    /// ``verify(sourceLocation:)`` then reports each expectation not met and each call no
+    /// expectation accepts.
+    public func expect(times: Int = 1, where matches: @escaping @Sendable (Input) -> Bool = { _ in true }) {
+        ledger.expect(.init(matches: matches, times: times, description: "a matching input"))
+    }
+
+    /// Expects no calls at all. The spy becomes strict, so ``verify(sourceLocation:)`` reports
+    /// every call.
+    public func expectNoCalls() {
+        ledger.expectNoCalls()
+    }
+
+    #if canImport(Testing)
+    /// Reports, as a Swift Testing issue at the test's line, every expectation not met and every
+    /// call nobody expected, and gives the problems back. Reports nothing for a spy with no
+    /// expectations.
+    @discardableResult
+    public func verify(sourceLocation: VerificationLocation = #_sourceLocation) -> [String] {
+        report(ledger.problems(), at: sourceLocation)
+    }
+    #endif
+
 }
 
 extension ThrowingSpy where Input == Void {
@@ -116,3 +158,32 @@ extension ThrowingSpy where Input == Void {
 }
 
 extension ThrowingSpy: @unchecked Sendable where Input: Sendable, Output: Sendable { }
+
+extension ThrowingSpy where Input: Equatable {
+    /// Expects `times` calls with `input`. The spy becomes strict: ``verify(sourceLocation:)``
+    /// then reports each expectation not met and each call no expectation accepts.
+    public func expect(_ input: Input, times: Int = 1) {
+        ledger.expect(.init(matches: { $0 == input }, times: times, description: String(describing: input)))
+    }
+}
+
+extension ThrowingSpy where Input: Sendable {
+    /// The oldest call not yet given out by this function, from any task, waiting up to `seconds`
+    /// for one; `nil` when none comes in time. Each call is given out once, so a call made before
+    /// the test starts waiting still counts.
+    public func nextCall(within seconds: Double = 1) async -> Input? {
+        await ledger.nextCall(within: seconds)
+    }
+}
+
+extension ThrowingSpy where Input: Sendable, Output: Sendable {
+    /// Holds the next async call not yet held: that call waits in ``respond(to:isolation:)`` until
+    /// the test resumes it, with an answer, an error or its scripted answer.
+    public func holdNextCall() -> HeldCall<Input, Output, any Error> {
+        let held = HeldCall<Input, Output, any Error>()
+        ledger.holdNextCall { isolation, input, scripted in
+            await held.arrive(isolation: isolation, input: input, scripted: scripted)
+        }
+        return held
+    }
+}

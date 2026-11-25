@@ -95,6 +95,7 @@ struct ExpansionTests {
     private static let macros: [String: MacroSpec] = [
         "Understudy": MacroSpec(type: UnderstudyMacro.self),
         "Spied": MacroSpec(type: SpiedMacro.self),
+        "SpiedProperty": MacroSpec(type: SpiedPropertyMacro.self),
     ]
 
     static let accepted: [Accepted] = [
@@ -106,6 +107,18 @@ struct ExpansionTests {
                     @Spied func product(id: Int) -> String
                     @Spied func search(for query: String, limit: Int) -> String?
                     @Spied func refresh()
+                }
+                """
+        ),
+        Accepted(
+            name: "properties with and without values to give",
+            source: """
+                @Understudy
+                final class SpySession: Session {
+                    @SpiedProperty var token: String?
+                    @SpiedProperty var user: String
+                    @SpiedProperty var onExpire: () -> Void
+                    @Spied func token(for user: String) -> String
                 }
                 """
         ),
@@ -164,8 +177,11 @@ struct ExpansionTests {
                 @Understudy
                 @MainActor
                 public protocol Clock: AnyObject {
+                    var zone: String { get set }
+                    var label: String? { get }
                     func now() -> Int
                     func sleep(for seconds: Int) async throws
+                    func tick() async
                 }
 
                 @Understudy
@@ -195,6 +211,18 @@ struct ExpansionTests {
                            "'bump' takes an inout parameter; write its double by hand", column: 22),
         refusedRequirement("an autoclosure", "func log(_ text: @autoclosure () -> String)",
                            "'log' takes an autoclosure; write its double by hand", column: 21),
+        refusedProperty("a let", "let token: String",
+                        "'token' is a let; declare it as a var", column: 24),
+        refusedProperty("a property with a value", "var token: String = \"\"",
+                        "'token' has a value; give it none, the double's initializer takes it", column: 24),
+        refusedProperty("a property with accessors", "var token: String { \"\" }",
+                        "'token' is @SpiedProperty, so give it no accessors", column: 24),
+        refusedProperty("a static property", "static var shared: Int",
+                        "'shared' is static; write its double by hand", column: 31),
+        refusedProperty("a property with no type", "var token",
+                        "'token' has no type; write its type", column: 24),
+        refusedProperty("a tuple of properties", "var (first, second): (Int, Int)",
+                        "declare one property at a time", column: 24),
         Refused(
             name: "overloads that differ only in their types",
             source: """
@@ -228,7 +256,8 @@ struct ExpansionTests {
                     func write(_ text: String) {}
                 }
                 """,
-            message: "mark each requirement to stand in for with @Spied, and give it no body",
+            message: "mark each function to stand in for with @Spied and give it no body, "
+                + "and each property with @SpiedProperty",
             line: 1,
             column: 1
         ),
@@ -252,6 +281,28 @@ struct ExpansionTests {
                 }
                 """,
             message: "@Spied needs @Understudy on the class it is in",
+            line: 2,
+            column: 5
+        ),
+        Refused(
+            name: "@SpiedProperty outside an @Understudy class",
+            source: """
+                final class Lonely {
+                    @SpiedProperty var token: String?
+                }
+                """,
+            message: "@SpiedProperty needs @Understudy on the class it is in",
+            line: 2,
+            column: 5
+        ),
+        Refused(
+            name: "@SpiedProperty on a subscript",
+            source: """
+                final class Lines {
+                    @SpiedProperty subscript(line: Int) -> String { "" }
+                }
+                """,
+            message: "@SpiedProperty goes on a var",
             line: 2,
             column: 5
         ),
@@ -280,15 +331,15 @@ struct ExpansionTests {
             column: 5
         ),
         Refused(
-            name: "a protocol property",
+            name: "a protocol subscript",
             source: """
                 @Understudy
                 protocol Session {
-                    var token: String { get }
+                    subscript(key: String) -> String { get }
                 }
                 """,
-            message: "'Session' has a requirement that isn't a function; write its double by hand, "
-                + "or use @Understudy on a class",
+            message: "'Session' has a requirement that is neither a function nor a property; "
+                + "write its double by hand, or use @Understudy on a class",
             line: 3,
             column: 5
         ),
@@ -307,19 +358,30 @@ struct ExpansionTests {
         ),
     ]
 
+    /// A double whose one property, on line 3, the macros can't write.
+    private static func refusedProperty(
+        _ name: String,
+        _ property: String,
+        _ message: String,
+        column: Int
+    ) -> Refused {
+        refusedRequirement(name, property, message, column: column, marker: "@SpiedProperty")
+    }
+
     /// A double whose one requirement, on line 3, the macros can't write.
     private static func refusedRequirement(
         _ name: String,
         _ requirement: String,
         _ message: String,
-        column: Int
+        column: Int,
+        marker: String = "@Spied"
     ) -> Refused {
         Refused(
             name: name,
             source: """
                 @Understudy
                 final class SpyStore: Store {
-                    @Spied \(requirement)
+                    \(marker) \(requirement)
                 }
                 """,
             message: message,

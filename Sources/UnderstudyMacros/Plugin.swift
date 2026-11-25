@@ -15,5 +15,6 @@ struct UnderstudyPlugin: CompilerPlugin {
     let providingMacros: [any Macro.Type] = [
         UnderstudyMacro.self,
         SpiedMacro.self,
+        SpiedPropertyMacro.self,
     ]
 }

@@ -9,8 +9,35 @@
 import SwiftDiagnostics
 import SwiftSyntax
 
+/// A requirement a double stands in for, with its own spy: a function or a property.
+protocol SpiedMember {
+    /// The name the requirement is declared with, where errors about it point.
+    var nameToken: TokenSyntax { get }
+    /// The argument labels, which tell overloads apart; none for a property.
+    var labels: [String] { get }
+    /// The spy's type.
+    var spyType: String { get }
+    /// Whether the double's initializer must ask for the spy's first answer.
+    var needsAnswer: Bool { get }
+    /// The first answer when the initializer doesn't ask for one: `()` or `nil`.
+    var defaultAnswer: String { get }
+    /// The type the initializer takes the answer as, `@escaping` for a closure the spy keeps.
+    var answerType: String { get }
+    /// What the requirement goes through to reach `spy` on a class.
+    func forwarder(spy: String) -> DeclSyntax
+    /// The requirement written out to call `spy`, for the spy class next to a protocol.
+    func implementation(spy: String, access: String) -> DeclSyntax
+}
+
+extension SpiedMember {
+    /// The name the spy is named after.
+    var baseName: String {
+        nameToken.text
+    }
+}
+
 /// One function requirement a double stands in for, read from its declaration.
-struct Requirement {
+struct Requirement: SpiedMember {
     /// One parameter: the name the body uses and the type the spy records.
     struct Parameter {
         let name: String
@@ -20,10 +47,10 @@ struct Requirement {
     }
 
     let declaration: FunctionDeclSyntax
-    let baseName: String
     let labels: [String]
     let parameters: [Parameter]
     let throwsError: Bool
+    let isAsync: Bool
     let output: String
     let returnsNothing: Bool
     let returnsOptional: Bool
@@ -48,9 +75,31 @@ struct Requirement {
         return "\(kind)<\(input), \(output)>"
     }
 
-    /// Whether the double's initializer must ask for this requirement's answer.
+    var nameToken: TokenSyntax {
+        declaration.name
+    }
+
     var needsAnswer: Bool {
         !returnsNothing && !returnsOptional
+    }
+
+    var defaultAnswer: String {
+        returnsNothing ? "()" : "nil"
+    }
+
+    var answerType: String {
+        (returnsFunction ? "@escaping " : "") + output
+    }
+
+    /// The call that records the input and gives the answer: through `respond(to:)` when the
+    /// requirement is async, so the test can hold the call.
+    func call(on spy: String) -> String {
+        let attempt = throwsError ? "try " : ""
+        guard isAsync else {
+            return "\(attempt)self.\(spy)(\(callArgument))"
+        }
+        let input = parameters.isEmpty ? "()" : callArgument
+        return "\(attempt)await self.\(spy).respond(to: \(input))"
     }
 
     /// The name of the private function `@Understudy` writes for this requirement on a class. The
@@ -90,7 +139,6 @@ struct Requirement {
     /// Reads a requirement, or explains why it can't be written.
     init(_ declaration: FunctionDeclSyntax) throws {
         self.declaration = declaration
-        baseName = declaration.name.text
         let where_ = "'\(declaration.name.text)'"
         if declaration.genericParameterClause != nil {
             throw UnderstudyError("\(where_) is generic; write its double by hand", at: declaration.name)
@@ -111,6 +159,7 @@ struct Requirement {
             throw UnderstudyError("\(where_) rethrows; write its double by hand", at: declaration.name)
         }
         throwsError = throwsClause != nil
+        isAsync = signature.effectSpecifiers?.asyncSpecifier != nil
         labels = signature.parameterClause.parameters.map(\.firstName.text)
         parameters = try signature.parameterClause.parameters.map { parameter in
             let name = (parameter.secondName ?? parameter.firstName).text
@@ -146,7 +195,7 @@ struct Requirement {
     }
 
     /// Whether a type is a closure, such as `() -> Void`, `@Sendable () -> Void` or `(() -> Void)`.
-    private static func isFunction(_ type: TypeSyntax) -> Bool {
+    static func isFunction(_ type: TypeSyntax) -> Bool {
         if type.is(FunctionTypeSyntax.self) {
             return true
         }
@@ -191,9 +240,80 @@ struct Requirement {
     }
 }
 
+/// One property requirement a double stands in for, read from its declaration: a `@SpiedProperty var` with
+/// a type and nothing else on a class, or a `var` requirement of a protocol.
+struct Property: SpiedMember {
+    let nameToken: TokenSyntax
+    let type: String
+    let isOptional: Bool
+    let isFunction: Bool
+
+    var labels: [String] {
+        []
+    }
+
+    var spyType: String {
+        "PropertySpy<\(type)>"
+    }
+
+    var needsAnswer: Bool {
+        !isOptional
+    }
+
+    var defaultAnswer: String {
+        "nil"
+    }
+
+    var answerType: String {
+        (isFunction ? "@escaping " : "") + type
+    }
+
+    /// The private property `@Understudy` writes for this property on a class, which the
+    /// accessors `@Spied` writes go through.
+    var forwarderName: String {
+        "__understudy_property_" + nameToken.text
+    }
+
+    /// Reads a property, or explains why it can't be written. On a class it must have no value
+    /// and no accessors; a protocol's always has accessors.
+    init(_ declaration: VariableDeclSyntax, inProtocol: Bool) throws {
+        guard declaration.bindings.count == 1, let binding = declaration.bindings.first,
+              let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else {
+            throw UnderstudyError("declare one property at a time", at: declaration.bindings)
+        }
+        nameToken = pattern.identifier
+        let where_ = "'\(pattern.identifier.text)'"
+        let modifiers = declaration.modifiers.map(\.name.text)
+        if modifiers.contains("static") || modifiers.contains("class") {
+            throw UnderstudyError("\(where_) is static; write its double by hand", at: pattern.identifier)
+        }
+        if declaration.bindingSpecifier.tokenKind == .keyword(.let) {
+            throw UnderstudyError("\(where_) is a let; declare it as a var", at: pattern.identifier)
+        }
+        guard let annotation = binding.typeAnnotation else {
+            throw UnderstudyError("\(where_) has no type; write its type", at: pattern.identifier)
+        }
+        if binding.initializer != nil {
+            throw UnderstudyError(
+                "\(where_) has a value; give it none, the double's initializer takes it",
+                at: pattern.identifier
+            )
+        }
+        if !inProtocol, binding.accessorBlock != nil {
+            throw UnderstudyError("\(where_) is @SpiedProperty, so give it no accessors", at: pattern.identifier)
+        }
+        let type = annotation.type
+        self.type = type.trimmedDescription
+        isOptional = type.is(OptionalTypeSyntax.self)
+            || type.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)
+            || self.type.hasPrefix("Optional<")
+        isFunction = Requirement.isFunction(type)
+    }
+}
+
 /// Names each requirement's spy: its base name, with its argument labels added when another
 /// requirement shares the base name.
-func spyNames(for requirements: [Requirement]) throws -> [String] {
+func spyNames(for requirements: [any SpiedMember]) throws -> [String] {
     let counts = Dictionary(grouping: requirements, by: \.baseName).mapValues(\.count)
     let names = requirements.map { requirement in
         guard counts[requirement.baseName, default: 0] > 1 else {
@@ -206,7 +326,7 @@ func spyNames(for requirements: [Requirement]) throws -> [String] {
     for (requirement, name) in zip(requirements, names) where !seen.insert(name).inserted {
         throw UnderstudyError(
             "two requirements would both be spied on as '\(name)'; rename one",
-            at: requirement.declaration.name
+            at: requirement.nameToken
         )
     }
     return names
