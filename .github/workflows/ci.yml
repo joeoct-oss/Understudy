@@ -7,6 +7,9 @@
 #   the thread sanitizer. The macro sources must be covered by the macro tests alone, so the gate
 #   also proves the macro expansion tests ran.
 # - Swift 6.1, 6.2 and 6.3: every test, warnings as errors, with the committed Package.resolved.
+#   Only when the release workflow calls this one on a push to main, and on a manual run, never on
+#   a pull request: a pull request tests the lowest and the newest version, which almost always
+#   covers the ones in between, and main checks the rest before anything is published.
 # - Lowest versions: Swift 6.0, the tools version in Package.swift, with the lowest swift-syntax
 #   Package.swift allows (read from Package.swift, its one home).
 # - Workflow lint: actionlint and zizmor over every workflow.
@@ -66,7 +69,7 @@ jobs:
 
   swift:
     name: Tests on Swift ${{ matrix.swift }}
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -88,13 +91,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Restore the build cache
-        if: github.event_name == 'pull_request'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .build
-          key: swift-${{ matrix.swift }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
 
       - name: Test, with warnings as errors
         run: swift test -Xswiftc -warnings-as-errors
@@ -175,10 +171,16 @@ jobs:
     timeout-minutes: 2
     permissions: {}
     steps:
+      # A pull request skips the middle Swift versions on purpose, so their job isn't counted there.
       - name: Check that every job passed
         env:
+          EVENT: ${{ github.event_name }}
           RESULTS: ${{ join(needs.*.result, ' ') }}
+          PR_RESULTS: ${{ needs.coverage.result }} ${{ needs.lowest.result }} ${{ needs.lint.result }}
         run: |
+          if [[ "$EVENT" == "pull_request" ]]; then
+            RESULTS="$PR_RESULTS"
+          fi
           echo "Job results: $RESULTS"
           for result in $RESULTS; do
             if [[ "$result" != "success" ]]; then

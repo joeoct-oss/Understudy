@@ -11,6 +11,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Changed
 
+- Pull requests run the tests on Swift 6.0 and 6.4 only. Swift 6.1, 6.2 and 6.3 run on every push to main, in the Linux checks a release waits for, so every version still passes before a version is published.
 - Every test has a display name that states what it checks, such as "A spy keeps every input in order", so a test report reads as a list of what the package promises. Test function names stay as they were, for `swift test --filter`.
 
 ## 0.6.0 - 2026-11-25
