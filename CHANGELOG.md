@@ -8,6 +8,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 - `@Sample`, in the new product `UnderstudySamples`: on a struct, it writes `static func sample(...)`, with one parameter per stored property, each with a default, so a test gets a complete value in one call, such as `Product.sample(price: 0)`. `@SampleDefault(value)` sets a property's default. The sample is written for debug builds only, and is as visible as the struct.
 - `CallOrder { ... }`, which watches every spy in a block of `Watched(spy, as: name)` lines, for `Spy` and `ThrowingSpy` alike. `watch(_:as:)` stays, for a spy the test starts watching later.
+- `@Recorded`, a property wrapper that spies on a property whose first value is at its declaration: `@Recorded var user = "ana"`, with `$user` its `PropertySpy`. It works in doubles written by hand and in `@GenerateSpies` classes, next to `@SpiedProperty`, and a `@GenerateSpies` class may have `@Recorded` properties only. `@GenerateSpies` refuses it on an actor, where `@SpiedProperty` is the way.
 
 ### Fixed
 

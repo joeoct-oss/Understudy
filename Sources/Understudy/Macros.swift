@@ -48,6 +48,7 @@ public macro Spied() = #externalMacro(module: "UnderstudyMacros", type: "SpiedMa
 
 /// Marks a property of a ``GenerateSpies()`` class that the macro writes. Declare it as a `var` with
 /// a type and nothing else; the macro writes its getter and setter, and the double's initializer
-/// takes its value unless it is optional.
+/// takes its value unless it is optional. To give the first value at the declaration instead, use
+/// ``Recorded``.
 @attached(accessor)
 public macro SpiedProperty() = #externalMacro(module: "UnderstudyMacros", type: "SpiedPropertyMacro")

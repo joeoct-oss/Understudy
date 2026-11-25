@@ -144,6 +144,24 @@ session.userSpy.willReturn("bo")
 
 A set changes what later gets answer, as a real property would.
 
+Or put the first value at the declaration with `@Recorded`, a property wrapper. `$user` is the property's spy:
+
+```swift
+@GenerateSpies
+final class SpySession: Session {
+    @SpiedProperty var token: String    // first value in the init: tokenSpy
+    @Recorded var user = "ana"          // first value here: $user
+}
+
+let session = SpySession(token: "abc")
+session.user = "bo"
+session.$user.sets          // ["bo"]
+```
+
+`@Recorded` works in a class written by hand too, with no macro at all. Pick either per property. Two places need `@SpiedProperty`:
+- **Actors.** A test would need `await` to read an actor's `$user`, so `@GenerateSpies` refuses `@Recorded` there.
+- **`Sendable` classes.** A wrapped property's storage is a `var`, which a `Sendable` class can't hold. Mark the double `@unchecked Sendable` if you'd rather keep `@Recorded`; its spy is safe to share.
+
 ## Hold an async call
 
 To check what the screen shows while it waits, hold the next call, then resume it with the answer you choose:
