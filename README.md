@@ -78,6 +78,7 @@ The macro writes the function's body and a spy named after it: `productSpy`. Bec
 
 - [Read the calls](#read-the-calls)
 - [Script answers](#script-answers)
+- [Typed throws](#typed-throws)
 - [Properties](#properties)
 - [Async calls](#async-calls)
 - [Call order](#call-order)
@@ -125,6 +126,21 @@ pricing.priceSpy.willAnswer { $0 * 100 }      // worked out from the input
 pricing.loadSpy.willThrow(LoadError.offline)  // a function that throws
 pricing.loadSpy.willGiveNext(.failure(LoadError.offline), then: .success("ok"))
 ```
+
+### Typed throws
+
+A function that throws one error type, such as `throws(AuthError)`, works like any function that throws. Script its error the same way:
+
+```swift
+@GenerateSpies
+final class SpyAuth: AuthService {
+    @Spied func signIn(email: String, password: String) async throws(AuthError) -> Account
+}
+
+auth.signInSpy.willThrow(AuthError.wrongPassword)   // the caller catches an AuthError
+```
+
+`willThrow` takes any error, so the type is checked when the test runs: an error of another type stops the test with a message that names the spy and both types.
 
 ### Properties
 
@@ -360,7 +376,7 @@ Each of these is a compile error at the line it's about, saying what to do inste
 |---|---|
 | `static` members | A stored spy belongs to one instance. |
 | A generic parameter inside another type (`[T]`, `Result<T, E>`), a `where` clause, a parameter pack | A spy records one input type, so only a whole generic parameter can be stood in for. |
-| Typed `throws`, `rethrows` | The spy throws `any Error`, so it can't keep the promise. |
+| `rethrows`, or a function that throws its own generic type (`throws(E)` with `<E: Error>`) | The spy can't tell when the function may throw, or which type it throws. |
 | `inout` or `@autoclosure` parameters, opaque (`some`) return types | A spy can't keep or hand back these safely. |
 | `mutating` functions | The macro writes classes and actors. |
 | A parameter named `_` with no internal name | The body has no name to pass to the spy; name it. |

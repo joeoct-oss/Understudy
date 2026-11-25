@@ -68,6 +68,21 @@ struct ExpansionTests {
         #expect(expanded.description.contains(message))
     }
 
+    /// An error of another type than a typed `throws` names stops the process too, so the test
+    /// checks the double says which spy threw it, and both types.
+    @Test
+    func typedThrowsWithAnotherErrorTypeStopsNamingTheSpy() {
+        let (expanded, _) = expand("""
+            @GenerateSpies
+            final class SpyAuth: Auth {
+                @Spied func signIn(email: String) async throws(AuthError) -> String
+            }
+            """)
+
+        let message = #"@GenerateSpies: signInSpy threw \(type(of: error)), not \(AuthError.self)"#
+        #expect(expanded.description.contains(message))
+    }
+
     /// The body `@Spied` writes for a requirement `@GenerateSpies` refused.
     private static let refusedBody = "@GenerateSpies can't write this requirement"
 
@@ -170,6 +185,25 @@ struct ExpansionTests {
                 """
         ),
         Accepted(
+            name: "typed throws, including throws(any Error) and throws(Never)",
+            source: """
+                @GenerateSpies
+                final class SpyAuth: Auth {
+                    @Spied func signIn(email: String) async throws(AuthError) -> String
+                    @Spied func signOut() throws(AuthError)
+                    @Spied func token<Value: Decodable>(for key: String) throws(AuthError) -> Value
+                    @Spied func refresh() throws(any Error)
+                    @Spied func forget() throws(Never)
+                }
+
+                @GenerateSpies
+                protocol Auth {
+                    func signIn(email: String) async throws(AuthError) -> String
+                    func forget() throws(Never)
+                }
+                """
+        ),
+        Accepted(
             name: "closures in and out, variadic and opaque parameters",
             source: """
                 @GenerateSpies
@@ -267,8 +301,8 @@ struct ExpansionTests {
                            "'shared' is static; write its double by hand", column: 24),
         refusedRequirement("a mutating requirement", "mutating func reset()",
                            "'reset' is mutating; @GenerateSpies writes classes and actors", column: 26),
-        refusedRequirement("typed throws", "func load() throws(LoadError) -> Int",
-                           "'load' uses typed throws; write its double by hand", column: 17),
+        refusedRequirement("a typed throws of a generic parameter", "func load<Failure: Error>() throws(Failure)",
+                           "'load' throws its generic parameter 'Failure'; write its double by hand", column: 47),
         refusedRequirement("rethrows", "func each(_ body: () throws -> Void) rethrows",
                            "'each' rethrows; write its double by hand", column: 17),
         refusedRequirement("a parameter with no name", "func move(_: Int)",

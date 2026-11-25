@@ -18,7 +18,8 @@ extension Requirement {
             .map { $0.trimmedDescription + " " }
             .joined()
         let isolation = declaration.modifiers.contains { $0.name.text == "nonisolated" } ? "nonisolated " : ""
-        let effects = (isAsync ? " async" : "") + (throwsError ? " throws" : "")
+        let thrown = typedError.map { "throws(\($0))" } ?? "throws"
+        let effects = (isAsync ? " async" : "") + (throwsError ? " " + thrown : "")
         // Only the generic parameter it returns stays generic: the others reach the spy as their
         // `any` type, which the forwarder takes.
         let generics = declaration.genericParameterClause?.parameters
