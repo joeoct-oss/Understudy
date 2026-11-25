@@ -11,8 +11,10 @@ tone_instructions: >-
 enable_free_tier: true
 
 reviews:
-  # Only critical and major, high-impact findings go inline.
-  profile: quiet
+  # chill, not quiet: on a probe PR, quiet folded broken style rules into the review body as
+  # nitpicks, where no thread has to be resolved. The tone and path instructions keep the inline
+  # comments to blockers and should-fix items.
+  profile: chill
   # Keep the PR description as the author wrote it. Never put "@coderabbitai summary" in it.
   high_level_summary: false
   high_level_summary_in_walkthrough: false
@@ -169,8 +171,9 @@ reviews:
         expansion needs, not the source style.
     - path: "Tests/**/*.swift"
       instructions: >-
-        Swift Testing only (import Testing, no XCTest). Report each broken rule below as an
-        inline should-fix finding (major severity), never as a nitpick. Each test pins one promise the package
+        Report each broken rule in this block as an inline should-fix finding (major
+        severity), never as a nitpick. Swift Testing only (import Testing, no XCTest). Each test
+        pins one promise the package
         makes to its user, is named after it and reaches the code only the way that user does:
         the public API, or the compiler by using a macro in source. Every @Test has a display
         name that states its promise as a plain sentence in sentence case with no full stop,
