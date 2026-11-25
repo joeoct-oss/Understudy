@@ -196,13 +196,15 @@ final class Ledger<Input, Output> {
     /// Every expectation not met and every call nobody expected, in words. Empty when the spy
     /// isn't strict.
     func problems() -> [String] {
-        let (calls, expectations, isStrict) = synchronized {
+        let snapshot: (calls: [Input], expected: [Expectation], strict: Bool) = synchronized {
             (recordedCalls, expectations, isStrict)
         }
-        guard isStrict else {
+        let calls = snapshot.calls
+        let expected = snapshot.expected
+        guard snapshot.strict else {
             return []
         }
-        let missed = expectations.compactMap { expectation -> String? in
+        let missed: [String] = expected.compactMap { expectation -> String? in
             let count = calls.filter(expectation.matches).count
             guard count != expectation.times else {
                 return nil
@@ -210,8 +212,8 @@ final class Ledger<Input, Output> {
             return "expected \(Self.times(expectation.times)) with \(expectation.description), "
                 + "got \(Self.times(count))"
         }
-        let unexpected = calls.filter { input in
-            !expectations.contains { $0.matches(input) }
+        let unexpected: [String] = calls.filter { input in
+            !expected.contains { $0.matches(input) }
         }.map { input in
             "unexpected call with \(String(describing: input))"
         }
