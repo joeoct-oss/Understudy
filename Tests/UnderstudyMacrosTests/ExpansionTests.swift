@@ -118,6 +118,16 @@ struct ExpansionTests {
 
     static let accepted: [Accepted] = [
         Accepted(
+            name: "a class whose only spied member is a @Recorded property",
+            source: """
+                @GenerateSpies
+                final class SpySession: Session {
+                    @Recorded var user = "ana"
+                    @Understudy.Recorded var token = "abc"
+                }
+                """
+        ),
+        Accepted(
             name: "requirements with and without answers to give",
             source: """
                 @GenerateSpies
@@ -315,9 +325,23 @@ struct ExpansionTests {
                 }
                 """,
             message: "mark each function to stand in for with @Spied and give it no body, "
-                + "and each property with @SpiedProperty",
+                + "and each property with @SpiedProperty or @Recorded",
             line: 1,
             column: 1
+        ),
+        Refused(
+            name: "@Recorded in an actor",
+            source: """
+                @GenerateSpies
+                actor SpyStore: Store {
+                    @Recorded var count = 0
+                    @Spied func save(_ item: String) async throws
+                }
+                """,
+            message: "'count' is @Recorded, whose spy a test can't read on an actor without await; "
+                + "use @SpiedProperty",
+            line: 3,
+            column: 19
         ),
         Refused(
             name: "a struct",

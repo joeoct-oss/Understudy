@@ -63,8 +63,19 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
             throw UnderstudyError("attach it to a class, an actor or a protocol")
         }
         let requirements = try spiedRequirements(of: declaration.memberBlock)
-        guard !requirements.isEmpty else {
-            throw UnderstudyError("mark each function to stand in for with @Spied and give it no body, and each property with @SpiedProperty")
+        let recorded = recordedProperties(of: declaration.memberBlock)
+        if isActor, let property = recorded.first {
+            throw UnderstudyError(
+                "'\(property.identifier.text)' is @Recorded, whose spy a test can't read on an actor "
+                    + "without await; use @SpiedProperty",
+                at: property
+            )
+        }
+        guard !requirements.isEmpty || !recorded.isEmpty else {
+            throw UnderstudyError(
+                "mark each function to stand in for with @Spied and give it no body, and each property "
+                    + "with @SpiedProperty or @Recorded"
+            )
         }
         let names = try spyNames(for: requirements)
         let forwarders = zip(requirements, names).map { requirement, name in
@@ -142,6 +153,15 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro {
             }
             return try Requirement(function)
         }
+    }
+
+    /// The name of every property marked `@Recorded`, which keeps its own spy, so the macro writes
+    /// nothing for it.
+    private static func recordedProperties(of block: MemberBlockSyntax) -> [IdentifierPatternSyntax] {
+        block.members
+            .compactMap { $0.decl.as(VariableDeclSyntax.self) }
+            .filter { $0.attributes.contains { isAttribute($0, named: "Recorded") } }
+            .flatMap { $0.bindings.compactMap { $0.pattern.as(IdentifierPatternSyntax.self) } }
     }
 
     /// Whether an attribute is `@<name>`, written alone or with the module's name.

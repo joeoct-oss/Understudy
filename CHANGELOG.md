@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Added
+
+- `@Recorded`, a property wrapper that spies on a property whose first value is at its declaration: `@Recorded var user = "ana"`, with `$user` its `PropertySpy`. It works in doubles written by hand and in `@GenerateSpies` classes, next to `@SpiedProperty`, and a `@GenerateSpies` class may have `@Recorded` properties only. `@GenerateSpies` refuses it on an actor, where `@SpiedProperty` is the way.
+
 ### Fixed
 
 - Understudy now asks for swift-syntax 602 or later. It said 600, but the macros don't build with 600, and 601 gives a wrong extra error for a `@SpiedProperty` with accessors, so a project that resolved either got a broken Understudy.
