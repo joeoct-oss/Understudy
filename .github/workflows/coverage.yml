@@ -47,7 +47,10 @@ jobs:
           COVERAGE_LCOV: coverage.lcov
         run: scripts/check-coverage.sh
 
+      # Kept even when the gate fails, so Codecov also shows the run that lowered the coverage. The
+      # gate itself is enforced in ci.yml.
       - name: Keep the report
+        if: ${{ !cancelled() && hashFiles('coverage.lcov') != '' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
@@ -57,9 +60,11 @@ jobs:
   upload:
     name: Coverage to Codecov
     needs: measure
-    if: ${{ !github.event.pull_request.head.repo.fork }}
+    if: ${{ !cancelled() && needs.measure.result != 'skipped' && !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    # A report that can't be fetched or uploaded never fails the run.
+    continue-on-error: true
     permissions:
       contents: read
       id-token: write
