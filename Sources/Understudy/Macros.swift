@@ -33,9 +33,10 @@
 /// parameters records a labelled tuple of them. A requirement that throws gets a ``ThrowingSpy``;
 /// with a typed `throws`, the body rethrows the scripted error as that type, and an error of
 /// another type stops the test, naming the spy.
-/// The double's initializer asks for the answer of every requirement that returns something other
-/// than `Void` or an optional, and the value of every property that isn't optional, so a double
-/// can't be called with nothing scripted. A property gets a ``PropertySpy``. An async requirement
+/// The double's initializer takes the first answer of every requirement and property, so a double
+/// can't be called with nothing scripted. `Void` and optionals answer `()` and `nil`; a `String`,
+/// a number, a `Bool` and an array, dictionary or set default to `""`, `0`, `false` and empty;
+/// any other type is a required argument. A property gets a ``PropertySpy``. An async requirement
 /// goes through ``Spy/respond(to:isolation:)``, so the test can hold the call. A generic
 /// parameter `T` is recorded as `any` of its constraints, and so is one inside an array, an
 /// optional, a dictionary's value or a set: `[T]` as `[any Tag]`, `Set<T>` as `Set<AnyHashable>`.
@@ -66,8 +67,8 @@ public macro Spied() = #externalMacro(module: "UnderstudyMacros", type: "SpiedMa
 /// Marks a property of a ``GenerateSpies()`` class that the macro writes. Declare it as a `var` with
 /// a type, and a first value if you like; the macro writes its getter and setter. With a first
 /// value, `@SpiedProperty var user: String = "ana"`, the spy starts with it; without one, the
-/// double's initializer takes it unless it is optional. It works in a `Sendable` class and in an
-/// actor, where ``Recorded`` can't.
+/// double's initializer takes it, as it takes a function's first answer. It works in a `Sendable`
+/// class and in an actor, where ``Recorded`` can't.
 @attached(accessor)
 public macro SpiedProperty() = #externalMacro(module: "UnderstudyMacros", type: "SpiedPropertyMacro")
 
