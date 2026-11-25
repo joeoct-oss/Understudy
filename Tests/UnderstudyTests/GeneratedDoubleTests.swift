@@ -9,7 +9,7 @@
 import Testing
 import Understudy
 
-/// Doubles written with `@Understudy`: on a class in the test target, whose requirements have no
+/// Doubles written with `@GenerateSpies`: on a class in the test target, whose requirements have no
 /// body, marked `@Spied`, and on a protocol, which gets a spy class next to it.
 @Suite("Generated doubles")
 struct GeneratedDoubleTests {
@@ -296,7 +296,7 @@ private protocol Catalog {
 ///
 /// Conformances:
 /// - `Catalog`, so a test can pass it where a catalog is expected.
-@Understudy
+@GenerateSpies
 private final class SpyCatalog: Catalog {
     @Spied func product(id: Int) -> String
     @Spied func search(for query: String, limit: Int) -> String?
@@ -314,7 +314,7 @@ private protocol Loader {
 ///
 /// Conformances:
 /// - `Loader`, so a test can pass it where a loader is expected.
-@Understudy
+@GenerateSpies
 private final class SpyLoader: Loader {
     @Spied func load(path: String) async throws -> String
 }
@@ -340,7 +340,7 @@ private final class Screen {
 ///
 /// Conformances:
 /// - `AccountGate`, so a test can pass it where a gate is expected.
-@Understudy
+@GenerateSpies
 @MainActor
 private final class SpyGate: AccountGate {
     @Spied func requireAccount(for screen: Screen, then action: @escaping () -> Void)
@@ -359,7 +359,7 @@ private protocol Session: AnyObject {
 ///
 /// Conformances:
 /// - `Session`, so a test can pass it where a session is expected.
-@Understudy
+@GenerateSpies
 private final class SpySession: Session {
     @SpiedProperty var token: String?
     @SpiedProperty var user: String
@@ -378,7 +378,7 @@ private protocol Cache {
 ///
 /// Conformances:
 /// - `Cache`, so a test can pass it where a cache is expected.
-@Understudy
+@GenerateSpies
 private final class SpyCache: Cache {
     @Spied func store<Value: Codable>(_ value: Value, for key: String)
     @Spied func value<Value: Decodable>(for key: String) -> Value?
@@ -387,7 +387,7 @@ private final class SpyCache: Cache {
 }
 
 /// Reads settings of any type.
-@Understudy
+@GenerateSpies
 private protocol Reader {
     func read<Value: Decodable>(_ key: String) -> Value
 }
@@ -403,7 +403,7 @@ private protocol Store: Actor {
 ///
 /// Conformances:
 /// - `Store`, so a test can pass it where a store is expected.
-@Understudy
+@GenerateSpies
 private actor SpyStore: Store {
     @SpiedProperty var count: Int
     @Spied func save(_ item: String) async throws
@@ -415,14 +415,14 @@ private actor SpyStore: Store {
 }
 
 /// Adds amounts to a running total, on its own actor.
-@Understudy
+@GenerateSpies
 private protocol Ledger: Actor {
     var total: Int { get }
     func add(_ amount: Int)
 }
 
 /// Settings a screen reads and changes.
-@Understudy
+@GenerateSpies
 private protocol Settings: AnyObject {
     var volume: Int { get set }
     var theme: String? { get }
@@ -438,7 +438,7 @@ private protocol Printer {
 ///
 /// Conformances:
 /// - `Printer`, so a test can pass it where a printer is expected.
-@Understudy
+@GenerateSpies
 private final class SpyPrinter: Printer {
     @Spied func print(_ lines: String...)
     @Spied func show(_ value: some Equatable)
@@ -454,7 +454,7 @@ public protocol OpenGate {
 ///
 /// Conformances:
 /// - `OpenGate`, so a test can pass it where a gate is expected.
-@Understudy
+@GenerateSpies
 @MainActor
 open class SpyOpenGate: OpenGate {
     @Spied nonisolated public func isOpen() -> Bool
@@ -469,7 +469,7 @@ public protocol Adder {
 ///
 /// Conformances:
 /// - `Adder`, so a test can pass it where an adder is expected.
-@Understudy
+@GenerateSpies
 public final class SpyAdder: Adder {
     @Spied public func sum(_ numbers: Int...) -> Int
 }
@@ -483,20 +483,20 @@ private protocol Scheduler {
 ///
 /// Conformances:
 /// - `Scheduler`, so a test can pass it where a scheduler is expected.
-@Understudy
+@GenerateSpies
 private final class SpyScheduler: Scheduler {
     @Spied func schedule(_ work: @escaping @Sendable () -> Void)
 }
 
 /// Tells the time, for code in other modules too.
-@Understudy
+@GenerateSpies
 @MainActor
 public protocol PublicClock: AnyObject {
     func now() -> Int
 }
 
 /// Writes lines to a file in this file only.
-@Understudy
+@GenerateSpies
 fileprivate protocol FileLog {
     func write(_ line: String)
 }
@@ -512,7 +512,7 @@ private protocol HandlerFactory {
 ///
 /// Conformances:
 /// - `HandlerFactory`, so a test can pass it where a factory is expected.
-@Understudy
+@GenerateSpies
 private final class SpyHandlerFactory: HandlerFactory {
     @Spied func makeHandler() -> () -> Void
     @Spied func makeSendableHandler() -> @Sendable () -> Void
@@ -520,7 +520,7 @@ private final class SpyHandlerFactory: HandlerFactory {
 }
 
 /// Tells the time and waits, so a test can control both.
-@Understudy
+@GenerateSpies
 private protocol Clock {
     func now() -> Int
     func sleep(for seconds: Int) async
@@ -530,7 +530,7 @@ private protocol Clock {
 ///
 /// Conformances:
 /// - `Sendable`, because any task may send an event.
-@Understudy
+@GenerateSpies
 private protocol EventSink: Sendable {
     func send(_ event: String)
 }

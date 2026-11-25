@@ -10,7 +10,7 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 
 /// `@SpiedProperty`: writes the getter and setter of a `var` declared with a type and nothing else
-/// in an `@Understudy` class. They go through the private forwarder `@Understudy` wrote for the
+/// in a `@GenerateSpies` class. They go through the private forwarder `@GenerateSpies` wrote for the
 /// property, to its ``PropertySpy``.
 public struct SpiedPropertyMacro: AccessorMacro {
     public static func expansion(
@@ -22,9 +22,9 @@ public struct SpiedPropertyMacro: AccessorMacro {
             throw UnderstudyError("@SpiedProperty goes on a var")
         }
         guard SpiedMacro.isInsideUnderstudyType(context) else {
-            throw UnderstudyError("@SpiedProperty needs @Understudy on the class or actor it is in")
+            throw UnderstudyError("@SpiedProperty needs @GenerateSpies on the class or actor it is in")
         }
-        // `@Understudy` explains a property it can't write, at the property.
+        // `@GenerateSpies` explains a property it can't write, at the property.
         guard let property = try? Property(variable, inProtocol: false) else {
             return []
         }

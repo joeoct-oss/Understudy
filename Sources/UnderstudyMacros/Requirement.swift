@@ -101,7 +101,8 @@ struct Requirement: SpiedMember {
             return "return " + call(on: spy)
         }
         let answer = "__understudy_answer"
-        let wrongType = "fatalError(\"@Understudy: \(spy) answered \\(type(of: \(answer))), not \\(\(generic).self)\")"
+        let wrongType =
+            "fatalError(\"@GenerateSpies: \(spy) answered \\(type(of: \(answer))), not \\(\(generic).self)\")"
         let fetch = returnsOptional
             ? "guard let \(answer) = \(call(on: spy)) else {\nreturn nil\n}"
             : "let \(answer) = \(call(on: spy))"
@@ -125,7 +126,7 @@ struct Requirement: SpiedMember {
         return "\(attempt)await self.\(spy).respond(to: \(input))"
     }
 
-    /// The name of the private function `@Understudy` writes for this requirement on a class. The
+    /// The name of the private function `@GenerateSpies` writes for this requirement on a class. The
     /// requirement's body calls it with its own labels, so overloads reach their own spy.
     var forwarderName: String {
         "__understudy_" + baseName
@@ -169,7 +170,10 @@ struct Requirement: SpiedMember {
             throw UnderstudyError("\(where_) is static; write its double by hand", at: declaration.name)
         }
         if modifiers.contains("mutating") {
-            throw UnderstudyError("\(where_) is mutating; @Understudy writes classes and actors", at: declaration.name)
+            throw UnderstudyError(
+                "\(where_) is mutating; @GenerateSpies writes classes and actors",
+                at: declaration.name
+            )
         }
         let signature = declaration.signature
         let throwsClause = signature.effectSpecifiers?.throwsClause
@@ -352,7 +356,7 @@ struct Property: SpiedMember {
         (isFunction ? "@escaping " : "") + type
     }
 
-    /// The private property `@Understudy` writes for this property on a class, which the
+    /// The private property `@GenerateSpies` writes for this property on a class, which the
     /// accessors `@Spied` writes go through.
     var forwarderName: String {
         "__understudy_property_" + nameToken.text
@@ -433,7 +437,7 @@ struct UnderstudyError: Error, CustomStringConvertible, DiagnosticMessage {
     let node: Syntax?
 
     init(_ description: String, at node: (some SyntaxProtocol)? = Optional<Syntax>.none) {
-        self.description = "@Understudy: " + description
+        self.description = "@GenerateSpies: " + description
         self.node = node.map { Syntax($0) }
     }
 

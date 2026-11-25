@@ -58,25 +58,25 @@ struct ExpansionTests {
     @Test
     func genericAnswerOfTheWrongTypeStopsWithTheSpyAndBothTypes() {
         let (expanded, _) = expand("""
-            @Understudy
+            @GenerateSpies
             final class SpyCache: Cache {
                 @Spied func value<Value: Decodable>(for key: String) -> Value
             }
             """)
 
-        let message = #"@Understudy: valueSpy answered \(type(of: __understudy_answer)), not \(Value.self)"#
+        let message = #"@GenerateSpies: valueSpy answered \(type(of: __understudy_answer)), not \(Value.self)"#
         #expect(expanded.description.contains(message))
     }
 
-    /// The body `@Spied` writes for a requirement `@Understudy` refused.
-    private static let refusedBody = "@Understudy can't write this requirement"
+    /// The body `@Spied` writes for a requirement `@GenerateSpies` refused.
+    private static let refusedBody = "@GenerateSpies can't write this requirement"
 
     @Test(arguments: refused)
     func refusesWhatItCannotWriteAtTheRequirement(_ double: Refused) {
         let (_, diagnostics) = expand(double.source)
 
         let expected = [
-            "\(double.line):\(double.column): understudy.error: @Understudy: \(double.message)",
+            "\(double.line):\(double.column): understudy.error: @GenerateSpies: \(double.message)",
         ]
         #expect(diagnostics == expected)
     }
@@ -111,7 +111,7 @@ struct ExpansionTests {
     private static let understudyError = MessageID(domain: "Understudy", id: "error")
 
     private static let macros: [String: MacroSpec] = [
-        "Understudy": MacroSpec(type: UnderstudyMacro.self),
+        "GenerateSpies": MacroSpec(type: GenerateSpiesMacro.self),
         "Spied": MacroSpec(type: SpiedMacro.self),
         "SpiedProperty": MacroSpec(type: SpiedPropertyMacro.self),
     ]
@@ -120,7 +120,7 @@ struct ExpansionTests {
         Accepted(
             name: "requirements with and without answers to give",
             source: """
-                @Understudy
+                @GenerateSpies
                 final class SpyCatalog: Catalog {
                     @Spied func product(id: Int) -> String
                     @Spied func search(for query: String, limit: Int) -> String?
@@ -131,7 +131,7 @@ struct ExpansionTests {
         Accepted(
             name: "properties with and without values to give",
             source: """
-                @Understudy
+                @GenerateSpies
                 final class SpySession: Session {
                     @SpiedProperty var token: String?
                     @SpiedProperty var user: String
@@ -143,7 +143,7 @@ struct ExpansionTests {
         Accepted(
             name: "overloads with different labels",
             source: """
-                @Understudy
+                @GenerateSpies
                 final class SpyCatalog: Catalog {
                     @Spied func remove(id: Int)
                     @Spied func remove(named name: String)
@@ -153,7 +153,7 @@ struct ExpansionTests {
         Accepted(
             name: "throwing and async requirements",
             source: """
-                @Understudy
+                @GenerateSpies
                 final class SpyLoader: Loader {
                     @Spied func load(path: String) async throws -> String
                 }
@@ -162,7 +162,7 @@ struct ExpansionTests {
         Accepted(
             name: "closures in and out, variadic and opaque parameters",
             source: """
-                @Understudy
+                @GenerateSpies
                 final class SpyFactory: Factory {
                     @Spied func make(then action: @escaping @Sendable () -> Void)
                     @Spied func handler() -> () -> Void
@@ -176,14 +176,14 @@ struct ExpansionTests {
         Accepted(
             name: "isolated and nonisolated requirements of any access level",
             source: """
-                @Understudy
+                @GenerateSpies
                 @MainActor
                 open class SpyGate: Gate {
                     @Spied nonisolated func isOpen() -> Bool
                     @Spied func open()
                 }
 
-                @Understudy
+                @GenerateSpies
                 private final class SpyLog: Log {
                     @Spied func write(_ text: String)
                 }
@@ -192,7 +192,7 @@ struct ExpansionTests {
         Accepted(
             name: "simple generic methods",
             source: """
-                @Understudy
+                @GenerateSpies
                 final class SpyCache: Cache {
                     @Spied func store<Value: Codable>(_ value: Value, for key: String)
                     @Spied func value<Value: Decodable>(for key: String) -> Value?
@@ -200,7 +200,7 @@ struct ExpansionTests {
                     @Spied func all<Value: Sendable & Codable>(_ values: Value...)
                 }
 
-                @Understudy
+                @GenerateSpies
                 protocol Settings {
                     func read<Value: Decodable>(_ key: String) -> Value
                 }
@@ -209,14 +209,14 @@ struct ExpansionTests {
         Accepted(
             name: "actors",
             source: """
-                @Understudy
+                @GenerateSpies
                 actor SpyStore: Store {
                     @Spied func save(_ item: String) async throws
                     @Spied nonisolated func name() -> String
                     @SpiedProperty var count: Int
                 }
 
-                @Understudy
+                @GenerateSpies
                 protocol Ledger: Actor {
                     var total: Int { get }
                     func add(_ amount: Int)
@@ -226,7 +226,7 @@ struct ExpansionTests {
         Accepted(
             name: "protocols you own",
             source: """
-                @Understudy
+                @GenerateSpies
                 @MainActor
                 public protocol Clock: AnyObject {
                     var zone: String { get set }
@@ -236,7 +236,7 @@ struct ExpansionTests {
                     func tick() async
                 }
 
-                @Understudy
+                @GenerateSpies
                 fileprivate protocol EventSink: Sendable {
                     func send(_ event: String)
                 }
@@ -256,7 +256,7 @@ struct ExpansionTests {
         refusedRequirement("a static requirement", "static func shared() -> Int",
                            "'shared' is static; write its double by hand", column: 24),
         refusedRequirement("a mutating requirement", "mutating func reset()",
-                           "'reset' is mutating; @Understudy writes classes and actors", column: 26),
+                           "'reset' is mutating; @GenerateSpies writes classes and actors", column: 26),
         refusedRequirement("typed throws", "func load() throws(LoadError) -> Int",
                            "'load' uses typed throws; write its double by hand", column: 17),
         refusedRequirement("rethrows", "func each(_ body: () throws -> Void) rethrows",
@@ -284,7 +284,7 @@ struct ExpansionTests {
         Refused(
             name: "overloads that differ only in their types",
             source: """
-                @Understudy
+                @GenerateSpies
                 final class SpyLog: Log {
                     @Spied func write(_ text: String)
                     @Spied func write(_ number: Int)
@@ -297,7 +297,7 @@ struct ExpansionTests {
         Refused(
             name: "a requirement with a body",
             source: """
-                @Understudy
+                @GenerateSpies
                 final class SpyLog: Log {
                     @Spied func write(_ text: String) {}
                 }
@@ -309,7 +309,7 @@ struct ExpansionTests {
         Refused(
             name: "a class with nothing spied",
             source: """
-                @Understudy
+                @GenerateSpies
                 final class SpyLog: Log {
                     func write(_ text: String) {}
                 }
@@ -322,7 +322,7 @@ struct ExpansionTests {
         Refused(
             name: "a struct",
             source: """
-                @Understudy
+                @GenerateSpies
                 struct SpyLog: Log {
                     func write(_ text: String) {}
                 }
@@ -332,24 +332,24 @@ struct ExpansionTests {
             column: 1
         ),
         Refused(
-            name: "@Spied outside an @Understudy class",
+            name: "@Spied outside a @GenerateSpies class",
             source: """
                 final class Lonely {
                     @Spied func ping()
                 }
                 """,
-            message: "@Spied needs @Understudy on the class or actor it is in",
+            message: "@Spied needs @GenerateSpies on the class or actor it is in",
             line: 2,
             column: 5
         ),
         Refused(
-            name: "@SpiedProperty outside an @Understudy class",
+            name: "@SpiedProperty outside a @GenerateSpies class",
             source: """
                 final class Lonely {
                     @SpiedProperty var token: String?
                 }
                 """,
-            message: "@SpiedProperty needs @Understudy on the class or actor it is in",
+            message: "@SpiedProperty needs @GenerateSpies on the class or actor it is in",
             line: 2,
             column: 5
         ),
@@ -371,14 +371,14 @@ struct ExpansionTests {
                     @Spied func ping()
                 }
                 """,
-            message: "@Spied needs @Understudy on the class or actor it is in",
+            message: "@Spied needs @GenerateSpies on the class or actor it is in",
             line: 2,
             column: 5
         ),
         Refused(
             name: "@Spied on something that isn't a function",
             source: """
-                @Understudy
+                @GenerateSpies
                 final class SpyLog: Log {
                     @Spied func write(_ text: String)
                     @Spied init() {}
@@ -391,26 +391,26 @@ struct ExpansionTests {
         Refused(
             name: "a protocol subscript",
             source: """
-                @Understudy
+                @GenerateSpies
                 protocol Session {
                     subscript(key: String) -> String { get }
                 }
                 """,
             message: "'Session' has a requirement that is neither a function nor a property; "
-                + "write its double by hand, or use @Understudy on a class or an actor",
+                + "write its double by hand, or use @GenerateSpies on a class or an actor",
             line: 3,
             column: 5
         ),
         Refused(
             name: "a protocol that inherits another",
             source: """
-                @Understudy
+                @GenerateSpies
                 protocol Child: Base, Sendable {
                     func ping()
                 }
                 """,
             message: "'Child' inherits 'Base', whose requirements this macro can't see; "
-                + "use @Understudy on a class or an actor that conforms to 'Child' instead",
+                + "use @GenerateSpies on a class or an actor that conforms to 'Child' instead",
             line: 2,
             column: 15
         ),
@@ -437,7 +437,7 @@ struct ExpansionTests {
         Refused(
             name: name,
             source: """
-                @Understudy
+                @GenerateSpies
                 final class SpyStore: Store {
                     \(marker) \(requirement)
                 }

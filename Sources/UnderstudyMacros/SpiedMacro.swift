@@ -9,8 +9,8 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// `@Spied`: writes the body of a function declared with none in an `@Understudy` class. The body
-/// calls the private forwarder `@Understudy` wrote for it, with the function's own labels, so an
+/// `@Spied`: writes the body of a function declared with none in a `@GenerateSpies` class. The body
+/// calls the private forwarder `@GenerateSpies` wrote for it, with the function's own labels, so an
 /// overload reaches its own spy.
 public struct SpiedMacro: BodyMacro {
     public static func expansion(
@@ -22,12 +22,12 @@ public struct SpiedMacro: BodyMacro {
             throw UnderstudyError("@Spied goes on a function")
         }
         guard isInsideUnderstudyType(context) else {
-            throw UnderstudyError("@Spied needs @Understudy on the class or actor it is in")
+            throw UnderstudyError("@Spied needs @GenerateSpies on the class or actor it is in")
         }
-        // `@Understudy` explains a requirement it can't write, at the requirement. The body only has
+        // `@GenerateSpies` explains a requirement it can't write, at the requirement. The body only has
         // to compile until the person fixes it.
         guard let requirement = try? Requirement(function) else {
-            return ["fatalError(\"@Understudy can't write this requirement\")"]
+            return ["fatalError(\"@GenerateSpies can't write this requirement\")"]
         }
         let attempt = requirement.throwsError ? "try " : ""
         let wait = requirement.isAsync ? "await " : ""
@@ -35,7 +35,7 @@ public struct SpiedMacro: BodyMacro {
         return ["return \(raw: attempt)\(raw: wait)self.\(raw: call)"]
     }
 
-    /// Whether the declaration is a member of a class or an actor marked `@Understudy`.
+    /// Whether the declaration is a member of a class or an actor marked `@GenerateSpies`.
     static func isInsideUnderstudyType(_ context: some MacroExpansionContext) -> Bool {
         guard let type = context.lexicalContext.first,
               let attributes = type.as(ClassDeclSyntax.self)?.attributes ?? type.as(ActorDeclSyntax.self)?.attributes else {
@@ -43,12 +43,12 @@ public struct SpiedMacro: BodyMacro {
         }
         return attributes.contains { element in
             let name = element.as(AttributeSyntax.self)?.attributeName.trimmedDescription
-            return name == "Understudy" || name == "Understudy.Understudy"
+            return name == "GenerateSpies" || name == "Understudy.GenerateSpies"
         }
     }
 
     /// The statements that call a spy directly and return its answer, for the spy class
-    /// `@Understudy` writes next to a protocol.
+    /// `@GenerateSpies` writes next to a protocol.
     static func body(of requirement: Requirement, spy: String) -> CodeBlockItemListSyntax {
         "\(raw: requirement.body(on: spy))"
     }

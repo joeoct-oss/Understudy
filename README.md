@@ -57,13 +57,13 @@ protocol Catalog {
 }
 ```
 
-In your test target, write a class that conforms to it. Put `@Understudy` on the class and `@Spied` on each function, with no body:
+In your test target, write a class that conforms to it. Put `@GenerateSpies` on the class and `@Spied` on each function, with no body:
 
 ```swift
 import Testing
 import Understudy
 
-@Understudy
+@GenerateSpies
 final class SpyCatalog: Catalog {
     @Spied func product(id: Int) -> Product?
 }
@@ -101,7 +101,7 @@ A function with several parameters keeps them as a labelled tuple, so `search(fo
 A function that returns `Void` or an optional answers `()` or `nil` until you script it. Any other function needs its answer when the double is made, so a double can never be called with nothing scripted:
 
 ```swift
-@Understudy
+@GenerateSpies
 final class SpyPricing: Pricing {
     @Spied func price(of id: Int) -> Int
     @Spied func load(path: String) async throws -> String
@@ -126,7 +126,7 @@ pricing.loadSpy.willGiveNext(.failure(LoadError.offline), then: .success("ok"))
 Mark a `var` with `@SpiedProperty` and give it only a type. A property that isn't optional takes its first value when the double is made:
 
 ```swift
-@Understudy
+@GenerateSpies
 final class SpySession: Session {
     @SpiedProperty var user: String
     @SpiedProperty var token: String?
@@ -222,7 +222,7 @@ let expectedEvents = ["checkout"]
 A generic function can be `@Spied` when each generic parameter is a whole parameter type, or the whole return type (`T` or `T?`). The spy records it as `any` of its constraints, or `Any` when it has none, and the answer is cast back to the type the caller asks for:
 
 ```swift
-@Understudy
+@GenerateSpies
 final class SpyCache: Cache {
     @Spied func store<Value: Codable>(_ value: Value, for key: String)   // storeSpy records (value: any Codable, key: String)
     @Spied func value<Value: Decodable>(for key: String) -> Value?      // valueSpy answers (any Decodable)?
@@ -236,10 +236,10 @@ An answer of the wrong type stops the test with a message naming the spy, the an
 
 ## Actors
 
-`@Understudy` works on an actor the same way as on a class. The spies are `nonisolated`, so a test reads them without `await`:
+`@GenerateSpies` works on an actor the same way as on a class. The spies are `nonisolated`, so a test reads them without `await`:
 
 ```swift
-@Understudy
+@GenerateSpies
 actor SpyStore: Store {
     @Spied func save(_ item: Item) async throws
 }
@@ -250,10 +250,10 @@ try await store.save(.apple)
 
 ## Doubles for your own protocols
 
-On a protocol in your own code, `@Understudy` writes the double next to it, named after the protocol with `Spy` added:
+On a protocol in your own code, `@GenerateSpies` writes the double next to it, named after the protocol with `Spy` added:
 
 ```swift
-@Understudy
+@GenerateSpies
 protocol Clock {
     var now: Double { get }
     func sleep(for seconds: Double) async
