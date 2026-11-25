@@ -205,7 +205,7 @@ analytics.trackSpy.verify()
 
 ## Reset a spy
 
-`reset()` forgets what happened so far: the calls (a property's gets and sets), where `nextCall()` was, and the expectations. It keeps what the test scripted, so you can check one step of a test at a time:
+`reset()` forgets what happened so far: the calls (a property's gets and sets), where `nextCall()` was, and the expectations. It keeps what the test scripted, so you can check one step of a test at a time. A `CallOrder` keeps the names it already has; make a new one for the next step:
 
 ```swift
 checkout.addItem(.apple)
