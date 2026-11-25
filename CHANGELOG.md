@@ -6,6 +6,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Added
 
+- `TestClock`, a clock that moves only when the test moves it, so code that waits can be tested without real time passing. `advance(by:)` and `advance(to:)` wake each sleep the window reaches, in deadline order, and let the woken code run on to its next sleep, even across actors; `advance()` lets ready work run, and `run()` moves on until nothing waits. A cancelled sleep throws `CancellationError`. It needs macOS 13, iOS 16, tvOS 16 or watchOS 9.
 - `.spi.yml`, so the Swift Package Index builds the package and hosts the API docs of `Understudy` and `UnderstudySamples`.
 - A coverage report on Codecov for main and each pull request (the **Coverage report** workflow). `scripts/check-coverage.sh` writes the measured lines as one LCOV file when `COVERAGE_LCOV` names a path. The coverage gate itself is unchanged.
 
