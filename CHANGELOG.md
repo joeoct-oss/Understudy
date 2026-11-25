@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Added
+
+- `CallOrder { ... }`, which watches every spy in a block of `Watch(spy, as: name)` lines, for `Spy` and `ThrowingSpy` alike. `watch(_:as:)` stays, for a spy the test starts watching later.
+
 ### Fixed
 
 - Understudy now asks for swift-syntax 602 or later. It said 600, but the macros don't build with 600, and 601 gives a wrong extra error for a `@SpiedProperty` with accessors, so a project that resolved either got a broken Understudy.

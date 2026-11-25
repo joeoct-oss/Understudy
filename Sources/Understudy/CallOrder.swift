@@ -21,6 +21,15 @@ import Foundation
 /// #expect(order.names == ["save", "send"])
 /// ```
 ///
+/// Or watch them all at once, in a block:
+///
+/// ```swift
+/// let order = CallOrder {
+///     Watch(store.saveSpy, as: "save")
+///     Watch(analytics.sendSpy, as: "send")
+/// }
+/// ```
+///
 /// It sees only calls made after it starts watching.
 ///
 /// Conformances:
@@ -35,6 +44,14 @@ public final class CallOrder: @unchecked Sendable {
 
     /// Creates an empty call order.
     public init() { }
+
+    /// Creates a call order that watches every spy in `watches`, as `watch(_:as:)` would.
+    public convenience init(@CallOrderBuilder _ watches: () -> [Watch]) {
+        self.init()
+        for watch in watches() {
+            watch(self)
+        }
+    }
 
     /// The name of each call to a watched spy, oldest first.
     public var names: [String] {
@@ -64,5 +81,49 @@ public final class CallOrder: @unchecked Sendable {
         lock.lock()
         recorded.append(name)
         lock.unlock()
+    }
+}
+
+/// One spy for a ``CallOrder`` to watch, under the name the test picks, in a
+/// `CallOrder { ... }` block:
+///
+/// ```swift
+/// let order = CallOrder {
+///     Watch(store.saveSpy, as: "save")
+/// }
+/// ```
+///
+/// Not `Sendable`: it holds the spy, which is `Sendable` only when its input and output are. It
+/// is made and used in one block.
+public struct Watch {
+    /// Starts watching the spy on the order it is given.
+    private let start: (CallOrder) -> Void
+
+    /// Watches `spy` under `name`.
+    public init<Input, Output>(_ spy: Spy<Input, Output>, as name: String) {
+        start = { order in
+            order.watch(spy, as: name)
+        }
+    }
+
+    /// Watches `spy` under `name`.
+    public init<Input, Output>(_ spy: ThrowingSpy<Input, Output>, as name: String) {
+        start = { order in
+            order.watch(spy, as: name)
+        }
+    }
+
+    /// Starts watching the spy on `order`, as `CallOrder.watch(_:as:)` would.
+    public func callAsFunction(_ order: CallOrder) {
+        start(order)
+    }
+}
+
+/// Collects the ``Watch`` lines of a `CallOrder { ... }` block.
+@resultBuilder
+public enum CallOrderBuilder {
+    /// The block's watches, in order.
+    public static func buildBlock(_ watches: Watch...) -> [Watch] {
+        watches
     }
 }
