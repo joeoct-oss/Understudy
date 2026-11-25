@@ -1,0 +1,128 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit reviews every pull request here on its free open-source plan. It adds to the
+# existing review and replaces nothing. The review reads CODE_STYLE.md, the one home for the
+# code style, and stays to inline comments: the extras that add noise to a pull request are
+# off, and nothing writes commits, edits the PR description or comments on issues.
+language: en-US
+tone_instructions: >-
+  Plain, short English. Report only blockers and should-fix items, each as an inline comment
+  with the reason. No praise, no summaries, and no nitpicks that CODE_STYLE.md doesn't ask for.
+enable_free_tier: true
+
+reviews:
+  profile: chill
+  # Keep the PR description as the author wrote it.
+  high_level_summary: false
+  high_level_summary_in_walkthrough: false
+  # The walkthrough comment can't be turned off, so it stays small and folded.
+  collapse_walkthrough: true
+  changed_files_summary: false
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  # Issues live in a private repo that CodeRabbit can't read.
+  assess_linked_issues: false
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  suggested_reviewers: false
+  in_progress_fortune: false
+  poem: false
+  review_status: false
+  review_info: false
+  auto_review:
+    enabled: true
+    drafts: false
+  # Nothing pushes commits or opens pull requests on its own.
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+    simplify:
+      enabled: false
+    autofix:
+      enabled: false
+    fix_ci:
+      enabled: false
+    resolve_merge_conflict:
+      enabled: false
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    description:
+      mode: "off"
+    issue_assessment:
+      mode: "off"
+    title:
+      mode: warning
+      requirements: >-
+        One plain imperative sentence that says exactly what changes, with no prefix, no
+        issue or ticket number and no jargon.
+  path_filters:
+    - "!Package.resolved"
+  path_instructions:
+    - path: "Sources/**/*.swift"
+      instructions: >-
+        Swift 6 with strict concurrency. Check the change against CODE_STYLE.md. Flag any API
+        newer than the oldest platform in Package.swift that isn't behind an availability
+        check, any isolation that isn't written out, and any code a macro writes that a
+        person wouldn't write by hand.
+    - path: "Tests/**/*.swift"
+      instructions: >-
+        Swift Testing only. Each test pins one promise the package makes to its user and
+        reaches the code only the way that user does (public API, or the compiler for macro
+        tests). Flag a test that checks internals, order, counts or timing, that sleeps, that
+        compares the text a macro writes, or that repeats another test's promise. Every @Test
+        needs a display name that states its promise as a plain sentence.
+    - path: ".github/workflows/**"
+      instructions: >-
+        Actions are pinned to a commit SHA, each job gets only the permissions it uses, and
+        only free GitHub-hosted runners are used.
+    - path: "CHANGELOG.md"
+      instructions: >-
+        Keep a Changelog format. New user-facing changes go under Unreleased, in plain words
+        a package user understands.
+  tools:
+    # No SwiftLint setup in this package; its default rules disagree with CODE_STYLE.md.
+    swiftlint:
+      enabled: false
+    markdownlint:
+      enabled: false
+    languagetool:
+      enabled: false
+    actionlint:
+      enabled: true
+    zizmor:
+      enabled: true
+    shellcheck:
+      enabled: true
+    yamllint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    github-checks:
+      enabled: true
+
+chat:
+  art: false
+  auto_reply: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - CODE_STYLE.md
+  learnings:
+    scope: local
+  issues:
+    scope: local
+  pull_requests:
+    scope: local
+  automatic_linking_mode: disabled
+
+# Issues and plans live in a private repo, so CodeRabbit leaves issues here alone.
+issue_enrichment:
+  auto_enrich:
+    enabled: false
+  planning:
+    enabled: false
