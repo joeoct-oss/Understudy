@@ -7,8 +7,11 @@
 #   tag.
 # - On a push to main (publish): when the top version has no tag yet, creates the tag on the
 #   pushed commit and the GitHub release with that version's notes, marked Latest. When it is
-#   already tagged, does nothing.
-# Uses only actions/checkout, the runner's gh and GITHUB_TOKEN, on a free GitHub-hosted runner.
+#   already tagged, does nothing. Publishing waits for CI (ci.yml), which runs again on the pushed
+#   commit: a squash merge makes a commit no PR check saw, so nothing is tagged unless CI passed on
+#   exactly that commit.
+# Uses only actions/checkout (pinned to a commit SHA), the runner's gh and GITHUB_TOKEN, on free
+# GitHub-hosted runners. Each job gets only the permissions it uses.
 name: Release
 
 on:
@@ -18,8 +21,7 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
 
-permissions:
-  contents: read
+permissions: {}
 
 # Two quick merges publish one after the other, never at once. Pull requests get their own group.
 concurrency:
@@ -30,17 +32,20 @@ jobs:
   # Runs on pull requests and on main. Read-only.
   check:
     name: Release check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.changelog.outputs.version }}
       tagged: ${{ steps.changelog.outputs.tagged }}
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           fetch-tags: true
+          persist-credentials: false
 
       - name: Read the newest version from the changelog
         id: changelog
@@ -65,18 +70,30 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           echo "Publishes $version on main, after ${latest:-no earlier tag}."
 
-  # Runs only on main, and only when the check found an untagged version.
+  # The full CI on the pushed commit. Runs on every push to main, so main is always tested.
+  ci:
+    name: CI
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+    # The documented local form: it always runs ci.yml from this same commit.
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
+
+  # Runs only on main, only when the check found an untagged version, and only after CI passed on
+  # the same commit.
   publish:
     name: Publish
-    needs: check
+    needs: [check, ci]
     if: github.event_name == 'push' && needs.check.outputs.tagged == 'false'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: write
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Publish the release
         env:

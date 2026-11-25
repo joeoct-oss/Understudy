@@ -17,6 +17,15 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# A restored build cache can hold coverage profiles from an earlier run, which would count lines
+# that this run's tests never reach, so they are removed first.
+codecov=$(swift test --show-codecov-path)
+codecov=$(dirname "$codecov")
+if [[ "$codecov" != */codecov ]]; then
+    echo "error: unexpected coverage folder '$codecov'" >&2
+    exit 1
+fi
+rm -rf "$codecov"
 swift test --enable-code-coverage "$@"
 
 build=$(swift build --show-bin-path)
