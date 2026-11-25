@@ -53,15 +53,16 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
         }
     }
 
-    /// The spies, the forwarders and the initializer, for a class.
+    /// The spies, the forwarders and the initializer, for a class or an actor.
     private static func members(of declaration: some DeclGroupSyntax) throws -> [DeclSyntax] {
-        guard let type = declaration.as(ClassDeclSyntax.self) else {
+        let isActor = declaration.is(ActorDeclSyntax.self)
+        guard isActor || declaration.is(ClassDeclSyntax.self) else {
             if declaration.is(ProtocolDeclSyntax.self) {
                 return []
             }
-            throw UnderstudyError("attach it to a class or a protocol")
+            throw UnderstudyError("attach it to a class, an actor or a protocol")
         }
-        let requirements = try spiedRequirements(of: type.memberBlock)
+        let requirements = try spiedRequirements(of: declaration.memberBlock)
         guard !requirements.isEmpty else {
             throw UnderstudyError("mark each function to stand in for with @Spied and give it no body, and each property with @SpiedProperty")
         }
@@ -69,7 +70,8 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
         let forwarders = zip(requirements, names).map { requirement, name in
             requirement.forwarder(spy: name)
         }
-        return try storage(for: requirements, access: access(of: type.modifiers)) + forwarders
+        return try storage(for: requirements, access: access(of: declaration.modifiers), isActor: isActor)
+            + forwarders
     }
 
     /// The spy class written next to a protocol.
@@ -78,10 +80,12 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
             return []
         }
         let inherited = proto.inheritanceClause?.inheritedTypes.map(\.type.trimmedDescription) ?? []
-        if let other = inherited.first(where: { !["Sendable", "AnyObject", "Swift.Sendable"].contains($0) }) {
+        let isActor = inherited.contains { $0 == "Actor" || $0 == "_Concurrency.Actor" }
+        let known = ["Sendable", "AnyObject", "Swift.Sendable", "Actor", "_Concurrency.Actor"]
+        if let other = inherited.first(where: { !known.contains($0) }) {
             throw UnderstudyError(
                 "'\(proto.name.text)' inherits '\(other)', whose requirements this macro can't see; "
-                    + "use @Understudy on a class that conforms to '\(proto.name.text)' instead",
+                    + "use @Understudy on a class or an actor that conforms to '\(proto.name.text)' instead",
                 at: proto.inheritanceClause
             )
         }
@@ -94,13 +98,13 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
             }
             throw UnderstudyError(
                 "'\(proto.name.text)' has a requirement that is neither a function nor a property; "
-                    + "write its double by hand, or use @Understudy on a class",
+                    + "write its double by hand, or use @Understudy on a class or an actor",
                 at: member.decl
             )
         }
         let access = access(of: proto.modifiers)
         let names = try spyNames(for: requirements)
-        let members = try storage(for: requirements, access: access)
+        let members = try storage(for: requirements, access: access, isActor: isActor)
             + zip(requirements, names).map { requirement, name in
                 requirement.implementation(spy: name, access: access)
             }
@@ -111,10 +115,11 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
         let prefix = access.isEmpty ? "" : access + " "
         let body = members.map { $0.trimmedDescription }.joined(separator: "\n\n")
         let name = proto.name.text
+        let kind = isActor ? "actor" : "final class"
         return [
             """
             /// A spy for `\(raw: name)`, written by `@Understudy`.
-            \(raw: actors)\(raw: prefix)final class \(raw: name)Spy: \(raw: name) {
+            \(raw: actors)\(raw: prefix)\(raw: kind) \(raw: name)Spy: \(raw: name) {
             \(raw: body)
             }
             """,
@@ -146,20 +151,25 @@ public struct UnderstudyMacro: MemberMacro, PeerMacro {
     }
 
     /// One stored spy per requirement, and an initializer that asks for every answer with no safe
-    /// default.
-    private static func storage(for requirements: [any SpiedMember], access: String) throws -> [DeclSyntax] {
+    /// default. An actor's spies are `nonisolated`, so a test reads them without `await`.
+    private static func storage(
+        for requirements: [any SpiedMember],
+        access: String,
+        isActor: Bool
+    ) throws -> [DeclSyntax] {
         let names = try spyNames(for: requirements)
         let prefix = access.isEmpty ? "" : access + " "
+        let spyPrefix = prefix + (isActor ? "nonisolated " : "")
         var declarations: [DeclSyntax] = []
         // A closure answer is taken `@escaping`, because the spy keeps it.
         var answers: [(name: String, output: String)] = []
         for (requirement, name) in zip(requirements, names) {
             if requirement.needsAnswer {
-                declarations.append("\(raw: prefix)let \(raw: name): \(raw: requirement.spyType)")
+                declarations.append("\(raw: spyPrefix)let \(raw: name): \(raw: requirement.spyType)")
                 answers.append((name, requirement.answerType))
             } else {
                 declarations.append(
-                    "\(raw: prefix)let \(raw: name) = \(raw: requirement.spyType)(returning: \(raw: requirement.defaultAnswer))"
+                    "\(raw: spyPrefix)let \(raw: name) = \(raw: requirement.spyType)(returning: \(raw: requirement.defaultAnswer))"
                 )
             }
         }

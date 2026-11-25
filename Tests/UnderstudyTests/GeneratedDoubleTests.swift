@@ -115,6 +115,61 @@ struct GeneratedDoubleTests {
     }
 
     @Test
+    func genericMethodsRecordTheirInputsAndAnswerAsTheCallerAsks() async throws {
+        let cache = SpyCache(load: 7)
+        cache.valueSpy.willReturn("cached")
+
+        cache.store(42, for: "answer")
+        let text: String? = cache.value(for: "name")
+        let missing: Int? = cache.missing(for: "none")
+        let number: Int = try await cache.load("count")
+
+        #expect(cache.storeSpy.lastCall?.value as? Int == 42)
+        #expect(cache.storeSpy.lastCall?.key == "answer")
+        #expect(text == "cached")
+        #expect(missing == nil)
+        #expect(number == 7)
+    }
+
+    @Test
+    func protocolGenericMethodGetsASpy() {
+        let reader = ReaderSpy(read: 3.5)
+
+        let value: Double = reader.read("ratio")
+
+        let expectedKeys = ["ratio"]
+        #expect(reader.readSpy.calls == expectedKeys)
+        #expect(value == 3.5)
+    }
+
+    @Test
+    func actorDoubleRecordsCallsAndPropertiesReadWithoutAwait() async throws {
+        let store = SpyStore(count: 1, name: "main")
+
+        try await store.save("apple")
+        await store.setCount(2)
+        let name = store.name()
+
+        let expectedItems = ["apple"]
+        let expectedCounts = [2]
+        #expect(store.saveSpy.calls == expectedItems)
+        #expect(store.countSpy.sets == expectedCounts)
+        #expect(name == "main")
+    }
+
+    @Test
+    func actorProtocolGetsAnActorSpy() async {
+        let ledger = LedgerSpy(total: 5)
+
+        await ledger.add(3)
+        let total = await ledger.total
+
+        let expectedAmounts = [3]
+        #expect(ledger.addSpy.calls == expectedAmounts)
+        #expect(total == 5)
+    }
+
+    @Test
     func protocolPropertiesGetPropertySpies() {
         let settings = SettingsSpy(volume: 3)
 
@@ -309,6 +364,61 @@ private final class SpySession: Session {
     @SpiedProperty var token: String?
     @SpiedProperty var user: String
     @SpiedProperty var onExpire: () -> Void
+}
+
+/// Keeps values of any type under keys.
+private protocol Cache {
+    func store<Value: Codable>(_ value: Value, for key: String)
+    func value<Value: Decodable>(for key: String) -> Value?
+    func missing<Value>(for key: String) -> Value?
+    func load<Value: Sendable>(_ key: String) async throws -> Value
+}
+
+/// A cache whose answers the test chose, whatever type the caller asks for.
+///
+/// Conformances:
+/// - `Cache`, so a test can pass it where a cache is expected.
+@Understudy
+private final class SpyCache: Cache {
+    @Spied func store<Value: Codable>(_ value: Value, for key: String)
+    @Spied func value<Value: Decodable>(for key: String) -> Value?
+    @Spied func missing<Value>(for key: String) -> Value?
+    @Spied func load<Value: Sendable>(_ key: String) async throws -> Value
+}
+
+/// Reads settings of any type.
+@Understudy
+private protocol Reader {
+    func read<Value: Decodable>(_ key: String) -> Value
+}
+
+/// Saves items, one at a time, on its own actor.
+private protocol Store: Actor {
+    var count: Int { get set }
+    func save(_ item: String) async throws
+    nonisolated func name() -> String
+}
+
+/// A store whose saves the test checks, an actor like the real one.
+///
+/// Conformances:
+/// - `Store`, so a test can pass it where a store is expected.
+@Understudy
+private actor SpyStore: Store {
+    @SpiedProperty var count: Int
+    @Spied func save(_ item: String) async throws
+    @Spied nonisolated func name() -> String
+    // Sets the count from outside the actor, as a test needs to.
+    func setCount(_ value: Int) {
+        count = value
+    }
+}
+
+/// Adds amounts to a running total, on its own actor.
+@Understudy
+private protocol Ledger: Actor {
+    var total: Int { get }
+    func add(_ amount: Int)
 }
 
 /// Settings a screen reads and changes.

@@ -180,6 +180,17 @@ final class Ledger<Input, Output> {
         }
     }
 
+    /// Forgets every call, what ``nextCall(within:)`` handed out, and every expectation, and keeps
+    /// the answers, the held calls and the watchers.
+    func reset() {
+        synchronized {
+            recordedCalls.removeAll()
+            handedOut = 0
+            expectations.removeAll()
+            isStrict = false
+        }
+    }
+
     /// Adds an expectation, which makes the spy strict.
     func expect(_ expectation: Expectation) {
         synchronized {

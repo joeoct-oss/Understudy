@@ -116,6 +116,13 @@ public final class ThrowingSpy<Input, Output> {
         try await ledger.recordHolding(input).get()
     }
 
+    /// Forgets every call and every expectation, so the test can check what happens next on its
+    /// own. Keeps what the test scripted: the standing answer, answers queued for the next calls,
+    /// and calls the test holds.
+    public func reset() {
+        ledger.reset()
+    }
+
     /// Runs `body` on every later call, for ``CallOrder``.
     func onEveryCall(_ body: @escaping () -> Void) {
         ledger.watch { _ in

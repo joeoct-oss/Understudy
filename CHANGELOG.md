@@ -4,6 +4,14 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+## 0.4.0 - 2026-11-25
+
+### Added
+
+- `reset()` on `Spy`, `ThrowingSpy` and `PropertySpy`, which forgets the calls (or gets and sets), where `nextCall(within:)` was, and the expectations, and keeps the scripted answers.
+- Actor doubles: `@Understudy` on an `actor` writes the same members as on a class, with `nonisolated` spies a test reads without `await`. On a protocol that inherits `Actor`, it writes an actor spy.
+- Generic functions: `@Spied` writes a generic function whose generic parameters are whole parameter types or the whole return type (`T` or `T?`). The spy records each as `any` of its constraints, or `Any`, and the answer is cast back to the type the caller asks for.
+
 ### Changed
 
 - The README is a short guide: requirements, install, a quick start, one small example per feature, and what the macros refuse and why. Every example is checked against the current API.
