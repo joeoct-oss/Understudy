@@ -139,7 +139,7 @@ struct Requirement: SpiedMember {
     var input: String {
         switch parameters.count {
         case 0:
-            return "Void"
+            return "Swift.Void"
         case 1:
             return parameters[0].type
         default:
@@ -149,7 +149,7 @@ struct Requirement: SpiedMember {
 
     /// The spy's type.
     var spyType: String {
-        let kind = throwsError ? "ThrowingSpy" : "Spy"
+        let kind = throwsError ? "Understudy.ThrowingSpy" : "Understudy.Spy"
         return "\(kind)<\(input), \(output)>"
     }
 
@@ -181,7 +181,7 @@ struct Requirement: SpiedMember {
             return answer(on: spy)
         }
         let wrongType =
-            "fatalError(\"@GenerateSpies: \(spy) threw \\(type(of: error)), not \\(\(typedError).self)\")"
+            "Swift.fatalError(\"@GenerateSpies: \(spy) threw \\(Swift.type(of: error)), not \\(\(typedError).self)\")"
         return """
             do {
             \(answer(on: spy))
@@ -201,7 +201,7 @@ struct Requirement: SpiedMember {
         }
         let answer = "__understudy_answer"
         let wrongType =
-            "fatalError(\"@GenerateSpies: \(spy) answered \\(type(of: \(answer))), not \\(\(generic).self)\")"
+            "Swift.fatalError(\"@GenerateSpies: \(spy) answered \\(Swift.type(of: \(answer))), not \\(\(generic).self)\")"
         let fetch = returnsOptional
             ? "guard let \(answer) = \(call(on: spy)) else {\nreturn nil\n}"
             : "let \(answer) = \(call(on: spy))"
@@ -336,7 +336,7 @@ struct Requirement: SpiedMember {
                 throw UnderstudyError("\(where_) returns an opaque type; write its double by hand", at: declaration.name)
             }
             output = text
-            returnsNothing = text == "Void" || text == "()"
+            returnsNothing = ["Void", "Swift.Void", "()"].contains(text)
             returnsOptional = returnType.is(OptionalTypeSyntax.self)
                 || returnType.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)
                 || text.hasPrefix("Optional<")
@@ -344,7 +344,7 @@ struct Requirement: SpiedMember {
         } else {
             returnedGeneric = nil
             returnedParameter = nil
-            output = "Void"
+            output = "Swift.Void"
             returnsNothing = true
             returnsOptional = false
             returnsFunction = false
@@ -412,7 +412,7 @@ struct Requirement: SpiedMember {
         if let set = type.as(IdentifierTypeSyntax.self), set.name.text == "Set",
            let arguments = set.genericArgumentClause?.arguments, arguments.count == 1,
            let element = arguments.first.flatMap({ generic($0.argument) }) {
-            return Erased(type: "Set<AnyHashable>", parameter: element.parameter)
+            return Erased(type: "Swift.Set<Swift.AnyHashable>", parameter: element.parameter)
         }
         return nil
     }
@@ -491,7 +491,7 @@ struct Property: SpiedMember {
     }
 
     var spyType: String {
-        "PropertySpy<\(type)>"
+        "Understudy.PropertySpy<\(type)>"
     }
 
     var needsAnswer: Bool {

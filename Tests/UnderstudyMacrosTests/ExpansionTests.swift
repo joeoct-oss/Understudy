@@ -64,7 +64,7 @@ struct ExpansionTests {
             }
             """)
 
-        let message = #"@GenerateSpies: valueSpy answered \(type(of: __understudy_answer)), not \(Value.self)"#
+        let message = #"@GenerateSpies: valueSpy answered \(Swift.type(of: __understudy_answer)), not \(Value.self)"#
         #expect(expanded.description.contains(message))
     }
 
@@ -79,7 +79,7 @@ struct ExpansionTests {
             }
             """)
 
-        let message = #"@GenerateSpies: signInSpy threw \(type(of: error)), not \(AuthError.self)"#
+        let message = #"@GenerateSpies: signInSpy threw \(Swift.type(of: error)), not \(AuthError.self)"#
         #expect(expanded.description.contains(message))
     }
 
