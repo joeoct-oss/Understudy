@@ -90,8 +90,11 @@ reviews:
     - "!**/.swiftpm/**"
   path_instructions:
     # The shared code style lives in Waypoint's CODE_STYLE.md, which CodeRabbit can't read while
-    # that repo is private. This entry restates only what a reviewer can check in a diff; delete
-    # it once Waypoint is public and add that file to knowledge_base.code_guidelines instead.
+    # that repo is private and outside its install. This entry restates only what a reviewer can
+    # check in a diff. Once Waypoint is public and CodeRabbit can read it, delete this entry and
+    # add "joeoct-oss/Waypoint:CODE_STYLE.md" to knowledge_base.code_guidelines.filePatterns.
+    # SonarQube Cloud's free plan runs only its built-in Swift profile (bugs and security), so the
+    # clean-code checks below are CodeRabbit's alone.
     - path: "**/*.swift"
       instructions: >-
         Shared code style, each a should-fix with the rule named. Empty braces have one space
