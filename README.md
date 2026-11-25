@@ -123,6 +123,21 @@ pricing.loadSpy.willThrow(LoadError.offline)  // throwing functions
 pricing.loadSpy.willGiveNext(.failure(LoadError.offline), then: .success("ok"))
 ```
 
+## Typed throws
+
+A function with a typed `throws` gets a `ThrowingSpy`, as a plain `throws` does. Script its error the same way:
+
+```swift
+@GenerateSpies
+final class SpyAuth: AuthService {
+    @Spied func signIn(email: String, password: String) async throws(AuthError) -> Account
+}
+
+auth.signInSpy.willThrow(AuthError.wrongPassword)   // the caller catches it as AuthError
+```
+
+`willThrow` takes any error, so the type is checked when the test runs: an error of another type stops the test with a message naming the spy and both types. `throws(any Error)` is a plain `throws`, and `throws(Never)` throws nothing.
+
 ## Properties
 
 Mark a `var` with `@SpiedProperty` and give it only a type. A property that isn't optional takes its first value when the double is made:
@@ -374,7 +389,7 @@ Each of these is a compile error at the line it's about, with what to do instead
 |---|---|
 | `static` members | A stored spy belongs to one instance. |
 | A generic parameter inside another type (`[T]`, `Result<T, E>`), a `where` clause, a parameter pack | A spy records one input type, so only a whole generic parameter can be stood in for. |
-| Typed `throws`, `rethrows` | The spy throws `any Error`, so it can't keep the promise. |
+| `rethrows`, a typed `throws` of the function's own generic parameter | The spy can't tell when the function may throw, or which type it throws. |
 | `inout` or `@autoclosure` parameters, opaque (`some`) return types | A spy can't keep or hand back these safely. |
 | `mutating` functions | The macro writes classes and actors. |
 | A parameter named `_` with no internal name | The body has no name to pass to the spy; name it. |

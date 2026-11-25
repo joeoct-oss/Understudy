@@ -50,6 +50,9 @@ struct Requirement: SpiedMember {
     let labels: [String]
     let parameters: [Parameter]
     let throwsError: Bool
+    /// The error type a typed `throws` names, such as `AuthError`, which the body rethrows the
+    /// spy's error as; `nil` for a plain `throws`, `throws(any Error)` or no `throws`.
+    let typedError: String?
     let isAsync: Bool
     let output: String
     let returnsNothing: Bool
@@ -95,8 +98,28 @@ struct Requirement: SpiedMember {
     }
 
     /// The statements that call `spy` and return its answer, cast back to the generic parameter
-    /// the requirement returns. A wrong-typed answer stops the test, naming the spy and both types.
+    /// the requirement returns, with the spy's error rethrown as the typed `throws` names. A
+    /// wrong-typed answer or error stops the test, naming the spy and both types.
     func body(on spy: String) -> String {
+        guard let typedError else {
+            return answer(on: spy)
+        }
+        let wrongType =
+            "fatalError(\"@GenerateSpies: \(spy) threw \\(type(of: error)), not \\(\(typedError).self)\")"
+        return """
+            do {
+            \(answer(on: spy))
+            } catch let error as \(typedError) {
+            throw error
+            } catch {
+            \(wrongType)
+            }
+            """
+    }
+
+    /// The statements that call `spy` and return its answer, cast back to the generic parameter
+    /// the requirement returns. A wrong-typed answer stops the test, naming the spy and both types.
+    private func answer(on spy: String) -> String {
         guard let generic = returnedGeneric else {
             return "return " + call(on: spy)
         }
@@ -177,13 +200,24 @@ struct Requirement: SpiedMember {
         }
         let signature = declaration.signature
         let throwsClause = signature.effectSpecifiers?.throwsClause
-        if throwsClause?.type != nil {
-            throw UnderstudyError("\(where_) uses typed throws; write its double by hand", at: declaration.name)
-        }
         if throwsClause?.throwsSpecifier.tokenKind == .keyword(.rethrows) {
             throw UnderstudyError("\(where_) rethrows; write its double by hand", at: declaration.name)
         }
-        throwsError = throwsClause != nil
+        let thrown = throwsClause?.type
+        let thrownName = thrown?.trimmedDescription
+        if let thrown, let name = thrown.tokens(viewMode: .sourceAccurate).first(where: { generics[$0.text] != nil }) {
+            throw UnderstudyError(
+                "\(where_) throws its generic parameter '\(name.text)'; write its double by hand",
+                at: thrown
+            )
+        }
+        // `throws(Never)` throws nothing, and `throws(any Error)` is a plain `throws`.
+        throwsError = throwsClause != nil && thrownName != "Never"
+        if throwsError, let thrownName, !Self.untypedErrors.contains(thrownName) {
+            typedError = thrownName
+        } else {
+            typedError = nil
+        }
         isAsync = signature.effectSpecifiers?.asyncSpecifier != nil
         labels = signature.parameterClause.parameters.map(\.firstName.text)
         parameters = try signature.parameterClause.parameters.map { parameter in
@@ -227,6 +261,9 @@ struct Requirement: SpiedMember {
             returnsFunction = false
         }
     }
+
+    /// The ways to write a typed `throws` that is a plain `throws`.
+    private static let untypedErrors = ["any Error", "Error", "any Swift.Error", "Swift.Error"]
 
     /// Whether a type is a closure, such as `() -> Void`, `@Sendable () -> Void` or `(() -> Void)`.
     static func isFunction(_ type: TypeSyntax) -> Bool {

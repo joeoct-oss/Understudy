@@ -30,7 +30,9 @@
 ///
 /// Each spy is named after its requirement with `Spy` added, such as `productSpy`; overloads add
 /// their argument labels, such as `removeIdSpy` and `removeNamedSpy`. A requirement with several
-/// parameters records a labelled tuple of them. A requirement that throws gets a ``ThrowingSpy``.
+/// parameters records a labelled tuple of them. A requirement that throws gets a ``ThrowingSpy``;
+/// with a typed `throws`, the body rethrows the scripted error as that type, and an error of
+/// another type stops the test, naming the spy.
 /// The double's initializer asks for the answer of every requirement that returns something other
 /// than `Void` or an optional, and the value of every property that isn't optional, so a double
 /// can't be called with nothing scripted. A property gets a ``PropertySpy``. An async requirement
