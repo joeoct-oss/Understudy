@@ -3,11 +3,14 @@
 # required check, and a failed upload never fails the run.
 # - Runs on pull requests to main (drafts skipped until ready for review) and on pushes to main,
 #   which give Codecov the base each pull request is compared with.
-# - Kept apart from ci.yml so the release workflow's call to ci.yml keeps read-only permissions:
-#   only this workflow asks for an OIDC token, which Codecov takes in place of an upload token, so
-#   no repository secret is needed. Pull requests from forks get no token and skip the upload.
-# Free GitHub-hosted Linux runner. Every action is pinned to a full commit SHA and the image to a
-# digest, with the version in a comment, as in ci.yml.
+# - Kept apart from ci.yml so the release workflow's call to ci.yml keeps read-only permissions.
+# - Two jobs: "measure" runs the package's code with read-only permissions and keeps the report as
+#   an artifact; "upload" runs no package code and is the only job that may ask for an OIDC token,
+#   which Codecov takes in place of an upload token, so no repository secret is needed. Pull
+#   requests from forks get no token and skip the upload.
+# Free GitHub-hosted Linux runners. Every action is pinned to a full commit SHA and the image to a
+# digest, with the version in a comment, as in ci.yml. The repository's Actions policy allows
+# codecov/codecov-action at exactly the pinned commit, so a bump also updates that allow list.
 name: Coverage report
 
 on:
@@ -24,14 +27,13 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  upload:
-    name: Coverage to Codecov
+  measure:
+    name: Measure the coverage
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
       contents: read
-      id-token: write
     container:
       image: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
     steps:
@@ -45,16 +47,35 @@ jobs:
           COVERAGE_LCOV: coverage.lcov
         run: scripts/check-coverage.sh
 
-      # Codecov's action needs curl, which the Swift image removes after installing the toolchain.
-      - name: Install curl for the upload
-        if: ${{ !github.event.pull_request.head.repo.fork }}
-        run: |
-          apt-get -q update
-          apt-get -q install -y curl ca-certificates
-          rm -rf /var/lib/apt/lists/*
+      - name: Keep the report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: coverage.lcov
+          retention-days: 1
+
+  upload:
+    name: Coverage to Codecov
+    needs: measure
+    if: ${{ !github.event.pull_request.head.repo.fork }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # Codecov reads the commit from the checkout; no package code runs in this job.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fetch the report
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage
 
       - name: Upload to Codecov
-        if: ${{ !github.event.pull_request.head.repo.fork }}
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: coverage.lcov
