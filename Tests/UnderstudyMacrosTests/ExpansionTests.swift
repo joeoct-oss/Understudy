@@ -44,7 +44,7 @@ struct ExpansionTests {
         }
     }
 
-    @Test(arguments: accepted)
+    @Test("GenerateSpies accepts every requirement it can write", arguments: accepted)
     func acceptsEveryRequirementItCanWrite(_ double: Accepted) {
         let (expanded, diagnostics) = expand(double.source)
 
@@ -55,7 +55,7 @@ struct ExpansionTests {
 
     /// A generic answer of the wrong type can't be tested by calling it, because it stops the
     /// process. What the person sees is this message, so the test checks the double says it.
-    @Test
+    @Test("A generic answer of the wrong type gets a stop message naming the spy and both types")
     func genericAnswerOfTheWrongTypeStopsWithTheSpyAndBothTypes() {
         let (expanded, _) = expand("""
             @GenerateSpies
@@ -70,7 +70,7 @@ struct ExpansionTests {
 
     /// An error of another type than a typed `throws` names stops the process too, so the test
     /// checks the double says which spy threw it, and both types.
-    @Test
+    @Test("A typed throws error of another type gets a stop message naming the spy and both types")
     func typedThrowsWithAnotherErrorTypeStopsNamingTheSpy() {
         let (expanded, _) = expand("""
             @GenerateSpies
@@ -84,7 +84,7 @@ struct ExpansionTests {
     }
 
     /// A get-only subscript of a protocol has no setter, so its spy class gets no set spy.
-    @Test
+    @Test("A get-only subscript gets no set spy")
     func getOnlySubscriptHasNoSetSpy() {
         let (expanded, diagnostics) = expand("""
             @GenerateSpies
@@ -100,7 +100,7 @@ struct ExpansionTests {
 
     /// A type with no obvious value stays a required argument of the initializer, so the compiler
     /// still asks for it; the test checks the initializer the double declares.
-    @Test
+    @Test("The initializer asks for a type with no obvious default and defaults the rest")
     func initStillAsksForATypeWithNoObviousDefault() {
         let (expanded, _) = expand("""
             @GenerateSpies
@@ -122,7 +122,7 @@ struct ExpansionTests {
     /// The body `@Spied` writes for a requirement `@GenerateSpies` refused.
     private static let refusedBody = "@GenerateSpies can't write this requirement"
 
-    @Test(arguments: refused)
+    @Test("GenerateSpies refuses what it can't write, at the requirement", arguments: refused)
     func refusesWhatItCannotWriteAtTheRequirement(_ double: Refused) {
         let (_, diagnostics) = expand(double.source)
 
@@ -144,7 +144,7 @@ struct ExpansionTests {
         }
     }
 
-    @Test(arguments: fixed)
+    @Test("Each refusal with one clear fix offers it, and applying it gives the fixed code", arguments: fixed)
     func eachRefusalWithOneFixOffersIt(_ double: Fixed) throws {
         let file = Parser.parse(source: double.source)
         let context = BasicMacroExpansionContext(

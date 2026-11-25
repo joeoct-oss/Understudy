@@ -15,7 +15,7 @@ struct SpyTests {
     /// How many tasks call at once.
     private static let concurrentCallCount = 1_000
 
-    @Test
+    @Test("A spy keeps every input in order")
     func keepsEveryInputInOrder() {
         let spy = Spy<Int, Void>()
 
@@ -30,7 +30,7 @@ struct SpyTests {
         #expect(spy.wasCalled)
     }
 
-    @Test
+    @Test("A spy knows when it was never called")
     func knowsWhenItWasNeverCalled() {
         let spy = Spy<Int, Void>()
 
@@ -40,7 +40,7 @@ struct SpyTests {
         #expect(!spy.wasCalled)
     }
 
-    @Test
+    @Test("A spy answers every call with its standing answer")
     func answersWithItsStandingAnswer() {
         let spy = Spy<String, Int>(returning: 7)
 
@@ -51,7 +51,7 @@ struct SpyTests {
         #expect(second == 7)
     }
 
-    @Test
+    @Test("willReturn replaces the standing answer for later calls")
     func willReturnReplacesTheStandingAnswer() {
         let spy = Spy<String, Int>(returning: 7)
         _ = spy("a")
@@ -64,7 +64,7 @@ struct SpyTests {
         #expect(laterStill == 9)
     }
 
-    @Test
+    @Test("Queued answers come once each, then the standing answer")
     func queuedAnswersComeOnceEachThenTheStandingAnswer() {
         let spy = Spy<Void, Int>(returning: 0)
 
@@ -78,7 +78,7 @@ struct SpyTests {
         #expect(spy.callCount == 5)
     }
 
-    @Test
+    @Test("willReturn drops answers still queued")
     func willReturnDropsAnswersStillQueued() {
         let spy = Spy<Void, Int>(returning: 0)
         spy.willReturnNext(1, then: 2)
@@ -89,7 +89,7 @@ struct SpyTests {
         #expect(answer == 5)
     }
 
-    @Test
+    @Test("A computed answer sees the input and can be replaced")
     func computedAnswerSeesTheInput() {
         let spy = Spy<Int, Int> { input in
             input * 2
@@ -105,7 +105,7 @@ struct SpyTests {
         #expect(second == 102)
     }
 
-    @Test
+    @Test("A caller may ignore the answer and the call is still kept")
     func callerMayIgnoreTheAnswer() {
         let spy = Spy<Int, Int>(returning: 1)
 
@@ -114,7 +114,7 @@ struct SpyTests {
         #expect(spy.lastCall == 5)
     }
 
-    @Test
+    @Test("A spy keeps every call from concurrent tasks")
     func keepsEveryCallFromConcurrentTasks() async {
         let spy = Spy<Int, Void>()
 

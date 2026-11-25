@@ -12,7 +12,7 @@ import Understudy
 /// A property spy answers gets, counts them, and keeps every set, as a real property would.
 @Suite("Property spy")
 struct PropertySpyTests {
-    @Test
+    @Test("Gets answer the scripted value and are counted")
     func getsAnswerTheScriptedValueAndAreCounted() {
         let token = PropertySpy<String?>(returning: "abc")
 
@@ -25,7 +25,7 @@ struct PropertySpyTests {
         #expect(token.sets.isEmpty)
     }
 
-    @Test
+    @Test("Sets are kept in order and change what later gets answer")
     func setsAreKeptAndChangeWhatLaterGetsAnswer() {
         let token = PropertySpy<String?>(returning: nil)
 
@@ -40,7 +40,7 @@ struct PropertySpyTests {
         #expect(token.value == "two")
     }
 
-    @Test
+    @Test("willReturn changes the answer without counting as a set")
     func willReturnChangesTheAnswerWithoutCountingAsASet() {
         let count = PropertySpy<Int>(returning: 0)
 

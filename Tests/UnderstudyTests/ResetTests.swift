@@ -13,7 +13,7 @@ import Understudy
 /// step at a time.
 @Suite("Reset")
 struct ResetTests {
-    @Test
+    @Test("Reset forgets calls and queued answers and keeps the standing answer")
     func resetForgetsCallsAndKeepsTheAnswers() throws {
         let spy = Spy<Int, String>(returning: "standing")
         let loader = ThrowingSpy<String, Int>(returning: 0)
@@ -35,7 +35,7 @@ struct ResetTests {
         }
     }
 
-    @Test
+    @Test("Reset drops expectations, so the spy is lenient again")
     func resetDropsExpectationsSoTheSpyIsLenientAgain() throws {
         let spy = Spy<Int, Void>()
         let loader = ThrowingSpy<String, Int>(returning: 0)
@@ -50,7 +50,7 @@ struct ResetTests {
         #expect(problems.isEmpty)
     }
 
-    @Test
+    @Test("nextCall starts again from the first call after a reset")
     func nextCallStartsAgainFromTheFirstCallAfterTheReset() async {
         let spy = Spy<Int, Void>()
         spy(1)
@@ -63,7 +63,7 @@ struct ResetTests {
         #expect(next == 2)
     }
 
-    @Test
+    @Test("Resetting a property spy forgets gets and sets and keeps its value")
     func resetPropertyForgetsGetsAndSetsAndKeepsItsValue() {
         let token = PropertySpy<String>(returning: "a")
         token.set("b")

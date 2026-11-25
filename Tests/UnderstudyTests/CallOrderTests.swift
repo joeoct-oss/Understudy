@@ -12,7 +12,7 @@ import Understudy
 /// A call order keeps the calls to several spies in the order they were made.
 @Suite("Call order")
 struct CallOrderTests {
-    @Test
+    @Test("CallOrder keeps calls across spies in order, under their names")
     func keepsCallsAcrossSpiesInOrderUnderTheirNames() throws {
         let save = ThrowingSpy<String, Void>(returning: ())
         let send = Spy<String, Void>()
@@ -29,7 +29,7 @@ struct CallOrderTests {
         #expect(order.names == expected)
     }
 
-    @Test
+    @Test("A CallOrder block watches every spy listed in it")
     func callOrderBuilderWatchesEverySpyInIt() throws {
         let save = ThrowingSpy<String, Void>(returning: ())
         let send = Spy<String, Void>()
@@ -46,7 +46,7 @@ struct CallOrderTests {
         #expect(order.names == expected)
     }
 
-    @Test
+    @Test("A CallOrder block sees only calls made after it starts watching")
     func callOrderBuilderSeesOnlyLaterCalls() {
         let send = Spy<String, Void>()
         send("before watching")
@@ -60,7 +60,7 @@ struct CallOrderTests {
         #expect(order.names == expected)
     }
 
-    @Test
+    @Test("A CallOrder built from a block can watch more spies later")
     func aBuiltOrderCanWatchMoreSpiesLater() {
         let save = Spy<String, Void>()
         let send = Spy<String, Void>()
@@ -77,7 +77,7 @@ struct CallOrderTests {
         #expect(order.names == expected)
     }
 
-    @Test
+    @Test("A Watched line can be applied to an order by hand")
     func aWatchCanBeAppliedToAnOrderByHand() {
         let send = Spy<String, Void>()
         let order = CallOrder()
