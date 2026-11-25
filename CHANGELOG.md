@@ -6,6 +6,8 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Added
 
+- `@GenerateSpies` on a protocol with associated types writes a generic spy, one generic parameter per associated type with its constraints (`Sendable` added in a `Sendable` protocol): `RepositorySpy<Product>()`. A `where` clause on an associated type, and a static requirement next to one, are refused with a message pointing to the class form.
+- `@GenerateSpies` on a protocol that inherits another protocol with `@GenerateSpies` writes a spy that stores the parent's spy, taken first by its initializer, `ChildSpy(base: BaseSpy(ping: 3))`, and answers the parent's requirements through it, with the parent's spies read on the child's (`child.pingSpy`). Several parents and a parent's parents work too. For this, the macro also writes `<Name>SpyForwarding` next to every protocol. A parent from the standard library, a parent with associated types, an actor protocol, and a protocol declared inside another type can't be forwarded to, and say so.
 - `.spi.yml`, so the Swift Package Index builds the package and hosts the API docs of `Understudy` and `UnderstudySamples`.
 - A coverage report on Codecov for main and each pull request (the **Coverage report** workflow). `scripts/check-coverage.sh` writes the measured lines as one LCOV file when `COVERAGE_LCOV` names a path. The coverage gate itself is unchanged.
 

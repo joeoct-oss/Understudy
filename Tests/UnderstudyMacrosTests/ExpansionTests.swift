@@ -98,6 +98,95 @@ struct ExpansionTests {
         #expect(!expanded.description.contains("subscriptSetSpy"))
     }
 
+    /// The constraints of an associated type stay on the spy's generic parameter, so the compiler
+    /// keeps a test from making a spy of a type the protocol doesn't allow; with a `Sendable`
+    /// protocol, the parameter is `Sendable` too, because the spy stores values of it. The test
+    /// checks the class the macro declares, which a running test can't see.
+    @Test(
+        "An associated type keeps its constraints on the spy, with Sendable for a Sendable protocol",
+        arguments: constrained
+    )
+    func associatedTypeKeepsItsConstraints(_ opening: String, _ declared: String) {
+        let (expanded, diagnostics) = expand("""
+            @GenerateSpies
+            \(opening)
+                associatedtype Item: Equatable, Codable
+                associatedtype Key
+                func item(for key: Key) -> Item?
+            }
+            """)
+
+        #expect(diagnostics.isEmpty)
+        #expect(expanded.description.contains("final class " + declared))
+    }
+
+    /// A parent's answer may have no obvious default, so the child's spy can't make the parent's
+    /// spy itself: its initializer asks for each one, first, with no default.
+    @Test("The child's spy initializer asks for each parent's spy, with no default")
+    func parentSpyArgumentIsRequired() {
+        let (expanded, _) = expand("""
+            @GenerateSpies
+            protocol Child: Base, URLLoader {
+                func count() -> Int
+            }
+            """)
+
+        let initializer = "init(base: BaseSpy, urlLoader: URLLoaderSpy, count: Int = 0)"
+        #expect(expanded.description.contains(initializer))
+    }
+
+    @Test("The forwarding protocol keeps the parent's access level and global actor")
+    func forwardingKeepsTheParentsAccessAndActor() {
+        let (expanded, _) = expand("""
+            @GenerateSpies
+            @MainActor
+            public protocol Screen {
+                func show()
+            }
+            """)
+
+        let forwarding = "@MainActor\npublic protocol ScreenSpyForwarding: Screen, AnyObject"
+        let extended = "@MainActor\nextension Screen where Self: ScreenSpyForwarding"
+        #expect(expanded.description.contains(forwarding))
+        #expect(expanded.description.contains(extended))
+        #expect(expanded.description.contains("public func show()"))
+    }
+
+    /// A protocol whose spy can't be forwarded to still gets a forwarding protocol, unavailable,
+    /// so a child protocol's spy fails to build with a message saying why, instead of "cannot
+    /// find 'XSpyForwarding'".
+    @Test(
+        "A protocol whose spy can't be forwarded to gets an unavailable forwarding protocol that says why",
+        arguments: unforwardable
+    )
+    func parentThatCantBeForwardedIsRefusedForItsChild(_ opening: String, _ why: String) {
+        let closing = opening.hasPrefix("enum") ? "}\n}" : "}"
+        let source = (opening.hasPrefix("enum") ? "" : "@GenerateSpies\n") + opening + "\nfunc ping()\n" + closing
+        let (expanded, diagnostics) = expand(source)
+
+        let message = "@GenerateSpies: \(why), so the spy of a protocol that inherits it can't forward to its "
+            + "spy; use @GenerateSpies on a class or an actor that conforms to that protocol"
+        #expect(diagnostics.isEmpty)
+        #expect(expanded.description.contains("@available(*, unavailable, message: \"\(message)\")"))
+        #expect(!expanded.description.contains("where Self:"))
+    }
+
+    /// How a protocol opens, and the spy class its associated types give.
+    static let constrained = [
+        ("protocol Repository {", "RepositorySpy<Item: Equatable & Codable, Key>: Repository"),
+        (
+            "protocol Repository: Sendable {",
+            "RepositorySpy<Item: Equatable & Codable & Swift.Sendable, Key: Swift.Sendable>"
+        ),
+    ]
+
+    /// How a protocol whose spy can't be forwarded to opens, and why it can't.
+    static let unforwardable = [
+        ("protocol Repository {\n    associatedtype Item", "'Repository' has associated types"),
+        ("protocol Store: Actor {", "'Store' is an actor protocol"),
+        ("enum Shop {\n@GenerateSpies\nprotocol Repository {", "'Repository' is declared inside another type"),
+    ]
+
     /// A type with no obvious value stays a required argument of the initializer, so the compiler
     /// still asks for it; the test checks the initializer the double declares.
     @Test("The initializer asks for a type with no obvious default and defaults the rest")
@@ -207,6 +296,26 @@ struct ExpansionTests {
     ]
 
     static let accepted: [Accepted] = [
+        Accepted(
+            name: "a protocol with associated types",
+            source: """
+                @GenerateSpies
+                protocol Repository {
+                    associatedtype Item: Equatable
+                    associatedtype Key = String
+                    func item(for key: Key) -> Item?
+                }
+                """
+        ),
+        Accepted(
+            name: "a protocol that inherits two others",
+            source: """
+                @GenerateSpies
+                protocol Child: Base, Named, Sendable {
+                    func pong(_ value: String)
+                }
+                """
+        ),
         Accepted(
             name: "a class whose only spied member is a @Recorded property",
             source: """
@@ -697,20 +806,72 @@ struct ExpansionTests {
             line: 4,
             column: 22
         ),
+        refusedProtocol(
+            "an associated type with a where clause",
+            "protocol Repository {\n    associatedtype Item where Item: Codable",
+            "'Item' has a where clause, which a generic parameter can't keep; "
+                + "\(classForm) 'Repository' instead",
+            line: 3,
+            column: 20
+        ),
+        refusedProtocol(
+            "a static requirement next to an associated type",
+            "protocol Repository {\n    associatedtype Item\n    static func make() -> Item?",
+            "'make' is static, and a spy with associated types is generic, so it can't keep a static "
+                + "spy; \(classForm) 'Repository' instead",
+            line: 4,
+            column: 17
+        ),
+        refusedProtocol(
+            "a standard library parent",
+            "protocol Account: Identifiable {",
+            "'Account' inherits 'Identifiable', which has no spy to forward to; \(classForm) 'Account' instead",
+            line: 2,
+            column: 19
+        ),
+        refusedProtocol(
+            "a parent written with its associated types",
+            "protocol Shelf: Box<Int> {",
+            "'Shelf' inherits 'Box<Int>', which has associated types, so its spy can't forward to "
+                + "that one's spy; \(classForm) 'Shelf' instead",
+            line: 2,
+            column: 17
+        ),
+        refusedProtocol(
+            "an actor protocol that inherits another",
+            "protocol Store: Actor, Base {",
+            "'Store' is an actor protocol that inherits 'Base', which its spy can't forward to across "
+                + "the actor; \(classForm) 'Store' instead",
+            line: 2,
+            column: 24
+        ),
+    ]
+
+    /// What every refusal of a protocol the class form can write says to do instead.
+    private static let classForm = "use @GenerateSpies on a class or an actor that conforms to"
+
+    /// A protocol whose declaration starts with `opening`, and which has one function, that the
+    /// macros can't write.
+    private static func refusedProtocol(
+        _ name: String,
+        _ opening: String,
+        _ message: String,
+        line: Int,
+        column: Int
+    ) -> Refused {
         Refused(
-            name: "a protocol that inherits another",
+            name: name,
             source: """
                 @GenerateSpies
-                protocol Child: Base, Sendable {
+                \(opening)
                     func ping()
                 }
                 """,
-            message: "'Child' inherits 'Base', whose requirements this macro can't see; "
-                + "use @GenerateSpies on a class or an actor that conforms to 'Child' instead",
-            line: 2,
-            column: 15
-        ),
-    ]
+            message: message,
+            line: line,
+            column: column
+        )
+    }
 
     /// A double whose one property, on line 3, the macros can't write.
     private static func refusedProperty(
