@@ -6,7 +6,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Added
 
-- `CallOrder { ... }`, which watches every spy in a block of `Watch(spy, as: name)` lines, for `Spy` and `ThrowingSpy` alike. `watch(_:as:)` stays, for a spy the test starts watching later.
+- `CallOrder { ... }`, which watches every spy in a block of `Watched(spy, as: name)` lines, for `Spy` and `ThrowingSpy` alike. `watch(_:as:)` stays, for a spy the test starts watching later.
 
 ### Fixed
 

@@ -193,8 +193,8 @@ Or watch them all in one block. `watch(_:as:)` still adds a spy later on:
 
 ```swift
 let order = CallOrder {
-    Watch(store.saveSpy, as: "save")
-    Watch(sync.sendSpy, as: "send")
+    Watched(store.saveSpy, as: "save")
+    Watched(sync.sendSpy, as: "send")
 }
 ```
 

@@ -34,8 +34,8 @@ struct CallOrderTests {
         let save = ThrowingSpy<String, Void>(returning: ())
         let send = Spy<String, Void>()
         let order = CallOrder {
-            Watch(save, as: "save")
-            Watch(send, as: "send")
+            Watched(save, as: "save")
+            Watched(send, as: "send")
         }
 
         send("hello")
@@ -52,7 +52,7 @@ struct CallOrderTests {
         send("before watching")
 
         let order = CallOrder {
-            Watch(send, as: "send")
+            Watched(send, as: "send")
         }
         send("after")
 
@@ -65,7 +65,7 @@ struct CallOrderTests {
         let save = Spy<String, Void>()
         let send = Spy<String, Void>()
         let order = CallOrder {
-            Watch(save, as: "save")
+            Watched(save, as: "save")
         }
 
         send("not watched yet")
@@ -81,7 +81,7 @@ struct CallOrderTests {
     func aWatchCanBeAppliedToAnOrderByHand() {
         let send = Spy<String, Void>()
         let order = CallOrder()
-        let watch = Watch(send, as: "send")
+        let watch = Watched(send, as: "send")
 
         watch(order)
         send("hello")

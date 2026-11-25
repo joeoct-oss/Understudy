@@ -25,8 +25,8 @@ import Foundation
 ///
 /// ```swift
 /// let order = CallOrder {
-///     Watch(store.saveSpy, as: "save")
-///     Watch(analytics.sendSpy, as: "send")
+///     Watched(store.saveSpy, as: "save")
+///     Watched(analytics.sendSpy, as: "send")
 /// }
 /// ```
 ///
@@ -46,7 +46,7 @@ public final class CallOrder: @unchecked Sendable {
     public init() { }
 
     /// Creates a call order that watches every spy in `watches`, as `watch(_:as:)` would.
-    public convenience init(@CallOrderBuilder _ watches: () -> [Watch]) {
+    public convenience init(@CallOrderBuilder _ watches: () -> [Watched]) {
         self.init()
         for watch in watches() {
             watch(self)
@@ -89,13 +89,16 @@ public final class CallOrder: @unchecked Sendable {
 ///
 /// ```swift
 /// let order = CallOrder {
-///     Watch(store.saveSpy, as: "save")
+///     Watched(store.saveSpy, as: "save")
 /// }
 /// ```
 ///
+/// Named `Watched` rather than `Watch`, which an app's own types, such as a watchOS screen, often
+/// use, so a test that imports both modules keeps compiling.
+///
 /// Not `Sendable`: it holds the spy, which is `Sendable` only when its input and output are. It
 /// is made and used in one block.
-public struct Watch {
+public struct Watched {
     /// Starts watching the spy on the order it is given.
     private let start: (CallOrder) -> Void
 
@@ -119,11 +122,11 @@ public struct Watch {
     }
 }
 
-/// Collects the ``Watch`` lines of a `CallOrder { ... }` block.
+/// Collects the ``Watched`` lines of a `CallOrder { ... }` block.
 @resultBuilder
 public enum CallOrderBuilder {
     /// The block's watches, in order.
-    public static func buildBlock(_ watches: Watch...) -> [Watch] {
+    public static func buildBlock(_ watches: Watched...) -> [Watched] {
         watches
     }
 }
