@@ -6,8 +6,8 @@
 language: en-US
 tone_instructions: >-
   Plain, short English. Only blockers and should-fix items, each as one inline comment that
-  names the rule it breaks and why. No praise, no recaps, no nitpicks that CODE_STYLE.md does
-  not ask for.
+  names the rule it breaks and why. Breaking a code style rule is a should-fix item. No
+  praise, no recaps, no nitpicks the code style does not ask for.
 enable_free_tier: true
 
 reviews:
@@ -30,6 +30,10 @@ reviews:
   in_progress_fortune: false
   poem: false
   review_status: false
+  # "CodeRabbit" is a required check on main: it is pending while the review runs, and a review
+  # that stops on an error fails it, so nothing merges unreviewed.
+  commit_status: true
+  fail_commit_status: true
   # Use "@coderabbitai configuration" to see the resolved config when needed.
   review_info: false
   # No "Prompt for AI Agents" block under every inline comment.
@@ -85,52 +89,108 @@ reviews:
     - "!**/.build/**"
     - "!**/.swiftpm/**"
   path_instructions:
+    # The shared code style lives in Waypoint's CODE_STYLE.md, which CodeRabbit can't read while
+    # that repo is private and outside its install. This entry restates only what a reviewer can
+    # check in a diff. Once Waypoint is public and CodeRabbit can read it, delete this entry and
+    # add "joeoct-oss/Waypoint:CODE_STYLE.md" to knowledge_base.code_guidelines.filePatterns.
+    # SonarQube Cloud's free plan runs only its built-in Swift profile (bugs and security), so the
+    # clean-code checks below are CodeRabbit's alone.
+    - path: "**/*.swift"
+      instructions: >-
+        Shared code style, each a should-fix with the rule named. Empty braces have one space
+        inside, `{ }`, never `{}` (empty collection literals and braces inside string literals or
+        test source fixtures are not braces). A type or extension with members opens its brace on
+        the declaration line, puts each member on its own line and lists one enum case per line.
+        Every body (function, initializer, accessor, if, guard, for, switch, do, catch, defer)
+        goes on its own lines; only `{ }`, `{ get }`-style accessor listings and a closure
+        argument whose body is one short expression may stay on one line. A blank line separates
+        member groups (stored properties, initializers, functions, nested types) and every member
+        with a body; members without a body may sit together. Members come in this order: enum
+        cases, type aliases and associated types, nested types, static properties, stored
+        properties, computed properties, initializers and deinit, static functions, functions
+        and subscripts. Within one type either every member has a `///` doc comment or none
+        does; public API documents every member. Comment lines (`//` and `///`) end by column
+        100, code lines by 120; a URL may run long. A parameter list or call that doesn't fit
+        puts each parameter or argument on its own line with `)` alone on the last line. No
+        array, dictionary or set literal, empty ones included, inside a call's arguments or a
+        comparison in `#expect`: name it with `let` first (Package.swift is the exception). A
+        switch case's body goes on the line below its label, and a case body of more than one
+        statement moves into a named function. Every protocol conformance and generic
+        constraint is listed with its reason in the comment above the type (the doc comment for
+        public API). `let` by default: value types have only `let` fields, no `mutating`
+        functions, no `lazy var`, no `inout` for the package's own types, no stored static or
+        global `var`, and every remaining stored or local `var` has a comment above it that says
+        "`var` because" and names what changes it.
     - path: "Sources/**/*.swift"
       instructions: >-
         Swift 6 language mode with strict concurrency. Code must build with Swift 6.0
         through the newest release, on iOS 13, macOS 10.15 and Linux. Flag: an API newer
-        than the platform floor in Package.swift without an availability check; Swift 6.2+
-        syntax (@concurrent, nonisolated(nonsending)) not behind #if compiler(>=6.2);
-        @unchecked Sendable or nonisolated(unsafe) without a comment naming the lock that
-        guards the state; @preconcurrency on a conformance; a mutable global or static var;
-        an unstructured Task where async let or a task group would do; a semaphore or other
-        blocking wait on async work; a Task in deinit that captures self; @objc, #selector,
-        KVO, NSClassFromString or other Objective-C runtime APIs (Linux has none);
-        URLSession without importing FoundationNetworking under
-        #if canImport(FoundationNetworking). Flag a breaking change to public API (removed,
-        renamed, relabelled or retyped declaration, dropped Sendable, changed default
-        argument, new protocol requirement without a default, new public enum case, changed
-        isolation of a public async function) that CHANGELOG.md does not record as breaking.
-        Raise a concurrency issue only with a realistic sequence that triggers it. Do not
-        flag: missing Sendable on actors or global-actor types; a sending parameter;
-        nonisolated on a member that reads only let state; a missing @MainActor
-        (nonisolated is the right library default); @unchecked Sendable on a type whose
-        mutable state is behind a lock named in a comment; a plain import Foundation.
+        than the platform floor in Package.swift without an availability check; Swift 6.1+
+        syntax or library API (6.2's @concurrent and nonisolated(nonsending), InlineArray,
+        Span) not behind #if compiler(>=6.x); @unchecked Sendable
+        or nonisolated(unsafe) without a comment naming the lock that guards the state;
+        @preconcurrency on a conformance; a mutable global or static var; an unstructured Task
+        where async let or a task group would do; a semaphore or other blocking wait on async
+        work; a Task in deinit that captures self; @objc, #selector, KVO, NSClassFromString or
+        other Objective-C runtime APIs (Linux has none); URLSession without importing
+        FoundationNetworking under #if canImport(FoundationNetworking). Flag a breaking change
+        to public API (removed, renamed, relabelled or retyped declaration, dropped Sendable,
+        changed default argument, new protocol requirement without a default, new public enum
+        case, changed isolation of a public async function) that CHANGELOG.md does not record
+        as breaking. Raise a concurrency issue only with a realistic sequence that triggers it.
+        Clean code, as should-fix items: a function longer than about 40 lines, or nested more
+        than three levels deep, that reads better split into named functions; a name that
+        doesn't say what it holds or does (abbreviations, single letters outside a short
+        closure or loop, vague words such as data, info, helper, manager, util, temp or flag);
+        the same logic written twice where one named function or type would serve both; a
+        boolean or bare literal argument whose meaning isn't clear at the call site; dead code,
+        commented-out code, and a number or string that needs a named constant. Raise each only
+        when the fix is concrete; don't flag a long function whose length is one flat list (a
+        table of cases or diagnostics). Do not flag: missing Sendable on actors or global-actor
+        types; a sending parameter; nonisolated on a member that reads only let state; a missing
+        @MainActor (nonisolated is the right library default); @unchecked Sendable on a type
+        whose mutable state is behind a lock named in a comment; a lock taken by hand instead of
+        NSLock.withLock (that needs iOS 17); a plain import Foundation.
     - path: "Sources/*Macros/**/*.swift"
       instructions: >-
         swift-syntax macro implementation. Flag fatalError, preconditionFailure, try! or
-        force-unwraps on the user's syntax; emit a Diagnostic with a clear message instead,
-        plus a FixIt when the correction is mechanical. Flag generated code that names types
-        without qualification where user code could shadow them (write Swift.Int, not Int).
-        Flag an attached macro whose names: list misses a member it generates. Flag generated
-        code a person wouldn't write by hand. Flag swift-syntax APIs newer than the oldest
-        supported swift-syntax major that are not behind #if canImport(SwiftSyntaxNNN). A
-        change in what a public macro generates is a public API change.
+        force-unwraps on the user's syntax; emit a Diagnostic with a clear message that says
+        what to do instead, plus a FixIt when the correction is mechanical. Flag generated code
+        that names types without qualification where user code could shadow them (write
+        Swift.Int and Understudy.Spy, not Int or Spy). Flag an attached macro whose names: list
+        misses a member it generates. Flag generated code a person wouldn't write by hand: the
+        code a macro writes reads like a double written by hand. Flag swift-syntax APIs newer
+        than the lowest swift-syntax Package.swift allows that are not behind
+        #if canImport(SwiftSyntaxNNN). A change in what a public macro generates is a public
+        API change. Braces and spacing inside the code strings a macro emits follow what the
+        expansion needs, not the source style.
     - path: "Tests/**/*.swift"
       instructions: >-
-        Swift Testing only (import Testing, no XCTest). Each test pins one promise the
-        package makes to its user and reaches the code only the way that user does: public
-        API, or the compiler by using a macro in source. Flag a test that checks private
-        state or internal order, counts or timing; that sleeps to wait for an event instead
-        of awaiting it or using confirmation; that compares the text a macro writes; or that
-        repeats another test's promise. Never suggest assertMacroExpansion, expandedSource or
-        any other comparison of macro output text: CODE_STYLE.md tests macros by behaviour on
-        purpose. Every @Test needs a display name that states its promise as a plain
-        sentence. Flag a force-unwrap where try #require belongs, and exit tests or
-        attachments not behind #if compiler(>=6.2). Do not flag: a test that checks a spy's
-        calls, call count or call order (that is the spy's public promise); @unchecked
-        Sendable on a lock-protected spy; @MainActor on a test; .serialized on a suite that
-        shares state; withKnownIssue that gives a reason.
+        Swift Testing only (import Testing, no XCTest). Each test pins one promise the package
+        makes to its user, is named after it and reaches the code only the way that user does:
+        the public API, or the compiler by using a macro in source. Every @Test has a display
+        name that states its promise as a plain sentence in sentence case with no full stop,
+        such as @Test("A spy keeps every input in order"), with arguments after it; flag a name
+        that says what the test does instead of what is true, or that promises more or less
+        than its checks show. Flag a test that checks private state or internal order, counts
+        or timing; that sleeps to wait for an event instead of awaiting it or using
+        confirmation; that repeats another test's promise (merge them); or that @testable
+        imports a module. Macro tests: the macro test targets expand source in process and check
+        what a person sees, which is allowed and wanted: the diagnostics (message, line, column,
+        fix-its and the code a fix-it gives), and the parts of an expansion the compiler can't
+        show in a running test (a stop message, the generated initializer's parameters, the
+        access level, the #if DEBUG wrapper, a member that must not exist). Flag a check on
+        anything else in the expanded text, and never suggest assertMacroExpansion,
+        expandedSource or comparing a whole expansion to expected text: the package tests
+        macros by behaviour on purpose, and how a generated double behaves is tested where the
+        compiler builds it. Flag a force-unwrap where try #require belongs, and Swift Testing
+        API newer than Swift 6.0 not behind #if compiler(>=6.x): exit tests, attachments, a
+        range expectedCount in confirmation, the error returned by #expect(throws:), issue
+        severity and Test.cancel. Do not flag: a test that checks a spy's calls, call count or
+        call order (that is the spy's public promise); @unchecked Sendable on a lock-protected
+        spy; @MainActor on a test; .serialized on a suite that shares state; withKnownIssue
+        that gives a reason; source fixtures in string literals written the way a user writes
+        a double, such as `{ @Spied get {} }`.
     - path: "Package.swift"
       instructions: >-
         Flag: swift-tools-version above 6.0; swiftLanguageVersions instead of
@@ -140,9 +200,20 @@ reviews:
         the supported toolchains ship; a new dependency.
     - path: ".github/workflows/**"
       instructions: >-
-        Actions are pinned to a commit SHA, each job gets only the permissions it uses, and
-        only free GitHub-hosted runners are used. Flag a change that drops the Linux job or
-        the oldest supported Swift toolchain from the test matrix.
+        Actions are pinned to a full commit SHA with the version in a comment, images to a
+        digest, each job gets only the permissions it uses, no checkout keeps the token, and
+        only free GitHub-hosted runners are used. A download follows HTTPS only and is checked
+        against a checksum. Flag a change that drops the Swift 6.0 (lowest versions) or Swift
+        6.4 job from pull requests, drops Swift 6.1 to 6.3 from the run on main and before a
+        release, or renames a job that is a required check (Linux build and tests, Branch
+        name, Release check, CodeRabbit). Flag a new pinned commit of codecov/codecov-action: the
+        org's Actions policy allows exactly one commit, so the PR must say the allow list was
+        updated too. actionlint and zizmor already run in CI, so don't repeat their findings.
+    - path: "scripts/**"
+      instructions: >-
+        Bash with set -euo pipefail, run on Linux CI with no Mac. Flag GNU-only or BSD-only
+        flags where the script may also run on a Mac, unquoted expansions, and a change that
+        weakens the coverage gate (any line of Sources/ that no test runs must still fail it).
     - path: "CHANGELOG.md"
       instructions: >-
         Keep a Changelog format. New user-facing changes go under Unreleased, in plain words
@@ -155,13 +226,17 @@ reviews:
       enabled: false
     languagetool:
       enabled: false
+    # actionlint and zizmor run pinned in CI's required "Workflow lint" job; a second run here
+    # would post the same findings again. yamllint's default line length disagrees with the
+    # workflows, and actionlint already validates them.
     actionlint:
-      enabled: true
+      enabled: false
     zizmor:
-      enabled: true
-    shellcheck:
-      enabled: true
+      enabled: false
     yamllint:
+      enabled: false
+    # CI's actionlint checks only the scripts inside workflows, so scripts/*.sh are checked here.
+    shellcheck:
       enabled: true
     gitleaks:
       enabled: true

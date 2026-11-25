@@ -138,13 +138,14 @@ jobs:
           persist-credentials: false
 
       # Checks workflow syntax, expressions and, through the runner's shellcheck, every run script.
+      # The download follows HTTPS only and is checked against its checksum.
       - name: actionlint
         env:
           VERSION: 1.7.9
           SHA256: 233b280d05e100837f4af1433c7b40a5dcb306e3aa68fb4f17f8a7f45a7df7b4
         run: |
           archive="$RUNNER_TEMP/actionlint.tar.gz"
-          curl -fsSL -o "$archive" \
+          curl -fsSL --proto '=https' --tlsv1.2 -o "$archive" \
             "https://github.com/rhysd/actionlint/releases/download/v$VERSION/actionlint_${VERSION}_linux_amd64.tar.gz"
           echo "$SHA256  $archive" | sha256sum --check --strict
           tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
