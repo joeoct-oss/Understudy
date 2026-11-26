@@ -358,7 +358,50 @@ protocol Clock {
 let clock = ClockSpy(now: 0)
 ```
 
-That protocol's target then depends on Understudy, so prefer the class form for protocols in shipped code. A protocol that inherits `Actor` gets an actor spy. One that inherits any other protocol, except `Sendable` and `AnyObject`, needs the class form, because the macro can't see the inherited requirements.
+That protocol's target then depends on Understudy, so prefer the class form for protocols in shipped code. A protocol that inherits `Actor` gets an actor spy.
+
+**Associated types.** The spy is generic, with one generic parameter per associated type, in order, keeping its constraints. The test names the type:
+
+```swift
+@GenerateSpies
+protocol Repository {
+    associatedtype Item: Equatable
+    func item(id: Int) -> Item?
+}
+
+let repository = RepositorySpy<Product>()
+repository.itemSpy.willReturn(.lamp)
+```
+
+An associated type's default (`= String`) is ignored, because Swift has no default generic arguments. In a `Sendable` protocol and in an actor protocol, each generic parameter is also `Sendable`, because the spy stores values of it. A `where` clause on an associated type or on the protocol, and a static requirement next to an associated type, need the class form: a generic class can't keep a static spy.
+
+**Inherited protocols.** When the parent protocol has `@GenerateSpies` too, the child's spy stores the parent's spy and answers the parent's requirements through it. The child's initializer takes each parent's spy, first, so the parent's answers are set where its spy is made, and the test reads the parent's spies on the child's:
+
+```swift
+@GenerateSpies
+protocol Base {
+    func ping() -> Int
+}
+
+@GenerateSpies
+protocol Child: Base {
+    func pong(_ value: String)
+}
+
+let child = ChildSpy(base: BaseSpy(ping: 3))
+child.ping()              // 3
+child.pingSpy.callCount   // 1, read through the child
+```
+
+Several parents work the same way, `ProfileSpy(base: BaseSpy(), named: NamedSpy())`, and so does a parent that inherits another. For this, `@GenerateSpies` also writes `BaseSpyForwarding` next to every protocol, with the protocol's access level and global actor, and an extension of `Base` for the spies that adopt it. A parent's static requirements reach the parent's static spies, so a test runs its body in `try await BaseSpy.withFreshSpies { ... }` to get fresh ones (see [Static members](#static-members)).
+
+Its limits:
+
+- **The parent needs `@GenerateSpies`**, in its own module. One such as `Identifiable`, which the macro refuses, needs the class form. A parent without `@GenerateSpies` shows as the compiler's "cannot find 'BaseSpyForwarding' in scope".
+- **A parent with associated types, an actor protocol, or one declared inside another type** can't be forwarded to: the child's spy fails to build with a message saying why. Use the class form for the child.
+- **An actor protocol that inherits another** needs the class form, because forwarding across the actor needs its own design.
+- **A `Sendable` child needs `Sendable` parents**, because its spy stores theirs.
+- **Names can clash.** A parent called `Base` gives the child a stored `baseSpy`, which clashes with the spy of a requirement named `base`, and two parents with a requirement of the same name clash too. The compiler reports both.
 
 ### Spies by hand
 
@@ -490,7 +533,9 @@ Each of these is a compile error at the line it's about, saying what to do inste
 | `mutating` functions | The macro writes classes and actors. |
 | A parameter named `_` with no internal name | The body has no name to pass to the spy; name it. |
 | Two requirements that would share a spy name | Rename one, or give the overloads different labels. |
-| A protocol that inherits another, or has associated types or initializers; a generic, `static`, `async` or throwing subscript | The macro can't see or write them; use the class form or write it by hand. |
+| A protocol initializer; a generic, `static`, `async` or throwing subscript | The macro can't write them; use the class form or write it by hand. |
+| A protocol that inherits a standard library protocol, such as `Identifiable`, or a protocol written with its associated types (`Box<Int>`); an actor protocol that inherits another | There is no spy to forward to, or forwarding across the actor needs its own design; use the class form. See [Doubles next to your protocol](#doubles-next-to-your-protocol). |
+| A `where` clause on an associated type or on a protocol with associated types, or a static requirement next to an associated type | A generic parameter can't keep the clause, and a generic class can't keep a static spy; use the class form. |
 
 ## License
 

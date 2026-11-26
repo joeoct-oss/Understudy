@@ -32,12 +32,13 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         try reporting(in: context) {
-            try peers(of: declaration)
+            try peers(of: declaration, isNested: !context.lexicalContext.isEmpty)
         }
     }
 
     /// The conformance to `StaticSpies`, for a class or an actor with static spies, so
-    /// `.freshSpies(_:)` can give each test its own.
+    /// `.freshSpies(_:)` can give each test its own; for a protocol, the extension that forwards
+    /// its requirements to its spy, for the spy of a protocol that inherits it.
     public static func expansion(
         of node: AttributeSyntax,
         attachedTo declaration: some DeclGroupSyntax,
@@ -45,6 +46,11 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
+        if let proto = declaration.as(ProtocolDeclSyntax.self) {
+            // `peers(of:)` reports a protocol the macro can't write.
+            let spy = try? ProtocolSpy(proto, isNested: !context.lexicalContext.isEmpty)
+            return spy?.forwardingExtension().map { [$0] } ?? []
+        }
         guard declaration.is(ClassDeclSyntax.self) || declaration.is(ActorDeclSyntax.self),
               let requirements = try? spiedRequirements(of: declaration.memberBlock),
               requirements.contains(where: \.isStatic) else {
@@ -118,59 +124,36 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
             + forwarders
     }
 
-    /// The spy class written next to a protocol.
-    private static func peers(of declaration: some DeclSyntaxProtocol) throws -> [DeclSyntax] {
+    /// The spy class written next to a protocol, and the protocol that lets the spy of a
+    /// protocol inheriting this one forward to it.
+    private static func peers(of declaration: some DeclSyntaxProtocol, isNested: Bool) throws -> [DeclSyntax] {
         guard let proto = declaration.as(ProtocolDeclSyntax.self) else {
             return []
         }
-        let inherited = proto.inheritanceClause?.inheritedTypes.map(\.type.trimmedDescription) ?? []
-        let isActor = inherited.contains { $0 == "Actor" || $0 == "_Concurrency.Actor" }
-        let known = ["Sendable", "AnyObject", "Swift.Sendable", "Actor", "_Concurrency.Actor"]
-        if let other = inherited.first(where: { !known.contains($0) }) {
-            throw UnderstudyError(
-                "'\(proto.name.text)' inherits '\(other)', whose requirements this macro can't see; "
-                    + "use @GenerateSpies on a class or an actor that conforms to '\(proto.name.text)' instead",
-                at: proto.inheritanceClause
-            )
+        let spy = try ProtocolSpy(proto, isNested: isNested)
+        let kind = spy.isActor ? "actor" : "final class"
+        let members = try storage(
+            for: spy.requirements,
+            in: spy.spyName,
+            access: spy.access,
+            isActor: spy.isActor,
+            parents: spy.parents
+        ) + zip(spy.requirements, spy.spyNames).map { requirement, name in
+            requirement.implementation(spy: name, access: spy.access)
         }
-        let requirements: [any SpiedMember] = try proto.memberBlock.members.map { member in
-            if let function = member.decl.as(FunctionDeclSyntax.self) {
-                return try Requirement(function)
-            }
-            if let property = member.decl.as(VariableDeclSyntax.self) {
-                return try Property(property, inProtocol: true)
-            }
-            if let spied = member.decl.as(SubscriptDeclSyntax.self) {
-                return try Subscript(spied, inProtocol: true)
-            }
-            throw UnderstudyError(
-                "'\(proto.name.text)' has a requirement that is not a function, a property or a "
-                    + "subscript; write its double by hand, or use @GenerateSpies on a class or an actor",
-                at: member.decl
-            )
-        }
-        let access = access(of: proto.modifiers)
-        let names = try spyNames(for: requirements)
-        let members = try storage(for: requirements, in: proto.name.text + "Spy", access: access, isActor: isActor)
-            + zip(requirements, names).map { requirement, name in
-                requirement.implementation(spy: name, access: access)
-            }
-        let actors = proto.attributes.compactMap { $0.as(AttributeSyntax.self) }
-            .filter { $0.attributeName.trimmedDescription.hasSuffix("Actor") }
-            .map { $0.trimmedDescription + "\n" }
-            .joined()
-        let prefix = access.isEmpty ? "" : access + " "
+        let conformances = [spy.name] + spy.parents.map(\.forwarding)
+            + (spy.requirements.contains(where: \.isStatic) ? ["Understudy.StaticSpies"] : [])
         let body = members.map { $0.trimmedDescription }.joined(separator: "\n\n")
-        let name = proto.name.text
-        let kind = isActor ? "actor" : "final class"
-        let conformances = requirements.contains(where: \.isStatic) ? ", Understudy.StaticSpies" : ""
+        let header = "\(spy.prefix)\(kind) \(spy.spyName)\(spy.genericParameters): "
+            + conformances.joined(separator: ", ")
         return [
             """
-            /// A spy for `\(raw: name)`, written by `@GenerateSpies`.
-            \(raw: actors)\(raw: prefix)\(raw: kind) \(raw: name)Spy: \(raw: name)\(raw: conformances) {
+            /// A spy for `\(raw: spy.name)`, written by `@GenerateSpies`.
+            \(raw: spy.actors)\(raw: header) {
             \(raw: body)
             }
             """,
+            spy.forwardingProtocol(),
         ]
     }
 
@@ -235,13 +218,17 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         for requirements: [any SpiedMember],
         in typeName: String,
         access: String,
-        isActor: Bool
+        isActor: Bool,
+        parents: [ProtocolSpy.Parent] = []
     ) throws -> [DeclSyntax] {
         let names = try spyNames(for: requirements)
         let prefix = access.isEmpty ? "" : access + " "
         let spyPrefix = prefix + (isActor ? "nonisolated " : "")
         let statics = zip(requirements, names).filter { $0.0.isStatic }
         var declarations = try staticStorage(for: statics, in: typeName, prefix: prefix)
+        for parent in parents {
+            declarations.append("\(raw: spyPrefix)let \(raw: parent.property): \(raw: parent.spyType)")
+        }
         // A closure answer is taken `@escaping`, because the spy keeps it. An answer with an
         // obvious value defaults to it, so the test passes only the answers that matter to it.
         var answers: [(name: String, output: String, obvious: String?)] = []
@@ -258,23 +245,27 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
                 )
             }
         }
-        guard !answers.isEmpty else {
+        guard !answers.isEmpty || !parents.isEmpty else {
             return declarations
         }
-        // The initializer names each answer after its requirement: `init(now:)` fills `nowSpy`, and
-        // `init(subscript:)` fills `subscriptSpy`, with the keyword in backticks where it's a name.
-        let parameters = answers.map { answer in
+        // The initializer takes each parent protocol's spy first, then names each answer after its
+        // requirement: `init(now:)` fills `nowSpy`, and `init(subscript:)` fills `subscriptSpy`,
+        // with the keyword in backticks where it's a name.
+        let parameters = parents.map { "\($0.label): \($0.spyType)" } + answers.map { answer in
             "\(label(of: answer.name)): \(answer.output)" + (answer.obvious.map { " = \($0)" } ?? "")
-        }.joined(separator: ", ")
-        let assignments = answers.map { answer in
+        }
+        let assignments = parents.map { "self.\($0.property) = \($0.label)" } + answers.map { answer in
             let name = label(of: answer.name)
             return "self.\(answer.name) = .init(returning: \(name == "subscript" ? "`subscript`" : name))"
-        }.joined(separator: "\n")
+        }
+        let what = parents.isEmpty
+            ? "the answer each requirement gives"
+            : "the spies of the protocols it inherits, and the answer each requirement gives"
         declarations.append(
             """
-            /// Creates the double with the answer each requirement gives until the test scripts another.
-            \(raw: prefix)init(\(raw: parameters)) {
-            \(raw: assignments)
+            /// Creates the double with \(raw: what) until the test scripts another.
+            \(raw: prefix)init(\(raw: parameters.joined(separator: ", "))) {
+            \(raw: assignments.joined(separator: "\n"))
             }
             """
         )
