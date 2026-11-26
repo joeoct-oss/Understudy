@@ -4,10 +4,11 @@
 #   SonarQube Cloud's quality gate passed; drafts are skipped until they are ready for review. A
 #   docs-only pull request (docs-only input) skips every job, and the gate reports a pass.
 # - "Linux build and tests" is the one required check: it passes only when every job below passed.
-# - Swift 6.4: warnings as errors, every line of Sources/ covered (scripts/check-coverage.sh), and
-#   the thread sanitizer. The macro sources must be covered by the macro tests alone, so the gate
-#   also proves the macro expansion tests ran. The measured lines are kept as the "coverage"
-#   artifact, which the checks workflow uploads to Codecov, so coverage is measured once per run.
+# - Swift 6.4: warnings as errors and every line of Sources/ covered (scripts/check-coverage.sh),
+#   with the thread sanitizer in its own job beside it. The macro sources must be covered by the
+#   macro tests alone, so the gate also proves the macro expansion tests ran. The measured lines
+#   are kept as the "coverage" artifact, which the checks workflow uploads to Codecov, so coverage
+#   is measured once per run.
 # - Swift 6.1, 6.2 and 6.3: every test, warnings as errors, with the committed Package.resolved.
 #   Only when the release workflow calls this one on a push to main, and on a manual run, never on
 #   a pull request: a pull request tests the lowest and the newest version, which almost always
@@ -41,17 +42,14 @@ permissions: {}
 
 jobs:
   coverage:
-    name: Tests, coverage and thread sanitizer (Swift 6.4)
+    name: Tests and coverage (Swift 6.4)
     if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
       contents: read
-    # The thread sanitizer turns off address randomisation with `personality`, which Docker's
-    # default seccomp profile blocks, so the container runs without it.
     container:
       image: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
-      options: --security-opt seccomp=unconfined
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -80,13 +78,41 @@ jobs:
           path: coverage.lcov
           retention-days: 1
 
-      - name: Test with the thread sanitizer
-        run: swift test --sanitize=thread
-
       # The code the macros write never varies from run to run, so its size is enforced: a change
       # updates Benchmarks/generated-code-budget.txt in the same pull request.
       - name: Generated code within its budget
         run: scripts/check-generated-code.sh
+
+  # Its own job, beside the coverage job, since it rebuilds everything with the sanitizer and was
+  # the longest step on the path every later check waits for.
+  tsan:
+    name: Thread sanitizer (Swift 6.4)
+    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    # The thread sanitizer turns off address randomisation with `personality`, which Docker's
+    # default seccomp profile blocks, so the container runs without it.
+    container:
+      image: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
+      options: --security-opt seccomp=unconfined
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Its own key: a sanitizer build shares nothing with the coverage job's build.
+      - name: Restore the build cache
+        if: github.event_name == 'pull_request'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: swift-6.4.3-tsan-${{ hashFiles('Package.swift', 'Package.resolved') }}
+
+      - name: Test with the thread sanitizer
+        run: swift test --sanitize=thread
 
   swift:
     name: Tests on Swift ${{ matrix.swift }}
@@ -210,7 +236,7 @@ jobs:
 
   gate:
     name: Linux build and tests
-    needs: [coverage, swift, lowest, swift5, api]
+    needs: [coverage, tsan, swift, lowest, swift5, api]
     if: ${{ always() && !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -224,8 +250,8 @@ jobs:
           DOCS_ONLY: ${{ inputs.docs-only }}
           RESULTS: ${{ join(needs.*.result, ' ') }}
           PR_RESULTS: >-
-            ${{ needs.coverage.result }} ${{ needs.lowest.result }} ${{ needs.swift5.result }}
-            ${{ needs.api.result }}
+            ${{ needs.coverage.result }} ${{ needs.tsan.result }} ${{ needs.lowest.result }}
+            ${{ needs.swift5.result }} ${{ needs.api.result }}
         run: |
           if [[ "$DOCS_ONLY" == "true" ]]; then
             echo "Docs-only change: no build reads these files, so the tests were skipped."
