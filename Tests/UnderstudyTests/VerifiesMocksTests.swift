@@ -77,6 +77,22 @@ struct VerifiesMocksTests {
         #expect(issues.map(\.message) == expected)
     }
 
+    @Test("An expectation with the same words as one verify reported is still reported when unmet")
+    func sameWordsAsAReportedProblemStillReported() async throws {
+        let issues = try await issuesAfterTest {
+            let analytics = Spy<Int, Void>()
+            analytics.expect { $0 == 1 }
+            withKnownIssue(isIntermittent: true) {
+                analytics.verify()
+            }
+            analytics(1)
+            analytics.expect { $0 == 2 }
+        }
+
+        let expected = ["expected 1 call with a matching input, got 0 calls"]
+        #expect(issues.map(\.message) == expected)
+    }
+
     @Test("An expectation set in a suite's init is checked when the test ends")
     func expectationSetInSuiteInitIsVerified() async throws {
         let issues = try await issuesAfterTest {
@@ -109,8 +125,8 @@ struct VerifiesMocksTests {
         #expect(issues.map(\.message) == expected)
     }
 
-    /// Runs `body` as `.verifiesMocks` runs a test, and gives each issue it recorded after the
-    /// body: its message and its line.
+    // Runs `body` as `.verifiesMocks` runs a test, and gives each issue it recorded after the
+    // body: its message and its line.
     private func issuesAfterTest(
         _ body: @escaping @Sendable () async throws -> Void
     ) async throws -> [(message: String, line: Int?)] {
@@ -136,12 +152,12 @@ struct CheckoutSuite {
         analytics.expect("checkout")
     }
 
-    @Test("Each test in a suite with the trait is checked, and passes when it meets the expectation")
+    @Test("A test in a suite with the trait passes when it meets the expectation set in init")
     func suiteTraitVerifiesEveryTest() {
         analytics("checkout")
     }
 
-    @Test("Each case of a parameterized test is checked on its own", arguments: 1...3)
+    @Test("Each case of a parameterized test meets its own expectation from init", arguments: 1...3)
     func eachParameterizedCaseIsVerifiedAlone(_ round: Int) {
         analytics("checkout")
         #expect(analytics.callCount == 1)

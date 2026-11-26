@@ -61,10 +61,10 @@ final class Ledger<Input, Output> {
     /// Whether the spy is strict: set once the test expects anything, even no calls at all.
     private var isStrict = false
 
-    /// The problems ``verify(sourceLocation:)`` has reported, so `.verifiesMocks` reports only
-    /// the rest. `var` because each report adds its problems; only ``reportProblems()`` adds,
-    /// and ``reset()`` clears.
-    private var reported: [String] = []
+    /// The identity of each problem ``verify(sourceLocation:)`` has reported, so
+    /// `.verifiesMocks` reports only the rest. `var` because each report adds its problems; only
+    /// ``reportProblems()`` adds, and ``reset()`` clears.
+    private var reported: Set<VerificationProblem.ID> = []
 
     /// A held call: runs in the caller's isolation, takes the call's input and the answer the spy
     /// would have given, and gives the answer the call returns.
@@ -224,26 +224,20 @@ final class Ledger<Input, Output> {
     /// Every problem, in words, for ``verify(sourceLocation:)``, which remembers them so
     /// `.verifiesMocks` doesn't report them again.
     func reportProblems() -> [String] {
-        let messages = problems().map(\.message)
+        let found = problems()
         synchronized {
-            reported += messages
+            reported.formUnion(found.map(\.id))
         }
-        return messages
+        return found.map(\.message)
     }
 
-    /// The problems that ``reportProblems()`` hasn't reported, one for each, so a problem that
-    /// happens twice and was reported once is left once.
+    /// The problems found now that ``reportProblems()`` didn't report. An unmet expectation
+    /// whose call count changed since is a new problem.
     func unreportedProblems() -> [VerificationProblem] {
-        var left = synchronized {
+        let alreadyReported = synchronized {
             reported
         }
-        return problems().filter { problem in
-            guard let index = left.firstIndex(of: problem.message) else {
-                return true
-            }
-            left.remove(at: index)
-            return false
-        }
+        return problems().filter { !alreadyReported.contains($0.id) }
     }
 
     /// Every expectation not met and every call nobody expected, each with the `expect` it is
@@ -257,19 +251,20 @@ final class Ledger<Input, Output> {
         guard snapshot.strict else {
             return []
         }
-        let missed = expected.compactMap { expectation -> VerificationProblem? in
+        let missed = expected.enumerated().compactMap { index, expectation -> VerificationProblem? in
             let count = calls.filter(expectation.matches).count
             guard count != expectation.times else {
                 return nil
             }
             let message = "expected \(Self.times(expectation.times)) with \(expectation.description), "
                 + "got \(Self.times(count))"
-            return VerificationProblem(message: message, site: expectation.site)
+            return VerificationProblem(id: .unmet(index, calls: count), message: message, site: expectation.site)
         }
-        let unexpected = calls.filter { input in
+        let unexpected = calls.enumerated().filter { _, input in
             !expected.contains { $0.matches(input) }
-        }.map { input in
-            VerificationProblem(message: "unexpected call with \(String(describing: input))", site: nil)
+        }.map { index, input in
+            let message = "unexpected call with \(String(describing: input))"
+            return VerificationProblem(id: .unexpected(index), message: message, site: nil)
         }
         return missed + unexpected
     }

@@ -21,6 +21,21 @@ typealias ExpectationSite = Never
 /// One thing a strict spy found wrong, in words, with the `expect` it is about; `nil` for a call
 /// nobody expected.
 struct VerificationProblem {
+    /// Which problem this is, so a problem `verify(sourceLocation:)` reported isn't reported again
+    /// while another with the same words still is.
+    ///
+    /// Conformances:
+    /// - `Hashable`, so a ledger keeps the reported ones in a set.
+    enum ID: Hashable {
+        /// The expectation at this position, met by this many calls instead of the times it
+        /// wants; a different count is a new problem.
+        case unmet(Int, calls: Int)
+        /// The call at this position, which no expectation accepts.
+        case unexpected(Int)
+    }
+
+    /// Which problem this is.
+    let id: ID
     /// What went wrong, such as "expected 1 call with 3, got 0 calls".
     let message: String
     /// The `expect` the problem is about.
@@ -34,6 +49,9 @@ protocol VerifiableLedger: AnyObject {
     func unreportedProblems() -> [VerificationProblem]
 }
 
+/// Conformances:
+/// - `VerifiableLedger`, so `.verifiesMocks` lists the ledger of every kind of spy, whatever its
+///   input and output, in one registry.
 extension Ledger: VerifiableLedger { }
 
 /// The strict spies of one test that runs with `.verifiesMocks`: each one is listed when the
@@ -99,6 +117,9 @@ public struct VerifiesMocks: TestTrait, SuiteTrait, TestScoping {
         testCase == nil ? nil : self
     }
 
+    /// Runs the test, or one case of it, with a list of the spies given an expectation in it,
+    /// then reports each of their problems that `verify(sourceLocation:)` didn't. The spies are
+    /// checked even when the test throws, and its error then goes on to Swift Testing.
     public func provideScope(
         for test: Test,
         testCase: Test.Case?,
@@ -117,6 +138,8 @@ public struct VerifiesMocks: TestTrait, SuiteTrait, TestScoping {
     }
 }
 
+/// Constrained to `Self == VerifiesMocks`, so `.verifiesMocks` is found where Swift Testing
+/// expects a trait, as its own traits are.
 extension Trait where Self == VerifiesMocks {
     /// Verifies every strict spy when each test ends: `@Test(.verifiesMocks)`, or on a suite.
     public static var verifiesMocks: Self {

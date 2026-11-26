@@ -308,6 +308,7 @@ Its limits:
 
 - **It needs Swift 6.1 or later**, where test traits can wrap a test. On Swift 6.0 it doesn't exist, and `verify()` works as before.
 - **It doesn't see an `expect` called from a detached task or from Dispatch work**, because task locals don't reach those. Set expectations in the test, or call `verify()` for those spies.
+- **It checks after the test returns**, off the test's actor, so an input that other work still changes then is matched as it is then.
 - **It is opt-in.** A strict spy without the trait still needs `verify()`.
 
 `verify()` and the expectations need Swift Testing; everything else works with any test framework.
