@@ -8,8 +8,9 @@
 #
 
 # Runs SonarQube Cloud's analysis and waits for its quality gate: exits non-zero when the gate
-# fails, so the checks workflow runs nothing else. Settings are in sonar-project.properties.
-# - The scanner comes from Maven Central at a pinned version and is checked against its SHA-256.
+# fails, so the checks workflow runs no test after it. Settings are in sonar-project.properties.
+# - The scanner comes from SonarSource's download site at a pinned version, and both the download
+#   and the scanner jar in it are checked against their SHA-256.
 # - The version Sonar records is the newest version in CHANGELOG.md (scripts/release-notes.sh), so
 #   the release commit itself starts a new version and new code on main is everything after it. A
 #   pull request is always compared with main.
@@ -18,7 +19,8 @@ set -euo pipefail
 
 scanner_version="8.5.0.16571"
 scanner_sha256="900b76db8a0efb845ed45d7a44b522bda05c8059bcaa6864c9e969de3a8c05f9"
-maven="https://repo1.maven.org/maven2/org/sonarsource/scanner/cli/sonar-scanner-cli"
+zip_sha256="4d0e8b2631974c90427a4085dd6ca8be7e3587de2055a69a96d020941e3a629e"
+binaries="https://binaries.sonarsource.com/Distribution/sonar-scanner-cli"
 
 if [[ -z "${SONAR_TOKEN:-}" ]]; then
   echo "::error::SONAR_TOKEN is not set. A pull request from a fork gets no secrets, so a maintainer pushes its branch to this repository to run the checks."
@@ -26,12 +28,31 @@ if [[ -z "${SONAR_TOKEN:-}" ]]; then
 fi
 
 work_dir="${RUNNER_TEMP:-$(mktemp -d)}"
-jar="$work_dir/sonar-scanner-cli-$scanner_version.jar"
-# Maven Central sometimes answers 429 (too many requests) on shared runners, so this retries.
-curl --fail --silent --show-error --location --proto '=https' \
-  --retry 5 --retry-delay 10 --retry-all-errors \
-  "$maven/$scanner_version/sonar-scanner-cli-$scanner_version.jar" --output "$jar"
-echo "$scanner_sha256  $jar" | sha256sum --check --status
+# The jar is kept in ~/.cache/sonar-scanner (the checks workflow caches it on pull requests) and
+# used when its checksum matches, so most runs download nothing.
+cache_dir="${SONAR_SCANNER_CACHE:-$HOME/.cache/sonar-scanner}"
+mkdir -p "$cache_dir"
+jar="$cache_dir/sonar-scanner-cli-$scanner_version.jar"
+if ! echo "$scanner_sha256  $jar" | sha256sum --check --status 2>/dev/null; then
+  # From SonarSource's own download site, since Maven Central answers 429 (too many requests) to
+  # shared runners. The download waits longer each time it fails: 15, 30, 60 and 120 seconds.
+  zip=$(mktemp "$work_dir/sonar-scanner-cli.XXXXXX")
+  for delay in 15 30 60 120 0; do
+    if curl --fail --silent --show-error --location --proto '=https' \
+      "$binaries/sonar-scanner-cli-$scanner_version.zip" --output "$zip"; then
+      break
+    fi
+    if [[ "$delay" -eq 0 ]]; then
+      echo "::error::Couldn't download the SonarQube scanner from binaries.sonarsource.com." >&2
+      exit 1
+    fi
+    echo "::warning::The scanner download failed. Retrying in $delay seconds."
+    sleep "$delay"
+  done
+  echo "$zip_sha256  $zip" | sha256sum --check --status
+  unzip -p "$zip" "sonar-scanner-$scanner_version/lib/sonar-scanner-cli-$scanner_version.jar" >"$jar"
+  echo "$scanner_sha256  $jar" | sha256sum --check --status
+fi
 
 version=$(scripts/release-notes.sh "$work_dir/release-notes.md")
 

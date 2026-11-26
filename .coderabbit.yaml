@@ -234,8 +234,8 @@ reviews:
         only free GitHub-hosted runners are used: Linux, and the standard macOS labels for the
         Apple checks, never a larger (-large, -xlarge) or self-hosted runner. A download follows HTTPS only and is checked
         against a checksum. Report each security problem as an inline should-fix finding (major
-        severity), even where zizmor in CI may also report it, since CI's workflow lint runs
-        only after the SonarQube Cloud gate passes: pull_request_target or workflow_run that
+        severity), even where zizmor in CI's fast checks may also report it:
+        pull_request_target or workflow_run that
         checks out or runs the pull request's code; an expression from the event (a title,
         body, branch name, commit message or label) expanded straight inside run: instead of
         through env:; permissions: write-all or a write permission the job doesn't use; an
@@ -245,8 +245,10 @@ reviews:
         6.1 to 6.3 from the run on main and before a release, drops a job from the Apple
         platform checks or stops a release waiting for them, renames a job that is a required
         check (SonarQube Cloud quality gate, Linux checks / Linux build and tests, Branch name,
-        Release / Release check, CodeRabbit), or lets a job in checks.yml start before the
-        SonarQube Cloud quality gate passed. Flag a new pinned commit of
+        Release / Release check, CodeRabbit, Fast checks), or breaks the stage order in
+        checks.yml: Fast checks, then the SonarQube Cloud quality gate, then the Linux checks,
+        then the Apple checks, benchmarks and mutation testing, so a later stage never starts
+        before an earlier one passed. Flag a new pinned commit of
         codecov/codecov-action: the org's Actions policy allows exactly one commit, so the PR
         must say the allow list was updated too. Don't repeat actionlint's syntax and
         expression-type findings: CI runs it.
