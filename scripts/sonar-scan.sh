@@ -36,14 +36,14 @@ jar="$cache_dir/sonar-scanner-cli-$scanner_version.jar"
 if ! echo "$scanner_sha256  $jar" | sha256sum --check --status 2>/dev/null; then
   # From SonarSource's own download site, since Maven Central answers 429 (too many requests) to
   # shared runners. The download waits longer each time it fails: 15, 30, 60 and 120 seconds.
-  zip="$work_dir/sonar-scanner-cli-$scanner_version.zip"
+  zip=$(mktemp "$work_dir/sonar-scanner-cli.XXXXXX")
   for delay in 15 30 60 120 0; do
     if curl --fail --silent --show-error --location --proto '=https' \
       "$binaries/sonar-scanner-cli-$scanner_version.zip" --output "$zip"; then
       break
     fi
     if [[ "$delay" -eq 0 ]]; then
-      echo "::error::Couldn't download the SonarQube scanner from binaries.sonarsource.com."
+      echo "::error::Couldn't download the SonarQube scanner from binaries.sonarsource.com." >&2
       exit 1
     fi
     echo "::warning::The scanner download failed. Retrying in $delay seconds."
