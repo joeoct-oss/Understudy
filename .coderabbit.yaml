@@ -298,9 +298,10 @@ reviews:
         input; subprocess with shell=True, os.system or a command built by joining strings
         (pass a list); a subprocess call whose failure is ignored (use check=True or read the
         return code); a bare except or an except that swallows the error; a file opened
-        without with, or read or written without encoding="utf-8"; a mutable default argument; == None or !=
-        None; unused imports and several imports on one line; a hard-coded password, token or
-        key; os.path where pathlib reads better; a script that exits 0 after a failure or
+        without with, or read or written without encoding="utf-8"; a mutable default
+        argument; == None or != None; unused imports and several imports on one line; a
+        hard-coded password, token or key; os.path where pathlib reads better; a script that
+        exits 0 after a failure or
         prints an error to stdout instead of stderr; code at module level instead of in a
         main() called under if __name__ == "__main__"; a function longer than about 40 lines
         or a name that doesn't say what it holds. Comment and docstring lines end by column
