@@ -158,6 +158,13 @@ final class Ledger<Input, Output> {
         watchers.isEmpty ? [] : Array(watchers.values)
     }
 
+    /// A key no other watcher has, so adding a watcher never replaces another. Called under the
+    /// lock.
+    private func newWatcherKey() -> Int {
+        defer { nextWatcherKey += 1 }
+        return nextWatcherKey
+    }
+
     /// The output `answer` gives for `input`.
     private func resolve(_ answer: Answer, for input: Input) -> Output {
         switch answer {
@@ -194,8 +201,7 @@ final class Ledger<Input, Output> {
     @discardableResult
     func watch(_ watch: @escaping (Input) -> Void) -> Int {
         synchronized {
-            let key = nextWatcherKey
-            nextWatcherKey += 1
+            let key = newWatcherKey()
             watchers[key] = watch
             return key
         }
@@ -297,8 +303,7 @@ extension Ledger where Input: Sendable {
                 handedOut += 1
                 return nil
             }
-            let key = nextWatcherKey
-            nextWatcherKey += 1
+            let key = newWatcherKey()
             watchers[key] = { [unowned self] _ in
                 self.handOutNext(to: delivery, key: key)
             }
