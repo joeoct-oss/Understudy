@@ -21,7 +21,7 @@ longer than the time limit counts as killed, since a test that hangs noticed the
 
 Results go to mutants.tsv at the package's root, which git ignores, one line per mutant, as they
 come; a run reads it first and skips every mutant already in it, so a long run can stop and go on
-later. Only files under Sources/ are mutated.
+later. Only files under Sources/ are mutated, and only when git has every change to them.
 
 Usage: scripts/mutate.py [--list] [--timeout <seconds>] [<file or folder under Sources/>...]
 """
@@ -151,6 +151,12 @@ def main():
     parser.add_argument("--timeout", type=int, default=600, help="seconds a build or a test run may take")
     options = parser.parse_args()
     out = ROOT / "mutants.tsv"
+    # A file changed before the run would be taken as the original, and an earlier run stopped
+    # abruptly may have left a mutant behind: start only from what git has.
+    changed = subprocess.run(["git", "status", "--porcelain", "--", "Sources"], cwd=ROOT,
+                             capture_output=True, text=True, check=True).stdout
+    if changed and not options.list:
+        sys.exit(f"error: Sources/ has changes git doesn't have; commit or restore them first:\n{changed}")
     done = {tuple(line.split("\t")[:3]) for line in out.read_text().splitlines()} if out.exists() else set()
     for path in sources(options.paths):
         relative = path.relative_to(ROOT).as_posix()
