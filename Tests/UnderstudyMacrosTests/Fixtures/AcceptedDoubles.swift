@@ -213,6 +213,21 @@ extension ExpansionTests {
                 """
         ),
         Accepted(
+            name: "static requirements of standard types written with their module",
+            source: """
+                @GenerateSpies
+                public final class SpyCounter: Counter {
+                    @Spied static func total() -> Swift.Int
+                    @SpiedProperty static var tags: Swift.Set<String>
+                }
+
+                @GenerateSpies
+                protocol Limits {
+                    static var maximum: Swift.Int { get }
+                }
+                """
+        ),
+        Accepted(
             name: "actors",
             source: """
                 @GenerateSpies
