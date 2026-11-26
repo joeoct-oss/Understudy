@@ -27,7 +27,9 @@ fi
 
 work_dir="${RUNNER_TEMP:-$(mktemp -d)}"
 jar="$work_dir/sonar-scanner-cli-$scanner_version.jar"
+# Maven Central sometimes answers 429 (too many requests) to shared runners, so the download retries.
 curl --fail --silent --show-error --location --proto '=https' \
+  --retry 5 --retry-delay 10 --retry-all-errors \
   "$maven/$scanner_version/sonar-scanner-cli-$scanner_version.jar" --output "$jar"
 echo "$scanner_sha256  $jar" | sha256sum --check --status
 
