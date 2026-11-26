@@ -100,8 +100,10 @@ jobs:
 
       # A generic device destination builds for the lowest version each platform declares. No
       # signing: nothing is installed or run. Xcode names the package's one scheme
-      # "ApplePlatforms-Package".
-      - name: Build the tests, with warnings as errors
+      # "ApplePlatforms-Package". An API newer than the floor is an error on its own; warnings as
+      # errors can't be set here, since Xcode would pass it to swift-syntax, which builds with
+      # warnings suppressed, and the macOS jobs already fail on any warning.
+      - name: Build the tests
         env:
           PLATFORM: ${{ matrix.platform }}
         working-directory: ApplePlatforms
@@ -113,8 +115,7 @@ jobs:
             -destination "generic/platform=$PLATFORM" \
             -skipMacroValidation \
             -onlyUsePackageVersionsFromResolvedFile \
-            CODE_SIGNING_ALLOWED=NO \
-            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
+            CODE_SIGNING_ALLOWED=NO
 
   gate:
     name: Apple builds and tests
