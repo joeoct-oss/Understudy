@@ -6,11 +6,12 @@
 //  Copyright © 2026 Yousef Mohamed. MIT License.
 //
 
-/// Writes a test double: one ``Spy`` or ``ThrowingSpy`` per requirement, and the code that calls it.
+/// Writes a test double: one ``Spy`` or ``ThrowingSpy`` per requirement, and the code that calls
+/// it.
 ///
 /// On a class, mark each function ``Spied()`` and give it no body, and each property
-/// ``SpiedProperty()`` with a type and nothing else; the macro writes the code and the spy. The shipped code stays untouched, and the compiler checks every signature against the
-/// protocol:
+/// ``SpiedProperty()`` with a type and nothing else; the macro writes the code and the spy. The
+/// shipped code stays untouched, and the compiler checks every signature against the protocol:
 ///
 /// ```swift
 /// @GenerateSpies
@@ -75,8 +76,8 @@ public macro GenerateSpies() = #externalMacro(module: "UnderstudyMacros", type: 
 @attached(body)
 public macro Spied() = #externalMacro(module: "UnderstudyMacros", type: "SpiedMacro")
 
-/// Marks a property of a ``GenerateSpies()`` class that the macro writes. Declare it as a `var` with
-/// a type, and a first value if you like; the macro writes its getter and setter. With a first
+/// Marks a property of a ``GenerateSpies()`` class that the macro writes. Declare it as a `var`
+/// with a type, and a first value if you like; the macro writes its getter and setter. With a first
 /// value, `@SpiedProperty var user: String = "ana"`, the spy starts with it; without one, the
 /// double's initializer takes it, as it takes a function's first answer. It works in a `Sendable`
 /// class and in an actor, where ``Recorded`` can't.
