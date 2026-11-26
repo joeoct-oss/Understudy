@@ -161,7 +161,9 @@ final class Ledger<Input, Output> {
     /// A key no other watcher has, so adding a watcher never replaces another. Called under the
     /// lock.
     private func newWatcherKey() -> Int {
-        defer { nextWatcherKey += 1 }
+        defer {
+            nextWatcherKey += 1
+        }
         return nextWatcherKey
     }
 
