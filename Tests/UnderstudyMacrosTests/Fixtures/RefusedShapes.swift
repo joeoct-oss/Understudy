@@ -100,6 +100,18 @@ extension ExpansionTests {
             column: 5
         ),
         Refused(
+            name: "@Spied in a class with another attribute and no @GenerateSpies",
+            source: """
+                @MainActor
+                final class Lonely {
+                    @Spied func ping()
+                }
+                """,
+            message: "@Spied needs @GenerateSpies on the class or actor it is in",
+            line: 3,
+            column: 5
+        ),
+        Refused(
             name: "@SpiedProperty outside a @GenerateSpies class",
             source: """
                 final class Lonely {

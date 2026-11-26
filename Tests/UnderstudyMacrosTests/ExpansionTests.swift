@@ -100,8 +100,9 @@ struct ExpansionTests {
 
     /// The constraints of an associated type stay on the spy's generic parameter, so the compiler
     /// keeps a test from making a spy of a type the protocol doesn't allow; with a `Sendable`
-    /// protocol, the parameter is `Sendable` too, because the spy stores values of it. The test
-    /// checks the class the macro declares, which a running test can't see.
+    /// protocol, the parameter is `Sendable` too, because the spy stores values of it, and one
+    /// already `Sendable` gets nothing added. The test checks the class the macro declares, which
+    /// a running test can't see.
     @Test(
         "An associated type keeps its constraints on the spy, with Sendable for a Sendable protocol",
         arguments: constrained
@@ -112,6 +113,7 @@ struct ExpansionTests {
             \(opening)
                 associatedtype Item: Equatable, Codable
                 associatedtype Key
+                associatedtype Tag: Sendable
                 func item(for key: Key) -> Item?
             }
             """)
@@ -126,12 +128,12 @@ struct ExpansionTests {
     func parentSpyArgumentIsRequired() {
         let (expanded, _) = expand("""
             @GenerateSpies
-            protocol Child: Base, URLLoader {
+            protocol Child: Base, URLLoader, API {
                 func count() -> Int
             }
             """)
 
-        let initializer = "init(base: BaseSpy, urlLoader: URLLoaderSpy, count: Int = 0)"
+        let initializer = "init(base: BaseSpy, urlLoader: URLLoaderSpy, api: APISpy, count: Int = 0)"
         #expect(expanded.description.contains(initializer))
     }
 
@@ -197,6 +199,51 @@ struct ExpansionTests {
             + "handler: @escaping () -> Void, list: Array<Int> = [], tags: Swift.Set<String> = [], "
             + #"map: Dictionary<String, Int> = [:], name: String = "")"#
         #expect(expanded.description.contains(initializer))
+    }
+
+    /// An optional and nothing have an obvious first answer however they are written, so the
+    /// initializer doesn't ask for them.
+    @Test("A requirement returning an optional or nothing, however written, needs no first answer")
+    func optionalOrNothingNeedsNoFirstAnswer() {
+        let (expanded, _) = expand("""
+            @GenerateSpies
+            final class SpyCatalog: Catalog {
+                @Spied func nickname() -> Optional<String>
+                @Spied func avatar() -> String!
+                @Spied func reset() -> Void
+                @Spied func clear() -> ()
+                @Spied func name() -> String
+            }
+            """)
+
+        #expect(expanded.description.contains(#"init(name: String = "")"#))
+    }
+
+    /// A public protocol's spy is public, subscripts too, so a test in another module can use it.
+    @Test("A public protocol's subscript is public on its spy")
+    func publicSubscriptIsPublicOnTheSpy() {
+        let (expanded, _) = expand("""
+            @GenerateSpies
+            public protocol Table {
+                subscript(row: Int) -> String { get }
+            }
+            """)
+
+        #expect(expanded.description.contains("public subscript(row: Int) -> String"))
+    }
+
+    /// A refused property is left as written, so the person sees the refusal and nothing else.
+    @Test("A refused property gets no setter, so the refusal is the only error")
+    func refusedPropertyGetsNoSetter() {
+        let (expanded, diagnostics) = expand("""
+            @GenerateSpies
+            final class SpyStore: Store {
+                @SpiedProperty var token: String { get }
+            }
+            """)
+
+        #expect(diagnostics.count == 1)
+        #expect(!expanded.description.contains("set {"))
     }
 
     /// The body `@Spied` writes for a requirement `@GenerateSpies` refused.
@@ -288,10 +335,14 @@ struct ExpansionTests {
 
     /// How a protocol opens, and the spy class its associated types give.
     static let constrained = [
-        ("protocol Repository {", "RepositorySpy<Item: Equatable & Codable, Key>: Repository"),
+        ("protocol Repository {", "RepositorySpy<Item: Equatable & Codable, Key, Tag: Sendable>: Repository"),
+        (
+            "protocol Repository: AnyObject {",
+            "RepositorySpy<Item: Equatable & Codable, Key, Tag: Sendable>: Repository"
+        ),
         (
             "protocol Repository: Sendable {",
-            "RepositorySpy<Item: Equatable & Codable & Swift.Sendable, Key: Swift.Sendable>"
+            "RepositorySpy<Item: Equatable & Codable & Swift.Sendable, Key: Swift.Sendable, Tag: Sendable>"
         ),
     ]
 
