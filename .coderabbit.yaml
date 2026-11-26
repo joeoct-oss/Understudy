@@ -224,24 +224,101 @@ reviews:
         any other Swift 6.2-only setting; unsafeFlags; exact, branch or revision dependency
         requirements; a swift-syntax range narrower than before or narrower than the majors
         the supported toolchains ship; a new dependency.
+    # Every file type that isn't Swift has an entry of its own below. A probe pull request
+    # showed that without one, CodeRabbit posted only the worst findings in a file and dropped
+    # findings such as eval of file contents and a hard-coded password.
     - path: ".github/workflows/**"
       instructions: >-
         Actions are pinned to a full commit SHA with the version in a comment, images to a
         digest, each job gets only the permissions it uses, no checkout keeps the token, and
         only free GitHub-hosted runners are used. A download follows HTTPS only and is checked
-        against a checksum. Flag a change that drops the Swift 6.0 (lowest versions) or Swift
-        6.4 job from pull requests, drops Swift 6.1 to 6.3 from the run on main and before a
-        release, renames a job that is a required check (SonarQube Cloud quality gate,
-        Linux checks / Linux build and tests, Branch name, Release / Release check,
-        CodeRabbit), or lets a job in checks.yml start before the SonarQube Cloud quality gate
-        passed. Flag a new pinned commit of codecov/codecov-action: the
-        org's Actions policy allows exactly one commit, so the PR must say the allow list was
-        updated too. actionlint and zizmor already run in CI, so don't repeat their findings.
-    - path: "scripts/**"
+        against a checksum. Report each security problem as an inline should-fix finding (major
+        severity), even where zizmor in CI may also report it, since CI's workflow lint runs
+        only after the SonarQube Cloud gate passes: pull_request_target or workflow_run that
+        checks out or runs the pull request's code; an expression from the event (a title,
+        body, branch name, commit message or label) expanded straight inside run: instead of
+        through env:; permissions: write-all or a write permission the job doesn't use; an
+        action pinned to a tag or branch; a checkout without persist-credentials: false; a
+        self-hosted runner; a secret passed to a step that doesn't need it. Flag a change that
+        drops the Swift 6.0 (lowest versions) or Swift 6.4 job from pull requests, drops Swift
+        6.1 to 6.3 from the run on main and before a release, renames a job that is a required
+        check (SonarQube Cloud quality gate, Linux checks / Linux build and tests, Branch name,
+        Release / Release check, CodeRabbit), or lets a job in checks.yml start before the
+        SonarQube Cloud quality gate passed. Flag a new pinned commit of
+        codecov/codecov-action: the org's Actions policy allows exactly one commit, so the PR
+        must say the allow list was updated too. Don't repeat actionlint's syntax and
+        expression-type findings: CI runs it.
+    - path: "**/*.{yml,yaml}"
       instructions: >-
-        Bash with set -euo pipefail, run on Linux CI with no Mac. Flag GNU-only or BSD-only
-        flags where the script may also run on a Mac, unquoted expansions, and a change that
-        weakens the coverage gate (any line of Sources/ that no test runs must still fail it).
+        Settings files: Dependabot (.github/dependabot.yml), Codecov (codecov.yml), the Swift
+        Package Index (.spi.yml), CodeRabbit (.coderabbit.yaml) and the workflows. Each opens
+        with a comment that says what the file is for and why each choice was made; flag a
+        changed setting whose comment no longer matches it. Flag a key the tool's schema
+        doesn't have or a value of the wrong type, since these tools often ignore an unknown
+        key without an error. Flag a change that adds anything paid, that turns on a pull
+        request comment or annotation from Codecov (CodeRabbit's review is the one set of
+        comments on a PR), or that lowers Codecov's patch target or project threshold.
+    - path: ".coderabbit.yaml"
+      instructions: >-
+        Check every key against the schema in the first line (schema.v2.json). Flag a change
+        that turns on high_level_summary, a finishing touch, automatic approvals, the poem,
+        issue enrichment or anything else that writes commits, edits the PR description or
+        comments on issues; that drops a file type's path instructions; that removes a path
+        from review without saying why it can't be reviewed by reading; or that turns off a
+        linter without naming the CI job that runs it instead.
+    - path: "sonar-project.properties"
+      instructions: >-
+        Flag a change that moves test code into sonar.sources or package code into
+        sonar.tests, that excludes a file or a rule to make an issue go away instead of fixing
+        it (an exclusion needs a comment that says why the rule doesn't apply), or that drops
+        a language folder (scripts, .github, Tools, Benchmarks) from the analysis.
+    - path: "**/*.sh"
+      instructions: >-
+        Bash scripts, run on Linux CI with no Mac. Report each broken rule as an inline
+        should-fix finding (major severity), and post every ShellCheck finding of warning or
+        error level inline. The file starts with #!/usr/bin/env bash, the file header (file
+        name, Understudy, "Created by Yousef Mohamed" and the MIT copyright line), a comment
+        that says what the script does and how to run it, and set -euo pipefail. Flag GNU-only
+        or BSD-only flags where the script may also run on a Mac, unquoted expansions, eval or
+        bash -c on an argument or other outside input, rm -rf on a variable not checked to be
+        non-empty (use "${dir:?}"), cd without a check, a loop over ls output, backticks
+        instead of $( ), a download that doesn't use HTTPS and a pinned checksum, a temporary
+        file not made with mktemp, an error message not sent to stderr, and an exit status
+        that hides a failure. Flag a change that weakens the coverage gate (any line of
+        Sources/ that no test runs must still fail it), the size limits in
+        scripts/check-structure.py or the generated-code budget.
+    - path: "**/*.py"
+      instructions: >-
+        Python 3 scripts that use only the standard library and run with python3 -I on the
+        CI runner's Python. Report each broken rule as an inline should-fix finding (major
+        severity), never as a nitpick, and post every Ruff finding inline. The file starts with
+        #!/usr/bin/env python3, the file header (file name, Understudy, "Created by Yousef
+        Mohamed" and the MIT copyright line) and a module docstring that says what the script
+        does, why and how to run it. Flag: a third-party import; eval, exec or pickle on any
+        input; subprocess with shell=True, os.system or a command built by joining strings
+        (pass a list); a subprocess call whose failure is ignored (use check=True or read the
+        return code); a bare except or an except that swallows the error; a file opened
+        without with, or read or written without encoding="utf-8"; a mutable default argument; == None or !=
+        None; unused imports and several imports on one line; a hard-coded password, token or
+        key; os.path where pathlib reads better; a script that exits 0 after a failure or
+        prints an error to stdout instead of stderr; code at module level instead of in a
+        main() called under if __name__ == "__main__"; a function longer than about 40 lines
+        or a name that doesn't say what it holds. Comment and docstring lines end by column
+        100, code lines by 120.
+    - path: "Benchmarks/generated-code-budget.txt"
+      instructions: >-
+        The amount of code the macros write, enforced by scripts/check-generated-code.sh. Flag
+        a raised count unless the PR description says why the macros now write more and that
+        it was measured with scripts/compare-expansions.sh.
+    - path: "**/*.md"
+      instructions: >-
+        Docs for package users and contributors, in plain short English. Flag: a fact the PR
+        changes in code, a workflow or a script that this doc still states the old way; a fact
+        stated here that has another home (CODE_STYLE.md for code style, the script or
+        workflow for a limit or a rule), instead of a link to it; a relative link or anchor
+        that points to a file or heading that doesn't exist; a code sample that uses API the
+        package doesn't have or wouldn't build; a mention of a private repo, a plan, a
+        decision or an issue number; a heading level that skips a level.
     - path: "CHANGELOG.md"
       instructions: >-
         Keep a Changelog format. New user-facing changes go under Unreleased, in plain words
@@ -265,6 +342,10 @@ reviews:
       enabled: false
     # CI's actionlint checks only the scripts inside workflows, so scripts/*.sh are checked here.
     shellcheck:
+      enabled: true
+    # Python scripts have no linter in CI, so Ruff runs here; the path instructions post its
+    # findings inline. ast-grep and OpenGrep stay on by default and add security rules for both.
+    ruff:
       enabled: true
     gitleaks:
       enabled: true
