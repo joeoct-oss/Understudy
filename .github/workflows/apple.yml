@@ -99,7 +99,8 @@ jobs:
           fi
 
       # A generic device destination builds for the lowest version each platform declares. No
-      # signing: nothing is installed or run.
+      # signing: nothing is installed or run. Xcode names the package's one scheme
+      # "ApplePlatforms-Package".
       - name: Build the tests, with warnings as errors
         env:
           PLATFORM: ${{ matrix.platform }}
@@ -107,9 +108,8 @@ jobs:
         run: |
           cp ../Package.resolved .
           xcodebuild -version
-          xcodebuild -list
           xcodebuild build-for-testing \
-            -scheme ApplePlatforms \
+            -scheme ApplePlatforms-Package \
             -destination "generic/platform=$PLATFORM" \
             -skipMacroValidation \
             -onlyUsePackageVersionsFromResolvedFile \
