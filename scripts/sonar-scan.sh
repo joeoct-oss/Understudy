@@ -38,7 +38,7 @@ version=$(scripts/release-notes.sh "$work_dir/release-notes.md")
 # SonarQube Cloud answers 429 (too many requests) when pushes come quickly, which is no finding in
 # the code, so a 429 is retried after 30, 60 and 120 seconds. Any other failure, a failed quality
 # gate included, stops at once.
-log="$work_dir/sonar-scan.log"
+log=$(mktemp "$work_dir/sonar-scan.XXXXXX")
 for delay in 30 60 120 0; do
   if java -jar "$jar" \
     -Dsonar.projectVersion="$version" \

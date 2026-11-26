@@ -92,8 +92,9 @@ jobs:
         run: scripts/check-structure.py
 
       # Docs-only: every file the pull request changes is a Markdown file at the root (README,
-      # CHANGELOG, CODE_STYLE and the like) or the LICENSE, which no build or test reads. A push to
-      # main is never docs-only, so a release always runs every test.
+      # CHANGELOG, CODE_STYLE and the like) or the LICENSE, which no build or test reads. A rename
+      # counts as a deletion and an addition, so a source file moved to Markdown isn't docs-only. A
+      # push to main is never docs-only, so a release always runs every test.
       - name: Which files changed
         id: changes
         if: ${{ !cancelled() }}
@@ -102,7 +103,7 @@ jobs:
         run: |
           docs_only=false
           if [[ -n "$BASE" ]]; then
-            changed=$(git diff --name-only "$BASE" HEAD)
+            changed=$(git diff --no-renames --name-only "$BASE" HEAD)
             echo "Changed files:"
             echo "$changed"
             if [[ -n "$changed" ]] && ! grep -qvE '^([^/]+\.md|LICENSE)$' <<<"$changed"; then
