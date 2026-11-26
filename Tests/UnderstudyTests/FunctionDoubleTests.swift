@@ -50,9 +50,9 @@ struct FunctionDoubleTests {
 
     @Test("The initializer still takes every answer a test passes")
     func initStillTakesEveryAnswerItTookBefore() {
-        let shop = SpyShop(isOpen: true, name: "Corner", stock: 9, tags: ["new"])
-
         let expectedTags = ["new"]
+        let shop = SpyShop(isOpen: true, name: "Corner", stock: 9, tags: expectedTags)
+
         #expect(shop.name() == "Corner")
         #expect(shop.stock() == 9)
         #expect(shop.isOpen)
@@ -138,6 +138,9 @@ private final class SpyCatalog: Catalog {
 }
 
 /// A shop whose every answer has an obvious first value.
+///
+/// Requirements:
+/// - `AnyObject`, because a shop is one shared object whose `isOpen` a feature changes in place.
 private protocol Shop: AnyObject {
     var isOpen: Bool { get set }
     func name() -> String
@@ -164,6 +167,9 @@ private final class SpyShop: Shop {
 }
 
 /// Prints lines and shows values.
+///
+/// Constraints:
+/// - `show` takes `some Equatable`, so the spy has an opaque parameter to record.
 private protocol Printer {
     func print(_ lines: String...)
     func show(_ value: some Equatable)
@@ -173,6 +179,9 @@ private protocol Printer {
 ///
 /// Conformances:
 /// - `Printer`, so a test can pass it where a printer is expected.
+///
+/// Constraints:
+/// - `show` takes `some Equatable`, as `Printer` declares it.
 @GenerateSpies
 private final class SpyPrinter: Printer {
     @Spied func print(_ lines: String...)

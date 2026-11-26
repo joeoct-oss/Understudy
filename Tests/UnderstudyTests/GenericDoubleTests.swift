@@ -31,13 +31,16 @@ struct GenericDoubleTests {
 
     @Test("A generic parameter inside an array or optional is recorded")
     func genericArrayParameterIsRecorded() {
-        let bag = SpyBag(all: [], lookup: [:], unique: [])
-
-        bag.put([1, 2], first: nil)
-        bag.put(["a"], first: "b")
+        let noItems: [Int] = []
+        let noLookup: [String: Int] = [:]
+        let noUnique: Set<Int> = []
+        let bag = SpyBag(all: noItems, lookup: noLookup, unique: noUnique)
 
         let expectedNumbers = [1, 2]
         let expectedLetters = ["a"]
+        bag.put(expectedNumbers, first: nil)
+        bag.put(expectedLetters, first: "b")
+
         #expect(bag.putSpy.calls.first?.items as? [Int] == expectedNumbers)
         #expect(bag.putSpy.lastCall?.items as? [String] == expectedLetters)
         #expect(bag.putSpy.lastCall?.first as? String == "b")
@@ -45,24 +48,27 @@ struct GenericDoubleTests {
 
     @Test("A generic answer inside a collection comes back as the caller's type")
     func genericArrayAnswerComesBackTyped() {
-        let bag = SpyBag(all: [3], lookup: ["a": 1], unique: [5])
-        let protocolBag = ShelfSpy(all: ["x"])
-
-        let items: [Int] = bag.all()
-        let found: [String: Int] = bag.lookup(["b": 2])
-        let unique: Set<Int> = bag.unique([5, 6])
-        let shelved: [String] = protocolBag.all()
-
         let expectedItems = [3]
         let expectedFound = ["a": 1]
         let expectedUnique: Set = [5]
         let expectedShelved = ["x"]
+        let asked = ["b": 2]
+        let askedUnique: Set = [5, 6]
+        let bag = SpyBag(all: expectedItems, lookup: expectedFound, unique: expectedUnique)
+        let protocolBag = ShelfSpy(all: expectedShelved)
+
+        let items: [Int] = bag.all()
+        let found: [String: Int] = bag.lookup(asked)
+        let unique: Set<Int> = bag.unique(askedUnique)
+        let shelved: [String] = protocolBag.all()
+
         #expect(items == expectedItems)
         #expect(found == expectedFound)
         #expect(unique == expectedUnique)
         #expect(shelved == expectedShelved)
         #expect(bag.lookupSpy.lastCall?["b"] as? Int == 2)
-        #expect(bag.uniqueSpy.lastCall == Set([5, 6]))
+        let recordedUnique: Set<AnyHashable> = [5, 6]
+        #expect(bag.uniqueSpy.lastCall == recordedUnique)
     }
 
     @Test("A protocol's generic method gets a spy that records and answers")
@@ -78,6 +84,10 @@ struct GenericDoubleTests {
 }
 
 /// Keeps values of any type under keys.
+///
+/// Constraints:
+/// - `store` needs `Codable` and `value` needs `Decodable`, as a cache that saves to disk would.
+/// - `load` needs `Sendable`, because its answer crosses from the cache's task to the caller's.
 private protocol Cache {
     func store<Value: Codable>(_ value: Value, for key: String)
     func value<Value: Decodable>(for key: String) -> Value?
@@ -89,6 +99,9 @@ private protocol Cache {
 ///
 /// Conformances:
 /// - `Cache`, so a test can pass it where a cache is expected.
+///
+/// Constraints:
+/// - Each method keeps the constraint `Cache` declares for it, so the spy's signatures match.
 @GenerateSpies
 private final class SpyCache: Cache {
     @Spied func store<Value: Codable>(_ value: Value, for key: String)
@@ -98,6 +111,10 @@ private final class SpyCache: Cache {
 }
 
 /// Holds items of any type, in arrays, dictionaries and sets.
+///
+/// Constraints:
+/// - `all` needs `Codable`, as a bag read from disk would.
+/// - `unique` needs `Hashable`, because its items go in a `Set`.
 private protocol Bag {
     func put<Item>(_ items: [Item], first: Item?)
     func all<Item: Codable>() -> [Item]
@@ -109,6 +126,9 @@ private protocol Bag {
 ///
 /// Conformances:
 /// - `Bag`, so a test can pass it where a bag is expected.
+///
+/// Constraints:
+/// - Each method keeps the constraint `Bag` declares for it, so the spy's signatures match.
 @GenerateSpies
 private final class SpyBag: Bag {
     @Spied func put<Item>(_ items: [Item], first: Item?)
@@ -118,12 +138,18 @@ private final class SpyBag: Bag {
 }
 
 /// Lists the items on a shelf, of any type.
+///
+/// Constraints:
+/// - `all` needs `Codable`, as a shelf read from disk would.
 @GenerateSpies
 private protocol Shelf {
     func all<Item: Codable>() -> [Item]
 }
 
 /// Reads settings of any type.
+///
+/// Constraints:
+/// - `read` needs `Decodable`, because settings are decoded from storage.
 @GenerateSpies
 private protocol Reader {
     func read<Value: Decodable>(_ key: String) -> Value

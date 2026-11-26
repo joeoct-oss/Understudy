@@ -54,6 +54,9 @@ struct ProtocolFormDoubleTests {
 }
 
 /// Settings a screen reads and changes.
+///
+/// Requirements:
+/// - `AnyObject`, because a screen changes the one settings object in place.
 @GenerateSpies
 private protocol Settings: AnyObject {
     var volume: Int { get set }
