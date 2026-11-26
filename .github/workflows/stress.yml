@@ -1,7 +1,8 @@
 # Runs the whole test suite many times under the thread sanitizer, to show that no test fails at
 # random (plan 50's flakiness criterion: 100 runs in parallel with no failure). Each suite run also
 # runs the clock hop test 1,000 times (`hopRuns` in TestClockTests), so 100 runs hop 100,000 times.
-# - Manual runs only, from main: it takes many runner hours and no pull request waits on it.
+# - Manual runs only, from main, one at a time: it takes many runner hours and no pull request
+#   waits on it.
 # - The runs are spread over parallel jobs, each built once with the sanitizer and running its
 #   share of the runs one after another, so the runs inside a job don't compete for threads with
 #   each other, while the jobs together run at once. Every run goes ahead after a failure, so the
@@ -14,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       runs:
-        description: How many times the suite runs in all
+        description: How many times the suite runs in all (1 to 200)
         type: number
         default: 100
       jobs:
@@ -24,9 +25,16 @@ on:
 
 permissions: {}
 
+# One stress run at a time, so two can't crowd out the checks pull requests wait on.
+concurrency:
+  group: stress
+  cancel-in-progress: false
+
 jobs:
   plan:
     name: Stress jobs
+    # Only main's code runs here, since the sanitizer's container runs without seccomp.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}
@@ -40,8 +48,8 @@ jobs:
           RUNS: ${{ inputs.runs }}
           JOBS: ${{ inputs.jobs }}
         run: |
-          if ! [[ "$RUNS" =~ ^[0-9]+$ ]] || (( RUNS < 1 )); then
-            echo "::error::runs must be a whole number of at least 1, not $RUNS"
+          if ! [[ "$RUNS" =~ ^[0-9]+$ ]] || (( RUNS < 1 || RUNS > 200 )); then
+            echo "::error::runs must be a whole number from 1 to 200, not $RUNS"
             exit 1
           fi
           if ! [[ "$JOBS" =~ ^[0-9]+$ ]] || (( JOBS < 1 || JOBS > 20 || JOBS > RUNS )); then
