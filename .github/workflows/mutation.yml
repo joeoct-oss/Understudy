@@ -1,0 +1,70 @@
+# Mutation testing for the files a pull request changes in Sources/ (scripts/mutate.py): each
+# mutant that no test notices is listed in the job summary, so the review sees which breaks the
+# tests would let through. It reports and never fails: a survivor can be an equivalent change, which
+# only a person can judge.
+# - Pull requests to main, called by the checks workflow (checks.yml) once SonarQube Cloud's quality
+#   gate passed. A pull request that changes no Swift file in Sources/ stops before the build.
+# - A manual run mutates all of Sources/.
+# Hardening as in ci.yml: free GitHub-hosted Linux runners only, the action pinned to a full commit
+# SHA and the image to a digest, read-only, no checkout keeps the token, and the build cache is
+# restored on pull requests only and never saved, so a mutant's build never reaches another job.
+name: Mutation testing
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  mutation:
+    name: Mutation testing (Swift 6.4)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    permissions:
+      contents: read
+    container:
+      image: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Restore the build cache
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: swift-6.4.3-${{ hashFiles('Package.swift', 'Package.resolved') }}
+
+      # Bash, which the container's default `sh` isn't, for the arrays.
+      - name: Mutate the changed sources
+        shell: bash
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          files=()
+          if [[ -n "$BASE" ]]; then
+            while IFS= read -r file; do
+              [[ -f "$file" ]] && files+=("$file")
+            done < <(git diff --name-only "$BASE" HEAD -- 'Sources/*.swift')
+            if [[ ${#files[@]} -eq 0 ]]; then
+              echo "No Swift file in Sources/ changed." >>"$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          fi
+          swift build --build-tests --quiet --force-resolved-versions
+          touch mutants.tsv
+          scripts/mutate.py ${files[@]+"${files[@]}"}
+          {
+            echo "## Mutation testing"
+            echo
+            echo "| File | Line | Change | Result |"
+            echo "| --- | --- | --- | --- |"
+            awk -F '\t' '$4 == "survived" { gsub(/\|/, "\\|", $3); printf "| %s | %s | %s | %s |\n", $1, $2, $3, $4 }' mutants.tsv
+            echo
+            awk -F '\t' '{ count[$4]++ } END { for (r in count) printf "%s: %d  \n", r, count[r] }' mutants.tsv
+          } >>"$GITHUB_STEP_SUMMARY"

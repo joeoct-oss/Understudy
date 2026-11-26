@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Added
+
+- `scripts/mutate.py`, for contributors: mutation testing. It changes one thing at a time in `Sources/`, such as a comparison, a condition or a statement, runs the tests, and lists each change no test noticed. A Mutation testing workflow runs it on the files a pull request changes and lists what survived in the job summary, without failing.
+
 ### Changed
 
 - SonarQube Cloud's quality gate runs first on every pull request and push to main, and checks code quality as well as bugs and security. Until it passes, no other check runs and nothing is released (the **Checks** workflow).
