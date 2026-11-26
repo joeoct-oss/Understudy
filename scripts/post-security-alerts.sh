@@ -82,7 +82,8 @@ header="*$repo: $count new security $noun*"
 if [[ -z "$since" ]]; then
     header="*$repo: $count open security $noun* (first run, so every open alert)"
 fi
-body=$(printf '%s\n' "$lines" | head -n "$max_lines")
+# sed reads every line before it stops, so the pipe never closes early on a long list.
+body=$(printf '%s\n' "$lines" | sed -n "1,${max_lines}p")
 if [[ "$count" -gt "$max_lines" ]]; then
     body+=$'\n'"…and $((count - max_lines)) more: <https://github.com/$repo/security|Security tab>"
 fi

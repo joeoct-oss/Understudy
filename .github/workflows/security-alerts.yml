@@ -26,6 +26,8 @@ concurrency:
 jobs:
   post:
     name: Post new alerts to Slack
+    # Only main: the window comes from runs on main, so a run on another branch would post twice.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
