@@ -68,6 +68,11 @@ jobs:
       - name: Test with the thread sanitizer
         run: swift test --sanitize=thread
 
+      # The code the macros write never varies from run to run, so its size is enforced: a change
+      # updates Benchmarks/generated-code-budget.txt in the same pull request.
+      - name: Generated code within its budget
+        run: scripts/check-generated-code.sh
+
   swift:
     name: Tests on Swift ${{ matrix.swift }}
     if: ${{ github.event_name != 'pull_request' }}

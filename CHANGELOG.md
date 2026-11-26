@@ -8,6 +8,8 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 - `scripts/benchmark.sh`, for contributors: measures what Understudy costs a project that uses it, and prints one table of medians and ranges. It covers spy calls, waits, the test clock, the traits, how long the macros take to expand, how much code they write and, with `--all` or `--only build`, how long a test target with many doubles takes to build. The runtime benchmarks are in `Benchmarks/`, a package of its own that no project depending on Understudy builds. A Benchmarks workflow shows the table on every pull request, without failing on it. `scripts/compare-expansions.sh` gains `--count` and `--time`.
 
+- `Benchmarks/generated-code-budget.txt`, for contributors: how much code the macros write for the sources under `Tests/`. CI fails when that changes and the budget doesn't, so a pull request that makes the macros write more says so; `scripts/check-generated-code.sh --update` updates it.
+
 ### Changed
 
 - A call on `Spy` or `ThrowingSpy` costs about a quarter less in a debug build: a call no longer copies the list of waiting tasks when nothing waits, and takes its lock without a closure.
