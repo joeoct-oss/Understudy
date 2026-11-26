@@ -180,4 +180,47 @@ struct AsyncControlTests {
         #expect(missed == nil)
         #expect(next == 1)
     }
+
+    /// The wait and the call race, so the test runs them many times to meet the case where the
+    /// wait is on before the call comes.
+    @Test("A call that comes while a wait is on is given to that wait only, and a later wait gets the next")
+    func callDuringAWaitIsGivenOnce() async {
+        for _ in 1...Self.raceRuns {
+            let spy = Spy<Int, Void>()
+
+            Task {
+                spy(1)
+            }
+            let first = await spy.nextCall()
+            Task {
+                spy(2)
+            }
+            let second = await spy.nextCall()
+
+            #expect(first == 1)
+            #expect(second == 2)
+        }
+    }
+
+    /// The waits and the calls race, so the test runs them many times to meet the case where
+    /// both waits are on before the first call comes.
+    @Test("Two waits on at once each get a call of their own")
+    func twoWaitsAtOnceEachGetTheirOwnCall() async {
+        for _ in 1...Self.raceRuns {
+            let spy = Spy<Int, Void>()
+
+            async let first = spy.nextCall()
+            async let second = spy.nextCall()
+            Task {
+                spy(1)
+                spy(2)
+            }
+            let inputs: Set = await [first, second]
+
+            #expect(inputs == [1, 2])
+        }
+    }
+
+    /// How many times a test that races waits against calls runs.
+    private static let raceRuns = 200
 }
