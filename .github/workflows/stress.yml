@@ -109,8 +109,16 @@ jobs:
               echo
               echo "### $(basename "$log" .log)"
               echo
+              echo "Failed tests:"
+              echo
+              # Every failed test, however many: Swift Testing's "✘ Test … failed" lines and
+              # XCTest's "Test Case … failed" lines. No match is not an error here.
+              { grep -E '^✘ Test .* failed|Test Case .* failed' "$log" || true; } | sort -u | sed 's/^/- /'
+              echo
+              echo "First sanitizer warnings and errors (the artifact has the whole output):"
+              echo
               echo '```'
-              grep -E '✘|error:|WARNING: ThreadSanitizer' "$log" | head -20
+              { grep -E 'WARNING: ThreadSanitizer|error:' "$log" || true; } | sed -n '1,20p'
               echo '```'
             done
           } >>"$GITHUB_STEP_SUMMARY"
