@@ -4,7 +4,9 @@
 # only a person can judge.
 # - Pull requests to main, called by the checks workflow (checks.yml) once SonarQube Cloud's quality
 #   gate passed. A pull request that changes no Swift file in Sources/ stops before the build.
-# - A manual run mutates all of Sources/.
+# - A manual run mutates all of Sources/, which takes about 11 hours in one job, past the 6 hour
+#   job limit: it runs as parallel jobs instead, one per group of `scripts/mutate.py --shard`
+#   (12 by default), and a last job joins their results into one summary of every survivor.
 # Hardening as in ci.yml: free GitHub-hosted Linux runners only, the action pinned to a full commit
 # SHA and the image to a digest, read-only, no checkout keeps the token, and the build cache is
 # restored on pull requests only and never saved, so a mutant's build never reaches another job.
@@ -13,12 +15,18 @@ name: Mutation testing
 on:
   workflow_call:
   workflow_dispatch:
+    inputs:
+      shards:
+        description: How many parallel jobs share the mutants (1 to 20)
+        type: number
+        default: 12
 
 permissions: {}
 
 jobs:
   mutation:
     name: Mutation testing (Swift 6.4)
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 300
     permissions:
@@ -47,14 +55,12 @@ jobs:
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           files=()
-          if [[ -n "$BASE" ]]; then
-            while IFS= read -r file; do
-              [[ -f "$file" ]] && files+=("$file")
-            done < <(git diff --name-only "$BASE" HEAD -- 'Sources/*.swift')
-            if [[ ${#files[@]} -eq 0 ]]; then
-              echo "No Swift file in Sources/ changed." >>"$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
+          while IFS= read -r file; do
+            [[ -f "$file" ]] && files+=("$file")
+          done < <(git diff --name-only "$BASE" HEAD -- 'Sources/*.swift')
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No Swift file in Sources/ changed." >>"$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
           # The Swift image has no Python, which scripts/mutate.py needs: it comes from the image's
           # own Ubuntu archive, which apt checks against its signed index.
@@ -62,7 +68,7 @@ jobs:
           apt-get install -y -q --no-install-recommends python3
           swift build --build-tests --quiet --force-resolved-versions
           touch mutants.tsv
-          scripts/mutate.py ${files[@]+"${files[@]}"}
+          scripts/mutate.py "${files[@]}"
           {
             echo "## Mutation testing"
             echo
@@ -72,3 +78,102 @@ jobs:
             echo
             awk -F '\t' '{ count[$4]++ } END { for (r in count) printf "%s: %d  \n", r, count[r] }' mutants.tsv
           } >>"$GITHUB_STEP_SUMMARY"
+
+  # The manual run, in three jobs: the list of groups, one job per group, and the summary.
+  shards:
+    name: Mutation groups
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
+    outputs:
+      groups: ${{ steps.groups.outputs.groups }}
+    steps:
+      # Free accounts run 20 jobs at a time, so more groups would only queue.
+      - name: List the groups
+        id: groups
+        env:
+          SHARDS: ${{ inputs.shards }}
+        run: |
+          if ! [[ "$SHARDS" =~ ^[0-9]+$ ]] || (( SHARDS < 1 || SHARDS > 20 )); then
+            echo "::error::shards must be a whole number from 1 to 20, not $SHARDS"
+            exit 1
+          fi
+          echo "groups=$(seq -s, 1 "$SHARDS" | sed 's/.*/[&]/')" >>"$GITHUB_OUTPUT"
+
+  shard:
+    name: Mutation testing, group ${{ matrix.group }} of ${{ inputs.shards }}
+    needs: shards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 340
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ${{ fromJSON(needs.shards.outputs.groups) }}
+    container:
+      image: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # No build cache: a manual run starts from a clean build, as a release does.
+      - name: Mutate one group of the sources
+        env:
+          GROUP: ${{ matrix.group }}/${{ inputs.shards }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          apt-get update -q
+          apt-get install -y -q --no-install-recommends python3
+          swift build --build-tests --quiet --force-resolved-versions
+          touch mutants.tsv
+          scripts/mutate.py --shard "$GROUP"
+
+      # Kept even when the job stops early, so the summary shows what it finished.
+      - name: Keep the results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mutants-${{ matrix.group }}
+          path: mutants.tsv
+          if-no-files-found: error
+          retention-days: 30
+
+  summary:
+    name: Mutation testing summary
+    needs: shard
+    if: ${{ !cancelled() && needs.shard.result != 'skipped' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Fetch the results
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: mutants-*
+          path: results
+
+      # Every group's lines in one file, kept for the inventory, and every survivor in the summary.
+      - name: Join the results
+        run: |
+          cat results/*/mutants.tsv | sort -t "$(printf '\t')" -k1,1 -k2,2n >mutants.tsv
+          {
+            echo "## Mutation testing, every source"
+            echo
+            echo "| File | Line | Change | Result |"
+            echo "| --- | --- | --- | --- |"
+            awk -F '\t' '$4 == "survived" { gsub(/\|/, "\\|", $3); printf "| %s | %s | %s | %s |\n", $1, $2, $3, $4 }' mutants.tsv
+            echo
+            awk -F '\t' '{ count[$4]++ } END { for (r in count) printf "%s: %d  \n", r, count[r] }' mutants.tsv
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the joined results
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mutants
+          path: mutants.tsv
+          if-no-files-found: error
+          retention-days: 90

@@ -25,7 +25,11 @@ come; a run reads it first and skips every mutant already in it whose line is un
 run can stop and go on later. Only files under Sources/ are mutated, and only when git has every
 change to them.
 
-Usage: scripts/mutate.py [--list] [--timeout <seconds>] [<file or folder under Sources/>...]
+With `--shard K/N`, only the K-th of N groups of the files is mutated. The groups hold about the
+same number of mutants each, and are the same on every machine, so N jobs can run the N groups in
+parallel and their mutants.tsv files together hold every mutant once.
+
+Usage: scripts/mutate.py [--list] [--timeout <seconds>] [--shard <k>/<n>] [<file or folder under Sources/>...]
 """
 
 import argparse
@@ -270,12 +274,31 @@ def sources(paths):
     return [file for file in resolved if file.name != "Plugin.swift"]
 
 
+def shard(files, part):
+    """The files of one group, "k/n" counting from 1: the files go, largest first, to whichever
+    group has the fewest mutants so far, so the groups take about the same time. Ties go to the
+    lowest group and files are taken in path order, so every machine makes the same groups."""
+    match = re.fullmatch(r"([1-9]\d*)/([1-9]\d*)", part)
+    if not match or int(match.group(1)) > int(match.group(2)):
+        sys.exit(f"error: --shard takes k/n with 1 <= k <= n, not {part}")
+    index, count = int(match.group(1)) - 1, int(match.group(2))
+    sizes = {file: sum(1 for _ in mutants(file)) for file in files}
+    groups = [[] for _ in range(count)]
+    totals = [0] * count
+    for file in sorted(files, key=lambda file: (-sizes[file], file.as_posix())):
+        smallest = totals.index(min(totals))
+        groups[smallest].append(file)
+        totals[smallest] += sizes[file]
+    return sorted(groups[index])
+
+
 def main():
     adopt_orphans()
     parser = argparse.ArgumentParser(description="Mutation testing for Understudy.")
     parser.add_argument("paths", nargs="*", help="files or folders under the package, Sources/ by default")
     parser.add_argument("--list", action="store_true", help="list the mutants without running them")
     parser.add_argument("--timeout", type=int, default=600, help="seconds a build or a test run may take")
+    parser.add_argument("--shard", metavar="K/N", help="mutate only the K-th of N groups of about equal size")
     options = parser.parse_args()
     out = ROOT / "mutants.tsv"
     # A file changed before the run would be taken as the original, and an earlier run stopped
@@ -293,7 +316,8 @@ def main():
     # Each result keeps the line it mutated, so a result whose line has changed since is run again.
     rows = [line.split("\t", 4) for line in out.read_text().splitlines()] if out.exists() else []
     done = {(*row[:3], row[4]) for row in rows if len(row) == 5}
-    for path in sources(options.paths):
+    files = sources(options.paths)
+    for path in shard(files, options.shard) if options.shard else files:
         relative = path.relative_to(ROOT).as_posix()
         original = path.read_text()
         lines = original.split("\n")
