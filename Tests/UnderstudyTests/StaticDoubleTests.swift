@@ -13,21 +13,25 @@ import Understudy
 @Suite("Generated doubles of static members")
 struct StaticDoubleTests {
     @Test("Static spies answer what the test scripts and record calls and sets")
-    func staticSpyAnswersWhatTheTestScripts() {
-        SpyStopwatch.elapsedSpy.willReturn(5)
-        CalendarSpy.todaySpy.willReturn("Monday")
+    func staticSpyAnswersWhatTheTestScripts() async throws {
+        try await SpyStopwatch.withFreshSpies {
+            try await CalendarSpy.withFreshSpies {
+                SpyStopwatch.elapsedSpy.willReturn(5)
+                CalendarSpy.todaySpy.willReturn("Monday")
 
-        let elapsed = SpyStopwatch.elapsed()
-        SpyStopwatch.unit = "ms"
-        let today = CalendarSpy.today()
-        let zone = CalendarSpy.zone
+                let elapsed = SpyStopwatch.elapsed()
+                SpyStopwatch.unit = "ms"
+                let today = CalendarSpy.today()
+                let zone = CalendarSpy.zone
 
-        let expectedUnits = ["ms"]
-        #expect(elapsed == 5)
-        #expect(SpyStopwatch.elapsedSpy.callCount == 1)
-        #expect(SpyStopwatch.unitSpy.sets == expectedUnits)
-        #expect(today == "Monday")
-        #expect(zone == "")
+                let expectedUnits = ["ms"]
+                #expect(elapsed == 5)
+                #expect(SpyStopwatch.elapsedSpy.callCount == 1)
+                #expect(SpyStopwatch.unitSpy.sets == expectedUnits)
+                #expect(today == "Monday")
+                #expect(zone == "")
+            }
+        }
     }
 }
 
