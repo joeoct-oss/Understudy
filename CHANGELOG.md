@@ -7,6 +7,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 ### Changed
 
 - SonarQube Cloud's quality gate runs first on every pull request and push to main, and checks code quality as well as bugs and security. Until it passes, no other check runs and nothing is released (the **Checks** workflow).
+- SonarQube Cloud judges the tests in `Tests/` and `Benchmarks/Tests/` as tests, so they no longer count as source code.
 
 ## 0.9.0 - 2026-11-26
 
