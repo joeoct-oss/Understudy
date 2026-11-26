@@ -16,10 +16,10 @@ functions stay short (CODE_STYLE.md, "Where code goes"). The limits live here, t
 - every Swift line in Sources/, Tests/ and Tools/ fits in 120 columns, and every comment line in 100.
 
 It reads Swift lexically, so braces and `//` inside strings, regex literals and comments, block
-comments included, count for nothing, and comments of either kind count toward neither a file nor a
-body. It expects code that follows CODE_STYLE.md, where every body opens on its declaration's line
-or on the line that closes a wrapped signature, and closes on a line of its own. Python 3, nothing
-else.
+comments included, count for nothing. Comments of either kind don't count toward a file, but a
+body's length counts every line between its braces. It expects code that follows CODE_STYLE.md,
+where every body opens on its declaration's line or on the line that closes a wrapped signature,
+and closes on a line of its own. Python 3, nothing else.
 
 Usage: scripts/check-structure.py
 """
@@ -197,11 +197,14 @@ def long_bodies(lines):
                 continue
         else:
             continue
-        depth = 0
-        for end in range(opening, len(lines)):
+        # Count from the body's `{`, so a default closure's `}` earlier on the line can't cancel it.
+        rest = lines[opening].code.rstrip()
+        rest = rest[rest.rfind("{") + 1:]
+        depth = 1 + rest.count("{") - rest.count("}")
+        end = opening
+        while depth > 0 and end + 1 < len(lines):
+            end += 1
             depth += lines[end].code.count("{") - lines[end].code.count("}")
-            if depth <= 0:
-                break
         length = end - opening - 1
         if length > BODY_LIMIT:
             yield start + 1, length
