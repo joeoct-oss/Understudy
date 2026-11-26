@@ -5,6 +5,10 @@
 /Benchmarks/.build
 /Benchmarks/.swiftpm
 /Benchmarks/Package.resolved
+# So does the Swift 5 language mode package, with the package's pins copied in by CI.
+/Swift5Mode/.build
+/Swift5Mode/.swiftpm
+/Swift5Mode/Package.resolved
 /Packages
 xcuserdata/
 DerivedData/
