@@ -14,12 +14,15 @@
 - Tests/InheritedProtocols: 10 files, each one protocol with 3 requirements that inherits the one
   before it, each with `@GenerateSpies`.
 
-The package depends on Understudy at the path given, so it builds the working tree's macros.
+The package depends on Understudy at the path given, so it builds the working tree's macros. It
+is written only under the system's temporary folder, so a mistyped path can't overwrite anything
+else.
 
 Usage: Benchmarks/generate-build-package.py <Understudy folder> <package folder>
 """
 
 import sys
+import tempfile
 from pathlib import Path
 
 DOUBLES = 100
@@ -76,7 +79,9 @@ def write(folder: Path, name: str, text: str) -> None:
 
 def main() -> None:
     """Writes the package into the folder given, for the Understudy folder given."""
-    root, package = Path(sys.argv[1]).resolve(), Path(sys.argv[2])
+    root, package = Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve()
+    if not package.is_relative_to(Path(tempfile.gettempdir()).resolve()):
+        sys.exit(f"error: {package} isn't under the temporary folder")
     write(package, "Package.swift", PACKAGE.format(root=root))
     for n in range(DOUBLES):
         write(package / "Tests" / "ManyDoubles", f"Service{n:03}.swift", DOUBLE.format(n=n))
