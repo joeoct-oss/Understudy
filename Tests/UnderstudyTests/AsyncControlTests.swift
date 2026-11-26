@@ -25,6 +25,9 @@ struct AsyncControlTests {
     /// How long a test waits for something that must not happen.
     private static let shortWait = 0.05
 
+    /// How many times a test that races waits against calls runs.
+    private static let raceRuns = 200
+
     @Test("A held call waits until the test resumes it, then returns what the test gave")
     func heldCallWaitsUntilTheTestResumesIt() async {
         let spy = Spy<Int, String>(returning: "scripted")
@@ -179,5 +182,46 @@ struct AsyncControlTests {
 
         #expect(missed == nil)
         #expect(next == 1)
+    }
+
+    /// The wait and the call race, so the call may come before or during the wait. The test runs
+    /// them many times, so both cases happen.
+    @Test("A call made from another task is given to one wait only, and a later wait gets the next")
+    func callDuringAWaitIsGivenOnce() async {
+        for _ in 1...Self.raceRuns {
+            let spy = Spy<Int, Void>()
+
+            Task {
+                spy(1)
+            }
+            let first = await spy.nextCall()
+            Task {
+                spy(2)
+            }
+            let second = await spy.nextCall()
+
+            #expect(first == 1)
+            #expect(second == 2)
+        }
+    }
+
+    /// The waits and the calls race, so the calls may come before, between or after the waits
+    /// start. The test runs them many times, so each case happens.
+    @Test("Two waits started together each get a call of their own, whenever the calls come")
+    func twoWaitsAtOnceEachGetTheirOwnCall() async {
+        for _ in 1...Self.raceRuns {
+            let spy = Spy<Int, Void>()
+
+            async let first = spy.nextCall()
+            async let second = spy.nextCall()
+            Task {
+                spy(1)
+                spy(2)
+            }
+            let inputs: Set = await [first, second]
+
+            let expected: Set<Int?> = [1, 2]
+            #expect(inputs == expected)
+        }
     }
 }

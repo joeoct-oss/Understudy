@@ -143,6 +143,20 @@ struct VerifiesMocksTests {
         #expect(issues.map(\.message) == expected)
     }
 
+    @Test("On a suite, the trait checks every test in it, nested suites too")
+    func traitAppliesToEveryTestInASuite() {
+        #expect(VerifiesMocks.verifiesMocks.isRecursive)
+    }
+
+    @Test("The trait checks each test and each case on its own, never a suite as a whole")
+    func traitChecksEachTestCaseOnItsOwn() throws {
+        let test = try #require(Test.current)
+        let trait = VerifiesMocks.verifiesMocks
+
+        #expect(trait.scopeProvider(for: test, testCase: nil) == nil)
+        #expect(trait.scopeProvider(for: test, testCase: Test.Case.current) != nil)
+    }
+
     // Runs `body` as `.verifiesMocks` runs a test, and gives each issue it recorded after the
     // body: its message and its line.
     private func issuesAfterTest(
