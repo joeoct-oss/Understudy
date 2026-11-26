@@ -13,6 +13,8 @@
 # scanning alert shows only the kind of secret and a link, never the secret itself.
 # - Each run covers the alerts created from the start of the last successful run up to its own
 #   start, so no alert is posted twice and none is missed when a scheduled run is late or fails.
+#   Alerts are read in every state, so one already fixed or dismissed by then is still posted,
+#   marked with its state. The first run skips closed alerts.
 # - Code scanning is read with GH_TOKEN. GitHub's workflow token can't read secret scanning
 #   alerts, so those are read with SECRET_SCANNING_TOKEN, a token that can.
 # - Fails when either kind of alert can't be read or Slack refuses the message, so a broken feed
@@ -50,22 +52,26 @@ fi
 
 # Timestamps are all UTC ISO 8601 with a Z, so comparing them as strings orders them in time.
 # Slack's own markup characters are escaped in every text that comes from an alert.
-code_lines=$(gh api --paginate "repos/$repo/code-scanning/alerts?state=open&per_page=100" \
+code_lines=$(gh api --paginate "repos/$repo/code-scanning/alerts?per_page=100" \
     --jq '.[] | @json' |
     jq -r --arg since "$since" --arg until "$until" '
         def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
-        select(.created_at >= $since and .created_at < $until)
+        def closed: if .state == "open" then "" else " (now \(.state))" end;
+        select(.created_at >= $since and .created_at < $until and ($since != "" or .state == "open"))
         | (.rule.security_severity_level // .rule.severity // "unknown") as $level
         | (.most_recent_instance.location // {}) as $where
         | "• Code scanning, \($level): <\(.html_url)|\((.rule.description // .rule.id // "alert") | esc)>"
-          + (if $where.path then " in `\($where.path | esc):\($where.start_line // 1)`" else "" end)')
+          + (if $where.path then " in `\($where.path | esc):\($where.start_line // 1)`" else "" end)
+          + closed')
 
 secret_lines=$(GH_TOKEN="$SECRET_SCANNING_TOKEN" gh api --paginate \
-    "repos/$repo/secret-scanning/alerts?state=open&per_page=100" --jq '.[] | @json' |
+    "repos/$repo/secret-scanning/alerts?per_page=100" --jq '.[] | @json' |
     jq -r --arg since "$since" --arg until "$until" '
         def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
-        select(.created_at >= $since and .created_at < $until)
-        | "• Secret scanning: <\(.html_url)|\((.secret_type_display_name // .secret_type // "secret") | esc)>"')
+        def closed: if .state == "open" then "" else " (now \(.state))" end;
+        select(.created_at >= $since and .created_at < $until and ($since != "" or .state == "open"))
+        | "• Secret scanning: <\(.html_url)|\((.secret_type_display_name // .secret_type // "secret") | esc)>"
+          + closed')
 
 lines=$(printf '%s\n%s\n' "$code_lines" "$secret_lines" | sed '/^$/d')
 if [[ -z "$lines" ]]; then

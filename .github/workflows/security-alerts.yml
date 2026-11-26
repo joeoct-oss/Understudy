@@ -3,9 +3,11 @@
 # and is the one home for what gets posted; this file only schedules it and hands it its tokens.
 # - Every 2 hours, and by hand from the Actions tab. It reads the window from its own runs, so a
 #   late or failed run loses nothing.
-# - The repository secrets it needs: SLACK_SECURITY_WEBHOOK_URL, the #security incoming webhook of
-#   the OSS Alerts Slack app, and SECRET_SCANNING_TOKEN, a fine-grained token that can only read
-#   this repository's secret scanning alerts (the workflow token can't read them).
+# - Its secrets live in the "security-alerts" environment, which only main may use, so a run from
+#   any other branch, even with this file changed, never gets them: SLACK_SECURITY_WEBHOOK_URL,
+#   the #security incoming webhook of the OSS Alerts Slack app, and SECRET_SCANNING_TOKEN, a
+#   fine-grained token that can only read this repository's secret scanning alerts (the workflow
+#   token can't read them).
 # - A failed run means alerts weren't checked, and shows in Slack #ci like any other failed run.
 # Hardening as in ci.yml: a free GitHub-hosted Linux runner, actions pinned to a full commit SHA,
 # the checkout keeps no token, and the job gets only the read permissions it uses.
@@ -28,6 +30,7 @@ jobs:
     name: Post new alerts to Slack
     # Only main: the window comes from runs on main, so a run on another branch would post twice.
     if: github.ref == 'refs/heads/main'
+    environment: security-alerts
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
