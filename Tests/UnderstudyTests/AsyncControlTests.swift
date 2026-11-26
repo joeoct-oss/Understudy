@@ -104,6 +104,20 @@ struct AsyncControlTests {
         #expect(answer == "first")
     }
 
+    @Test("A resume after the held call has returned changes nothing")
+    func aResumeAfterTheCallReturnedChangesNothing() async {
+        let spy = Spy<Int, String>(returning: "scripted")
+        let held = spy.holdNextCall()
+
+        held.resume(returning: "first")
+        let first = await spy.respond(to: 1)
+        held.resume(returning: "late")
+        let second = await spy.respond(to: 2)
+
+        #expect(first == "first")
+        #expect(second == "scripted")
+    }
+
     @Test("Holding applies to one call, and later calls get the scripted answer")
     func holdingAppliesToOneCallAndOthersAnswerAtOnce() async {
         let spy = Spy<Int, String>(returning: "scripted")
