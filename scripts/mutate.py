@@ -130,6 +130,7 @@ def run(arguments, timeout):
     except KeyboardInterrupt:
         stop_with_descendants(process)
         raise
+    reap_ended_orphans()
     return "pass" if returncode == 0 else "fail"
 
 
@@ -193,13 +194,22 @@ def descendants(root):
     return tree
 
 
-def reap(pid):
-    """Waits for a killed process this script adopted, so it doesn't stay behind as a zombie; a
-    process that isn't this script's child needs nothing."""
+def reap(pid, wait=True):
+    """Collects a process this script adopted once it has ended, so it doesn't stay behind as a
+    zombie: waits for it to end, or only collects it if it already has when `wait` is false.
+    Returns whether it was collected; a process that isn't this script's child is not."""
     try:
-        os.waitpid(pid, 0)
+        collected, _ = os.waitpid(pid, 0 if wait else os.WNOHANG)
     except ChildProcessError:
-        pass
+        return False
+    return collected == pid
+
+
+def reap_ended_orphans():
+    """Collects every adopted process that has already ended, after a command ended normally. It
+    waits on each one by pid, never on any child, which could take the next command's status."""
+    for pid in descendants(os.getpid()):
+        reap(pid, wait=False)
 
 
 def signal_if_running(pid, number):
