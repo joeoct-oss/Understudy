@@ -12,6 +12,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Changed
 
+- A standard type written with its module, such as `Swift.Int` or `Swift.Set<String>`, now gets its obvious value in the double's initializer, as `Int` and `Set<String>` do, so a test needn't pass it. A static requirement of such a type is no longer refused. Breaking, in the generated code only: `@GenerateSpies` now writes different code for these types. No test needs to change, because an argument only gains a default, so every call that compiled still compiles.
 - SonarQube Cloud's quality gate runs first on every pull request and push to main, and checks code quality as well as bugs and security. Until it passes, no other check runs and nothing is released (the **Checks** workflow).
 - SonarQube Cloud judges the tests in `Tests/` and `Benchmarks/Tests/` as tests, so they no longer count as source code.
 

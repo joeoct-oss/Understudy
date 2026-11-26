@@ -175,23 +175,27 @@ struct ExpansionTests {
     }
 
     /// A type with no obvious value stays a required argument of the initializer, so the compiler
-    /// still asks for it; the test checks the initializer the double declares.
+    /// still asks for it; a standard type gets its value however it is written. The test checks
+    /// the initializer the double declares.
     @Test("The initializer asks for a type with no obvious default and defaults the rest")
     func initStillAsksForATypeWithNoObviousDefault() {
         let (expanded, _) = expand("""
             @GenerateSpies
             final class SpyCatalog: Catalog {
                 @Spied func product(id: Int) -> Product
+                @Spied func stock() -> Store.Int
                 @Spied func count() -> Swift.Int
                 @Spied func handler() -> () -> Void
                 @Spied func list() -> Array<Int>
+                @Spied func tags() -> Swift.Set<String>
                 @Spied func map() -> Dictionary<String, Int>
                 @Spied func name() -> String
             }
             """)
 
-        let initializer = "init(product: Product, count: Swift.Int, handler: @escaping () -> Void, "
-            + #"list: Array<Int> = [], map: Dictionary<String, Int> = [:], name: String = "")"#
+        let initializer = "init(product: Product, stock: Store.Int, count: Swift.Int = 0, "
+            + "handler: @escaping () -> Void, list: Array<Int> = [], tags: Swift.Set<String> = [], "
+            + #"map: Dictionary<String, Int> = [:], name: String = "")"#
         #expect(expanded.description.contains(initializer))
     }
 
