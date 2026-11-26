@@ -286,7 +286,7 @@ def shard(files, part):
     sizes = {file: sum(1 for _ in mutants(file)) for file in files}
     groups = [[] for _ in range(count)]
     totals = [0] * count
-    for file in sorted(files, key=lambda file: (-sizes[file], file.as_posix())):
+    for file in sorted(set(files), key=lambda file: (-sizes[file], file.as_posix())):
         smallest = totals.index(min(totals))
         groups[smallest].append(file)
         totals[smallest] += sizes[file]
