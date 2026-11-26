@@ -11,6 +11,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 - `scripts/mutate.py`, for contributors: mutation testing. It changes one thing at a time in `Sources/`, such as a comparison, a condition or a statement, runs the tests, and lists each change no test noticed. A Mutation testing workflow runs it on the files a pull request changes and lists what survived in the job summary, without failing.
 - The code the macros write is now tested in a Swift 5 language mode project as well: CI builds and runs the package's tests in Swift 5 mode (`Swift5Mode/`), with warnings as errors.
 - CI now compares the public API of the Understudy library with the latest released version, and fails a change that would break code using it (the **Public API kept** job). A break meant for a new major version is listed in `.github/api-breakage-allowlist.txt`.
+- For maintainers: a Security alerts workflow posts new code scanning and secret scanning alerts to the project's Slack every 2 hours, with only the kind of secret and a link, never the secret (`scripts/post-security-alerts.sh`).
 
 ### Changed
 
