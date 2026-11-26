@@ -93,20 +93,19 @@ jobs:
         run: scripts/check-structure.py
 
       # Waypoint's CODE_STYLE.md, checked by swift-format and SwiftLint (scripts/lint.sh), as in
-      # the cloud while working. The script installs the SwiftLint scripts/lint-tools.sh pins, with
-      # its sha256 checked, and runs in the Swift image the Linux checks pin, whose `swift format`
-      # is the version scripts/lint-tools.sh expects. The image has no unzip, so the install runs
-      # on the runner host first. SwiftLint needs the image's SourceKit for its custom rules, and
-      # libxml2, which the image lacks.
+      # the cloud while working. swift-format runs in the Swift image the Linux checks pin, whose
+      # `swift format` is the version scripts/lint-tools.sh expects. SwiftLint runs on the runner
+      # host, where scripts/lint.sh installs the version scripts/lint-tools.sh pins, with its
+      # sha256 checked: the Linux SwiftLint needs libxml2.so.2, which the image doesn't ship, and
+      # reads the syntax its custom rules need through the host toolchain's SourceKit.
       - name: Lint
         if: ${{ !cancelled() }}
         env:
           IMAGE: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
         run: |
-          bash -c 'source scripts/lint-tools.sh && install_swiftlint'
-          docker run --rm --volume "$PWD:/package" --workdir /package "$IMAGE" bash -c \
-            'apt-get update -qq && apt-get install -y -qq --no-install-recommends libxml2 > /dev/null &&
-            scripts/lint.sh'
+          docker run --rm --volume "$PWD:/package" --workdir /package "$IMAGE" \
+            scripts/lint.sh --swift-format-only
+          scripts/lint.sh --swiftlint-only
 
       # Docs-only: every file the pull request changes is a Markdown file at the root (README,
       # CHANGELOG, CODE_STYLE and the like) or the LICENSE, which no build or test reads. A rename
