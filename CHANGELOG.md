@@ -6,7 +6,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Added
 
-- For contributors: a pull request template (`.github/pull_request_template.md`), and a required **Pull request rules** check that holds a pull request until the template is filled in and the rules it lists are met (`scripts/check-pr-rules.py`). CodeRabbit's pre-merge checks explain a failure and warn on docs, tests and doc comments. Nothing in the package changes.
+- For contributors: a pull request template (`.github/pull_request_template.md`), and a required **Pull request rules** check that holds a pull request until the template is filled in and the rules it lists are met (`scripts/check-pr-rules.py`). CodeRabbit now approves a pull request once its blocking findings are resolved, and main requires that approval, so a pull request whose review was rate limited waits instead of merging. Its pre-merge checks explain a failure and warn on docs, tests and doc comments. Nothing in the package changes.
 - README: badges for the Swift versions and platforms the Swift Package Index builds the package on, and a link to the API docs it hosts for both products.
 
 ### Changed
