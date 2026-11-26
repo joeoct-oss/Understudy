@@ -233,8 +233,8 @@ struct ExpansionTests {
     }
 
     /// A refused property is left as written, so the person sees the refusal and nothing else.
-    @Test("A refused property gets no accessors, so the refusal is the only error")
-    func refusedPropertyGetsNoAccessors() {
+    @Test("A refused property gets no setter, so the refusal is the only error")
+    func refusedPropertyGetsNoSetter() {
         let (expanded, diagnostics) = expand("""
             @GenerateSpies
             final class SpyStore: Store {
