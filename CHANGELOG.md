@@ -6,6 +6,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Added
 
+- `ThrowingSpy()` for a requirement that returns nothing, as `Spy()` already has, so a test needn't write `ThrowingSpy(returning: ())`.
 - `scripts/mutate.py`, for contributors: mutation testing. It changes one thing at a time in `Sources/`, such as a comparison, a condition or a statement, runs the tests, and lists each change no test noticed. A Mutation testing workflow runs it on the files a pull request changes and lists what survived in the job summary, without failing.
 
 ### Changed

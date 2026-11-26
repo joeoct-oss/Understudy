@@ -159,6 +159,14 @@ public final class ThrowingSpy<Input, Output> {
 
 }
 
+extension ThrowingSpy where Output == Void {
+    /// Creates a spy for a requirement that returns nothing, so it needs no answer. It returns
+    /// until the test scripts an error.
+    public convenience init() {
+        self.init(returning: ())
+    }
+}
+
 extension ThrowingSpy where Input == Void {
     /// Keeps the call, then returns or throws the next answer, for a requirement that takes
     /// nothing.
