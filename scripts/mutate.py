@@ -39,7 +39,6 @@ import sys
 from pathlib import Path
 
 PR_SET_CHILD_SUBREAPER = 36
-PS = shutil.which("ps") or "/bin/ps"
 ROOT = Path(__file__).resolve().parent.parent
 STRING = re.compile(r'"(?:[^"\\]|\\.)*"')
 INLINE_COMMENT = re.compile(r"/\*.*?\*/")
@@ -149,7 +148,7 @@ def stop_with_descendants(process):
     script runs one command at a time, so every process below it belongs to the command, and on
     Linux that includes the ones whose parent already ended (`adopt_orphans`). The command is
     paused first, then the rest again and again until no new process appears, so nothing started
-    meanwhile is missed. The command itself is killed even when `ps` fails, and a second interrupt
+    meanwhile is missed. The command itself is killed even when the process list can't be read, and a second interrupt
     can't cut the kill short."""
     paused = [process.pid]
     signal_if_running(process.pid, signal.SIGSTOP)
@@ -174,24 +173,40 @@ def stop_with_descendants(process):
 
 
 def descendants(root):
-    """Every process below `root`, read from `ps`, which macOS and Linux both have; the `ps`
-    itself is left out."""
-    command = [PS, "-A", "-o", "pid=,ppid="]
-    with subprocess.Popen(command, stdout=subprocess.PIPE, text=True) as listing:
-        output = listing.communicate()[0]
-    if listing.returncode != 0:
-        raise subprocess.CalledProcessError(listing.returncode, command)
+    """Every process below `root`."""
     children = {}
-    for line in output.splitlines():
-        pid, parent = (int(field) for field in line.split())
-        if pid != listing.pid:
-            children.setdefault(parent, []).append(pid)
+    for pid, parent in processes():
+        children.setdefault(parent, []).append(pid)
     tree, pending = [], list(children.get(root, []))
     while pending:
         pid = pending.pop()
         tree.append(pid)
         pending.extend(children.get(pid, []))
     return tree
+
+
+def processes():
+    """Every running process, as (pid, parent pid): on Linux read from /proc, so the script needs
+    nothing but Python there, and elsewhere from `ps`, which macOS has. The `ps` itself is left
+    out."""
+    if sys.platform.startswith("linux"):
+        found = []
+        for entry in Path("/proc").iterdir():
+            try:
+                stat = (entry / "stat").read_text() if entry.name.isdigit() else ""
+            except OSError:
+                continue  # The process ended while the list was read.
+            if stat:
+                # The name, in brackets, can hold spaces: the parent pid is the second field after it.
+                found.append((int(entry.name), int(stat[stat.rindex(")") + 2:].split()[1])))
+        return found
+    command = [shutil.which("ps") or "/bin/ps", "-A", "-o", "pid=,ppid="]
+    with subprocess.Popen(command, stdout=subprocess.PIPE, text=True) as listing:
+        output = listing.communicate()[0]
+    if listing.returncode != 0:
+        raise subprocess.CalledProcessError(listing.returncode, command)
+    pairs = [tuple(int(field) for field in line.split()) for line in output.splitlines()]
+    return [(pid, parent) for pid, parent in pairs if pid != listing.pid]
 
 
 def reap(pid, wait=True):
