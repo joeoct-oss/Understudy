@@ -1,7 +1,7 @@
 # Builds and tests the package on Linux. The release workflow calls it on every push to main and
 # publishes only when it passes there, so it is the last check before a version goes out.
-# - Pull requests to main run it; drafts are skipped until they are ready for review. A newer push
-#   cancels the run still going for the same PR. Runs on main are never cancelled.
+# - The checks workflow (checks.yml) calls it on pull requests to main once SonarQube Cloud's
+#   quality gate passed; drafts are skipped until they are ready for review.
 # - "Linux build and tests" is the one required check: it passes only when every job below passed.
 # - Swift 6.4: warnings as errors, every line of Sources/ covered (scripts/check-coverage.sh), and
 #   the thread sanitizer. The macro sources must be covered by the macro tests alone, so the gate
@@ -22,17 +22,10 @@
 name: Linux checks
 
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
   workflow_call:
   workflow_dispatch:
 
 permissions: {}
-
-concurrency:
-  group: ci-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   coverage:

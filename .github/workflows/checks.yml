@@ -1,0 +1,95 @@
+# Runs every check on a pull request to main and on a push to main, SonarQube Cloud first
+# (Yousef, 2026-11-26). Its quality gate must pass before anything else starts: when it fails, no
+# other check runs and nothing is released.
+# - "SonarQube Cloud quality gate": scripts/sonar-scan.sh analyzes the code with the rules in
+#   sonar-project.properties and waits for the gate (bugs, security, code quality, duplication and
+#   reviewed hotspots on new code).
+# - Then, in parallel: the Linux checks (ci.yml, pull requests only; on main the release workflow
+#   runs them on the pushed commit before it publishes), the coverage report (coverage.yml), the
+#   benchmarks (benchmarks.yml, pull requests only), mutation testing of the changed sources
+#   (mutation.yml, pull requests only) and the release check or publish (release.yml).
+# - The branch name check stays in its own workflow: it runs no package code and is the same file
+#   in every repo.
+# - Drafts are skipped until they are ready for review. A newer push cancels the run still going
+#   for the same PR. Runs on main are never cancelled.
+# Hardening as in ci.yml: free GitHub-hosted Linux runners only, actions pinned to a full commit
+# SHA, no checkout keeps the token, and each job gets only the permissions its workflow uses.
+name: Checks
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  sonar:
+    name: SonarQube Cloud quality gate
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      # The full history gives Sonar the blame data it needs to tell new code from old.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Analyze and wait for the quality gate
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: scripts/sonar-scan.sh
+
+  linux:
+    name: Linux checks
+    needs: sonar
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
+
+  coverage:
+    name: Coverage report
+    needs: sonar
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/coverage.yml # zizmor: ignore[self-repository]
+
+  benchmarks:
+    name: Benchmarks
+    needs: sonar
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/benchmarks.yml # zizmor: ignore[self-repository]
+
+  mutation:
+    name: Mutation testing
+    needs: sonar
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/mutation.yml # zizmor: ignore[self-repository]
+
+  # Two quick merges run the release check and publish one after the other, never at once, so a
+  # check always sees the tags an earlier publish made. Pull requests get their own group.
+  release:
+    name: Release
+    needs: sonar
+    concurrency:
+      group: release-${{ github.event.pull_request.number || 'main' }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml # zizmor: ignore[self-repository]

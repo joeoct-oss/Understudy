@@ -1,8 +1,9 @@
 # Measures what Understudy costs a project that uses it (scripts/benchmark.sh), and shows the table
 # in the job summary. Timings on shared runners vary by 10% or more, so they are reported, never
 # enforced, and no required check waits on this workflow.
-# - Pull requests to main: every area but the build benchmark, which takes minutes of builds. Drafts
-#   are skipped until they are ready for review, and a newer push cancels the run still going.
+# - Pull requests to main, called by the checks workflow (checks.yml) once SonarQube Cloud's quality
+#   gate passed: every area but the build benchmark, which takes minutes of builds. Drafts are
+#   skipped until they are ready for review.
 # - A manual run: every area, and the build benchmark too when `build` is ticked. A pull request
 #   that changes the code the macros write runs it this way, and puts the numbers in its body.
 # Hardening as in ci.yml: free GitHub-hosted Linux runners only, the action pinned to a full commit
@@ -11,9 +12,12 @@
 name: Benchmarks
 
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_call:
+    inputs:
+      build:
+        description: Also run the build benchmark
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       build:
@@ -23,9 +27,6 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: benchmarks-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   benchmarks:

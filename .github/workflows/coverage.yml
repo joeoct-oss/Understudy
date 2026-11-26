@@ -1,8 +1,9 @@
 # Sends the test coverage to Codecov, which shows it for main and for each pull request. The gate
 # itself is scripts/check-coverage.sh in ci.yml; this workflow only reports, so it is not a
 # required check, and a failed upload never fails the run.
-# - Runs on pull requests to main (drafts skipped until ready for review) and on pushes to main,
-#   which give Codecov the base each pull request is compared with.
+# - The checks workflow (checks.yml) calls it on pull requests to main (drafts skipped until ready
+#   for review) and on pushes to main, which give Codecov the base each pull request is compared
+#   with, once SonarQube Cloud's quality gate passed.
 # - Kept apart from ci.yml so the release workflow's call to ci.yml keeps read-only permissions.
 # - Two jobs: "measure" runs the package's code with read-only permissions and keeps the report as
 #   an artifact; "upload" runs no package code and is the only job that may ask for an OIDC token,
@@ -14,17 +15,9 @@
 name: Coverage report
 
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
-  push:
-    branches: [main]
+  workflow_call:
 
 permissions: {}
-
-concurrency:
-  group: coverage-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   measure:

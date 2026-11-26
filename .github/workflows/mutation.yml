@@ -1,31 +1,24 @@
 # Mutation testing for the files a pull request changes in Sources/ (scripts/mutate.py): each
 # mutant that no test notices is listed in the job summary, so the review sees which breaks the
 # tests would let through. It reports and never fails: a survivor can be an equivalent change, which
-# only a person can judge, and the record of the full run lives in the 1.0 test inventory.
-# - Pull requests to main that change Sources/; drafts are skipped until they are ready for
-#   review, and a newer push cancels the run still going. A manual run mutates all of Sources/.
+# only a person can judge.
+# - Pull requests to main, called by the checks workflow (checks.yml) once SonarQube Cloud's quality
+#   gate passed. A pull request that changes no Swift file in Sources/ stops before the build.
+# - A manual run mutates all of Sources/.
 # Hardening as in ci.yml: free GitHub-hosted Linux runners only, the action pinned to a full commit
 # SHA and the image to a digest, read-only, no checkout keeps the token, and the build cache is
 # restored on pull requests only and never saved, so a mutant's build never reaches another job.
 name: Mutation testing
 
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths: ["Sources/**"]
+  workflow_call:
   workflow_dispatch:
 
 permissions: {}
 
-concurrency:
-  group: mutation-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
   mutation:
     name: Mutation testing (Swift 6.4)
-    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 300
     permissions:
