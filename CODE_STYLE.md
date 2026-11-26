@@ -4,6 +4,28 @@ This package follows Waypoint's [CODE_STYLE.md](https://github.com/joeoct-oss/Wa
 
 Rules of this package's own:
 
+## Where code goes
+
+Each file holds one job, named after it, in the folder for its part of the package:
+
+| Folder | Holds |
+| --- | --- |
+| `Sources/Understudy/Macros.swift` | The macro declarations, the runtime's entry point |
+| `Sources/Understudy/Spies/` | `Spy`, `ThrowingSpy`, `PropertySpy`, `@Recorded` and the ledger they write to |
+| `Sources/Understudy/Waiting/` | Held calls and their delivery |
+| `Sources/Understudy/Checking/` | Call order and verification |
+| `Sources/Understudy/Traits/` | `.freshSpies` and `.verifiesMocks` |
+| `Sources/Understudy/Clock/` | `TestClock` |
+| `Sources/UnderstudyMacros/Macros/` | The macros themselves and the compiler plugin |
+| `Sources/UnderstudyMacros/Requirements/` | Reading a requirement: functions, properties, subscripts and the types they record |
+| `Sources/UnderstudyMacros/Protocols/` | The spy written next to a protocol |
+| `Sources/UnderstudyMacros/Writing/` | The code the macros write: storage, forwarding and generated names |
+| `Sources/UnderstudyMacros/Diagnostics/` | Errors and fix-its |
+| `Sources/UnderstudySamples/`, `Sources/UnderstudySamplesMacros/` | `@Sample` and its macro, one file per type with no folders while they stay this small |
+| `Tests/*/` | One file per feature, with shared doubles and tables under `Fixtures/` |
+
+A file in `Sources/` has at most 250 lines of code, one in `Tests/` at most 400, and a body in `Sources/` at most 40 lines; blank lines and comments don't count toward a file. Comments fit in 100 columns and code in 120. [`scripts/check-structure.py`](scripts/check-structure.py), the one home for these limits, checks them on every pull request. A file or a body that grows past them is split by job, not squeezed.
+
 ## Swift only
 
 Everything is Swift: the runtime imports Foundation and nothing else, and the macros are built on swift-syntax, the package's one dependency, so it builds on Linux and every Apple platform. No Objective-C runtime tricks.
