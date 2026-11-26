@@ -120,7 +120,7 @@ let pricing = SpyPricing(product: .apple)              // price answers 0
 let pricier = SpyPricing(price: 10, product: .apple)   // price answers 10
 ```
 
-The macro reads the type as you wrote it, so `Swift.String`, or a typealias of `String`, has to be passed too.
+The macro reads the type as you wrote it, so a typealias of `String` has to be passed too. `Swift.String` and the other standard types written with their module get their value like `String` does.
 
 Change the answer at any point in the test:
 
