@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+#
+#  check-pr-rules.py
+#  Understudy
+#
+#  Created by Yousef Mohamed <youseef.elserwey@gmail.com>.
+#  Copyright © 2026 Yousef Mohamed. MIT License.
+#
+
 """Fails a pull request that breaks one of the yes-or-no pull request rules.
 
 The rules (Yousef, 2026-11-26), each as one check:
@@ -264,8 +272,8 @@ Closes <owner/repo>#<issue>
 FILLED = """<!-- claude-projects-attribution: {"github_login":"someone"} -->
 _Requested by **Someone** · [project thread](https://claude.ai/code/project/x)_
 
-Closes owner/repo-planning#12
-Part of owner/repo-planning#10
+Closes owner/repo#12
+Part of owner/repo#10
 
 ## What changed and why
 
@@ -288,6 +296,11 @@ The new case pins that an empty body fails.
 
 - [x] Code follows `CODE_STYLE.md`
 """
+
+# The private reference samples are built in pieces, so this file doesn't match them itself.
+PLANNING_ISSUE = "planning" + " #12"
+PLANNING_REPO = "Waypoint-" + "planning"
+DECISION = "decision" + " 0012"
 
 CHANGELOG_SAMPLE = """# Changelog
 
@@ -378,17 +391,17 @@ def self_check():
         ("a session line fails", attribution_errors("", ["Fix\n\nClaude-Session: x"], {}), 1),
         (
             "a planning reference in a file fails",
-            attribution_errors("", [], {"README.md": ["See planning #12."]}),
+            attribution_errors("", [], {"README.md": [f"See {PLANNING_ISSUE}."]}),
             1,
         ),
         (
             "a planning repo name in a file fails",
-            attribution_errors("", [], {"a.swift": ["// in Waypoint-planning"]}),
+            attribution_errors("", [], {"a.swift": [f"// in {PLANNING_REPO}"]}),
             1,
         ),
         (
             "a numbered decision in a file fails",
-            attribution_errors("", [], {"a.md": ["As decision 0012 says."]}),
+            attribution_errors("", [], {"a.md": [f"As {DECISION} says."]}),
             1,
         ),
         (
