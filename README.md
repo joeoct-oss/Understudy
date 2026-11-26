@@ -14,7 +14,7 @@ It has three tools, in two products:
 - **Test clock** (`Understudy`): `TestClock` moves only when your test moves it, so code that waits can be tested without real time passing.
 - **Sample values** (`UnderstudySamples`): `@Sample` writes `sample(...)` for a struct, so a test gets a complete value in one call.
 
-**Contents:** [Install](#install) · [Quick start](#quick-start) · [Spies](#spies) · [Test clock](#test-clock) · [Sample values](#sample-values) · [What the macros refuse](#what-the-macros-refuse)
+**Contents:** [Install](#install) · [Quick start](#quick-start) · [Spies](#spies) · [Test clock](#test-clock) · [Sample values](#sample-values) · [What the macros refuse](#what-the-macros-refuse) · [What 1.x promises](#what-1x-promises)
 
 ## Install
 
@@ -481,7 +481,14 @@ func signInWaitsForTheServer() async throws {
 - `advance(by:)` and `advance(to:)` wake each sleep the window reaches, in deadline order, with `now` set to each sleep's deadline as it wakes. A sleep that starts during the advance, inside the window, wakes in the same call. `advance()` lets ready work run without moving time, and `run()` moves on until nothing waits.
 - A sleep until a deadline already reached returns at once, and a cancelled sleep throws `CancellationError`, as the system clocks do.
 
-**What `advance` promises.** A woken task reads `now` as the deadline it woke at until it sleeps again, or until the end of the next advance, so its next sleep counts from when it woke. After each wake, `advance` lets other tasks run until the woken code sleeps on the clock again, even when it hops across actors and the main actor on the way, and that sleep is woken in the same call. It waits for that for up to 10 ms of real time, which is also how long it lets work run before the first wake, so a task just started reaches its first sleep. Swift has no public way to know when every task has reached its next suspension, so woken code that takes longer, such as code that waits on real network or disk work, may still be running when `advance` returns. It never misses its deadlines, though: a sleep it starts later, inside the window the clock has passed, returns at once. A sleep from a task the clock never woke, started after `advance` returns, counts from the clock's time then. Give a test that uses the clock a time limit, `@Test(.timeLimit(.minutes(1)))`, so a sleep that is never woken fails the test instead of stalling the run. The limit cancels the test's own work, so start the sleeping work as child work of the test, such as the `async let` above: cancelling a test doesn't cancel an unstructured `Task`, and a test that waits on one still stalls.
+**What `advance` promises:**
+
+- A woken task reads `now` as the deadline it woke at, until it sleeps again or the next advance ends, so its next sleep counts from when it woke.
+- After each wake, `advance` lets other tasks run until the woken code sleeps on the clock again, even when it hops across actors and the main actor, and wakes that sleep in the same call. It waits up to 10 ms of real time for this, and lets work run as long before the first wake, so a task just started reaches its first sleep.
+- Woken code that takes longer, such as code waiting on real network or disk work, may still be running when `advance` returns, because Swift has no public way to know when every task has reached its next suspension. It never misses its deadlines, though: a sleep it starts later, inside the window the clock has passed, returns at once.
+- A sleep from a task the clock never woke, started after `advance` returns, counts from the clock's time then.
+
+**Give a test that uses the clock a time limit,** `@Test(.timeLimit(.minutes(1)))`, so a sleep that is never woken fails the test instead of stalling the run. The limit cancels only the test's own work, so start the sleeping work as child work of the test, such as the `async let` above: cancelling a test doesn't cancel an unstructured `Task`, and a test that waits on one still stalls.
 
 Its limits:
 
@@ -565,7 +572,7 @@ Each of these is a compile error at the line it's about, saying what to do inste
 
 From 1.0.0 on, versions follow [Semantic Versioning](https://semver.org/):
 
-- **Your tests keep compiling.** Every 1.x version keeps the public API of 1.0.0: nothing public is removed or renamed, no signature, argument label or default changes, and no protocol gains a requirement you'd have to write. CI compares each change with the latest release and fails one that breaks this.
+- **Your tests keep compiling.** Every 1.x version keeps the public API of 1.0.0: nothing public is removed or renamed, no signature, argument label or default changes, and no protocol gains a requirement you'd have to write. CI compares the `Understudy` library's public API with the latest release on every change and fails one that breaks this.
 - **The code the macros write can improve in a minor version,** as long as code that uses the double still compiles: an initializer argument can gain a default, and a requirement the macros refused can become one they write. Their error messages and fix-its can be reworded.
 - **The same toolchains keep working:** Swift 6.0 or later, in Swift 5 or Swift 6 language mode, and swift-syntax 602 or later. The swift-syntax range only grows.
 - **The same platforms keep working:** the ones under [Install](#install).
