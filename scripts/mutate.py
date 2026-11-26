@@ -141,9 +141,9 @@ def stop_with_descendants(process):
             found = [pid for pid in descendants(process.pid) if pid not in paused]
             if not found:
                 break
+            paused += found
             for pid in found:
                 signal_if_running(pid, signal.SIGSTOP)
-            paused += found
     finally:
         for pid in [process.pid, *paused]:
             signal_if_running(pid, signal.SIGKILL)
