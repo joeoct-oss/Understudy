@@ -156,7 +156,7 @@ public final class TestClock: Clock, @unchecked Sendable {
     /// there. `tolerance` is ignored: the clock wakes a sleep exactly at its deadline.
     ///
     /// - Throws: `CancellationError` when the task is cancelled before or while it waits.
-    public func sleep(until deadline: Instant, tolerance: Duration? = nil) async throws {
+    public func sleep(until deadline: Instant, tolerance _: Duration? = nil) async throws {
         let id = synchronized {
             let id = nextSleeperID
             nextSleeperID += 1
@@ -286,7 +286,10 @@ public final class TestClock: Clock, @unchecked Sendable {
     private func takeSleeper(dueBy limit: Instant?) -> Sleeper? {
         synchronized {
             let due = sleepers.indices.filter { index in
-                limit.map { sleepers[index].deadline <= $0 } ?? true
+                guard let limit else {
+                    return true
+                }
+                return sleepers[index].deadline <= limit
             }
             guard let next = due.min(by: { sleepers[$0].deadline < sleepers[$1].deadline }) else {
                 if let limit {

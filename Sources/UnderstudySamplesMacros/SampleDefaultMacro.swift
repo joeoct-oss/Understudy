@@ -12,9 +12,9 @@ import SwiftSyntaxMacros
 /// `@SampleDefault(value)`: a mark `@Sample` reads on a property. It writes nothing itself.
 public struct SampleDefaultMacro: PeerMacro {
     public static func expansion(
-        of node: AttributeSyntax,
-        providingPeersOf declaration: some DeclSyntaxProtocol,
-        in context: some MacroExpansionContext
+        of _: AttributeSyntax,
+        providingPeersOf _: some DeclSyntaxProtocol,
+        in _: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         []
     }

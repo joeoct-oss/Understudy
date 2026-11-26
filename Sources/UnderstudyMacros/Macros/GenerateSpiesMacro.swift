@@ -21,9 +21,9 @@ import SwiftSyntaxMacros
 public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
     /// The spies, the forwarders and the initializer, for a class.
     public static func expansion(
-        of node: AttributeSyntax,
+        of _: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
-        conformingTo protocols: [TypeSyntax],
+        conformingTo _: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         try reporting(in: context) {
@@ -33,7 +33,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
 
     /// The spy class, for a protocol.
     public static func expansion(
-        of node: AttributeSyntax,
+        of _: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
@@ -46,10 +46,10 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
     /// `.freshSpies(_:)` can give each test its own; for a protocol, the extension that forwards
     /// its requirements to its spy, for the spy of a protocol that inherits it.
     public static func expansion(
-        of node: AttributeSyntax,
+        of _: AttributeSyntax,
         attachedTo declaration: some DeclGroupSyntax,
         providingExtensionsOf type: some TypeSyntaxProtocol,
-        conformingTo protocols: [TypeSyntax],
+        conformingTo _: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
         if let proto = declaration.as(ProtocolDeclSyntax.self) {
@@ -177,10 +177,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
     /// The `@Spied` functions, properties and subscripts of a class, in order.
     private static func spiedRequirements(of block: MemberBlockSyntax) throws -> [any Requirement] {
         try block.members.compactMap { member -> (any Requirement)? in
-            if let spied = member.decl.as(SubscriptDeclSyntax.self),
-               spied.accessorBlock?.accessors.as(AccessorDeclListSyntax.self)?.contains(where: { accessor in
-                   accessor.attributes.contains { isAttribute($0, named: "Spied") }
-               }) == true {
+            if let spied = member.decl.as(SubscriptDeclSyntax.self), hasSpiedAccessor(spied) {
                 return try SubscriptRequirement(spied, inProtocol: false)
             }
             if let property = member.decl.as(VariableDeclSyntax.self),
@@ -220,6 +217,14 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
                 return variable.bindings.compactMap { $0.pattern.as(IdentifierPatternSyntax.self) }
                     .map { ($0, attribute) }
             }
+    }
+
+    /// Whether a subscript has an accessor marked `@Spied`.
+    private static func hasSpiedAccessor(_ declaration: SubscriptDeclSyntax) -> Bool {
+        let accessors = declaration.accessorBlock?.accessors.as(AccessorDeclListSyntax.self) ?? []
+        return accessors.contains { accessor in
+            accessor.attributes.contains { isAttribute($0, named: "Spied") }
+        }
     }
 
     /// Whether an attribute is `@<name>`, written alone or with the module's name.

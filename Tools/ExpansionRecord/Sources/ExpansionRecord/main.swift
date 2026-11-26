@@ -170,7 +170,9 @@ func printTime(of all: [ExpandedSource]) {
     let clock = ContinuousClock()
     let rounds = (0..<13).map { _ in
         clock.measure {
-            all.forEach { _ = expansion(of: $0.text) }
+            for source in all {
+                _ = expansion(of: source.text)
+            }
         }
     }
     let kept = rounds.dropFirst(3).sorted()

@@ -74,14 +74,14 @@ struct PropertyRequirement: Requirement {
             throw UnderstudyError("declare one property at a time", at: declaration.bindings)
         }
         nameToken = pattern.identifier
-        let where_ = "'\(pattern.identifier.text)'"
+        let subject = "'\(pattern.identifier.text)'"
         let modifiers = declaration.modifiers.map(\.name.text)
         isStatic = modifiers.contains("static") || modifiers.contains("class")
-        try Self.refuseLet(declaration, named: pattern.identifier, in: where_)
-        let annotation = try Self.typeAnnotation(of: binding, named: pattern.identifier, in: where_)
+        try Self.refuseLet(declaration, named: pattern.identifier, in: subject)
+        let annotation = try Self.typeAnnotation(of: binding, named: pattern.identifier, in: subject)
         initialValue = binding.initializer?.value.trimmedDescription
         if !inProtocol, binding.accessorBlock != nil {
-            throw UnderstudyError("\(where_) is @SpiedProperty, so give it no accessors", at: pattern.identifier)
+            throw UnderstudyError("\(subject) is @SpiedProperty, so give it no accessors", at: pattern.identifier)
         }
         let type = annotation.type
         typeSyntax = type
@@ -94,13 +94,13 @@ struct PropertyRequirement: Requirement {
     private static func refuseLet(
         _ declaration: VariableDeclSyntax,
         named name: TokenSyntax,
-        in where_: String
+        in subject: String
     ) throws {
         guard declaration.bindingSpecifier.tokenKind == .keyword(.let) else {
             return
         }
         throw UnderstudyError(
-            "\(where_) is a let; declare it as a var",
+            "\(subject) is a let; declare it as a var",
             at: name,
             fixIt: .replace(
                 message: UnderstudyFixIt("Replace 'let' with 'var'"),
@@ -115,7 +115,7 @@ struct PropertyRequirement: Requirement {
     private static func typeAnnotation(
         of binding: PatternBindingSyntax,
         named name: TokenSyntax,
-        in where_: String
+        in subject: String
     ) throws -> TypeAnnotationSyntax {
         if let annotation = binding.typeAnnotation {
             return annotation
@@ -127,7 +127,7 @@ struct PropertyRequirement: Requirement {
         let typed = binding.with(\.pattern, binding.pattern.trimmed)
             .with(\.typeAnnotation, TypeAnnotationSyntax(type: placeholder))
         throw UnderstudyError(
-            "\(where_) has no type; write its type",
+            "\(subject) has no type; write its type",
             at: name,
             fixIt: .replace(message: UnderstudyFixIt("Add a type"), oldNode: binding, newNode: typed)
         )

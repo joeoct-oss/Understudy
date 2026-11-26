@@ -25,17 +25,17 @@ extension FunctionRequirement {
 
         /// Reads the effects of `declaration`, or explains why a spy can't have them: `rethrows`,
         /// or a `throws` of one of its generic parameters.
-        init(of declaration: FunctionDeclSyntax, generics: [String: String], in where_: String) throws {
+        init(of declaration: FunctionDeclSyntax, generics: [String: String], in subject: String) throws {
             let effects = declaration.signature.effectSpecifiers
             let throwsClause = effects?.throwsClause
             if throwsClause?.throwsSpecifier.tokenKind == .keyword(.rethrows) {
-                throw UnderstudyError("\(where_) rethrows; write its double by hand", at: declaration.name)
+                throw UnderstudyError("\(subject) rethrows; write its double by hand", at: declaration.name)
             }
             let thrown = throwsClause?.type
             if let thrown,
                let name = thrown.tokens(viewMode: .sourceAccurate).first(where: { generics[$0.text] != nil }) {
                 throw UnderstudyError(
-                    "\(where_) throws its generic parameter '\(name.text)'; write its double by hand",
+                    "\(subject) throws its generic parameter '\(name.text)'; write its double by hand",
                     at: thrown
                 )
             }
@@ -71,7 +71,7 @@ extension FunctionRequirement {
         init(
             _ returnType: TypeSyntax?,
             generics: [String: String],
-            in where_: String,
+            in subject: String,
             at name: TokenSyntax
         ) throws {
             guard let returnType else {
@@ -89,10 +89,10 @@ extension FunctionRequirement {
                 )
                 return
             }
-            try FunctionRequirement.refuseNested(returnType, generics: generics, in: where_)
+            try FunctionRequirement.refuseNested(returnType, generics: generics, in: subject)
             let text = returnType.trimmedDescription
             if returnType.is(SomeOrAnyTypeSyntax.self), text.hasPrefix("some ") {
-                throw UnderstudyError("\(where_) returns an opaque type; write its double by hand", at: name)
+                throw UnderstudyError("\(subject) returns an opaque type; write its double by hand", at: name)
             }
             self.init(
                 output: text,
@@ -122,11 +122,11 @@ extension FunctionRequirement {
 
     /// Whether `declaration` is `static` or `class`. Refuses a `mutating` one, which only a
     /// value type can have.
-    static func isStatic(_ declaration: FunctionDeclSyntax, in where_: String) throws -> Bool {
+    static func isStatic(_ declaration: FunctionDeclSyntax, in subject: String) throws -> Bool {
         let modifiers = declaration.modifiers.map(\.name.text)
         if modifiers.contains("mutating") {
             throw UnderstudyError(
-                "\(where_) is mutating; @GenerateSpies writes classes and actors",
+                "\(subject) is mutating; @GenerateSpies writes classes and actors",
                 at: declaration.name
             )
         }
@@ -137,12 +137,12 @@ extension FunctionRequirement {
     static func parameter(
         _ parameter: FunctionParameterSyntax,
         generics: [String: String],
-        in where_: String
+        in subject: String
     ) throws -> Parameter {
         let name = (parameter.secondName ?? parameter.firstName).text
         guard name != "_" else {
             throw UnderstudyError(
-                "\(where_) has a parameter with no name; name it",
+                "\(subject) has a parameter with no name; name it",
                 at: parameter,
                 fixIt: .replace(
                     message: UnderstudyFixIt("Add a name"),
@@ -156,7 +156,7 @@ extension FunctionRequirement {
         } ?? false
         return Parameter(
             name: name,
-            type: try storedType(of: parameter, generics: generics, in: where_),
+            type: try storedType(of: parameter, generics: generics, in: subject),
             escapes: escapes
         )
     }

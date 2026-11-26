@@ -53,15 +53,15 @@ public struct FreshSpies: TestTrait, SuiteTrait, TestScoping {
     }
 
     /// Provides the fresh spies around each test, not around a suite as a whole.
-    public func scopeProvider(for test: Test, testCase: Test.Case?) -> Self? {
+    public func scopeProvider(for _: Test, testCase: Test.Case?) -> Self? {
         testCase == nil ? nil : self
     }
 
     /// Runs the test, or one case of it, inside every double's `withFreshSpies`, so each of their
     /// static spies starts fresh and goes back to the shared one when the test ends.
     public func provideScope(
-        for test: Test,
-        testCase: Test.Case?,
+        for _: Test,
+        testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
         try await Self.run(function, inside: fresheners[...])

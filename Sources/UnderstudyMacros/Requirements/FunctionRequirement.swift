@@ -135,20 +135,20 @@ struct FunctionRequirement: Requirement {
     /// Reads a requirement, or explains why it can't be written.
     init(_ declaration: FunctionDeclSyntax) throws {
         self.declaration = declaration
-        let where_ = "'\(declaration.name.text)'"
-        let generics = try Self.erasedGenerics(of: declaration, in: where_)
-        isStatic = try Self.isStatic(declaration, in: where_)
-        let effects = try Effects(of: declaration, generics: generics, in: where_)
+        let subject = "'\(declaration.name.text)'"
+        let generics = try Self.erasedGenerics(of: declaration, in: subject)
+        isStatic = try Self.isStatic(declaration, in: subject)
+        let effects = try Effects(of: declaration, generics: generics, in: subject)
         throwsError = effects.throwsError
         typedError = effects.typedError
         isAsync = effects.isAsync
         let parameterList = declaration.signature.parameterClause.parameters
         labels = parameterList.map(\.firstName.text)
         parameters = try parameterList.map { parameter in
-            try Self.parameter(parameter, generics: generics, in: where_)
+            try Self.parameter(parameter, generics: generics, in: subject)
         }
         returnType = declaration.signature.returnClause?.type
-        let returned = try Returned(returnType, generics: generics, in: where_, at: declaration.name)
+        let returned = try Returned(returnType, generics: generics, in: subject, at: declaration.name)
         output = returned.output
         returnedGeneric = returned.generic
         returnedParameter = returned.parameter
