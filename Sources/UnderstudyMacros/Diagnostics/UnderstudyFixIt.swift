@@ -16,14 +16,19 @@ func named(_ parameter: FunctionParameterSyntax) -> FunctionParameterSyntax {
 }
 
 /// What a fix-it does, as the editor shows it, such as "Replace 'let' with 'var'".
+///
+/// - `FixItMessage`: the editor shows ``message`` on the fix-it it offers.
 struct UnderstudyFixIt: FixItMessage {
+    /// What the fix-it does.
     let message: String
 
-    init(_ message: String) {
-        self.message = message
-    }
-
+    /// The one identifier every Understudy fix-it shares.
     var fixItID: MessageID {
         MessageID(domain: "Understudy", id: "fix-it")
+    }
+
+    /// A fix-it that says `message`.
+    init(_ message: String) {
+        self.message = message
     }
 }

@@ -12,6 +12,7 @@ import SwiftSyntax
 struct SampleParameter {
     /// The default of every type that has a fixed one, by the name the struct writes it with.
     private static let fixedDefaults: [String: String] = {
+        // `var` because the loop below adds every number type.
         var defaults = [
             "String": #""""#,
             "Substring": #""""#,

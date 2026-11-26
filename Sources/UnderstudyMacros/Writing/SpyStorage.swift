@@ -27,6 +27,7 @@ extension GenerateSpiesMacro {
         let prefix = access.isEmpty ? "" : access + " "
         let spyPrefix = prefix + (isActor ? "nonisolated " : "")
         let statics = zip(requirements, names).filter { $0.0.isStatic }
+        // `var` because the parents' spies, the instance spies and the initializer are added below.
         var declarations = try staticStorage(for: statics, in: typeName, prefix: prefix)
         for parent in parents {
             declarations.append("\(raw: spyPrefix)let \(raw: parent.property): \(raw: parent.spyType)")
@@ -48,7 +49,9 @@ extension GenerateSpiesMacro {
         for requirements: [(any Requirement, String)],
         prefix: String
     ) -> (spies: [DeclSyntax], answers: [InitialAnswer]) {
+        // `var` because the loop adds each requirement's spies.
         var spies: [DeclSyntax] = []
+        // `var` because the loop adds the answer of each requirement that needs one.
         var answers: [InitialAnswer] = []
         for (requirement, name) in requirements {
             if let setSpyType = requirement.setSpyType {

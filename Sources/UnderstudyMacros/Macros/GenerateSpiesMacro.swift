@@ -12,6 +12,12 @@ import SwiftSyntaxMacros
 
 /// `@GenerateSpies`: on a class, adds a spy and a private forwarder for each `@Spied`
 /// requirement; on a protocol, writes a spy class next to it.
+///
+/// - `MemberMacro`: writes the spies, the forwarders and the initializer into a class or an actor.
+/// - `PeerMacro`: writes the spy class, and the protocol its children's spies forward through,
+///   next to a protocol.
+/// - `ExtensionMacro`: makes a class or an actor with static spies conform to `StaticSpies`, and
+///   writes the extension that forwards a protocol's requirements to its spy.
 public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
     /// The spies, the forwarders and the initializer, for a class.
     public static func expansion(

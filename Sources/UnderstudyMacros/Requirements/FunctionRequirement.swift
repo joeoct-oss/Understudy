@@ -10,28 +10,41 @@ import SwiftDiagnostics
 import SwiftSyntax
 
 /// One function requirement a double stands in for, read from its declaration.
+///
+/// - `Requirement`: the macros write its spy, forwarder and body like any other requirement's.
 struct FunctionRequirement: Requirement {
     /// One parameter: the name the body uses and the type the spy records.
     struct Parameter {
+        /// The name the body passes it by.
         let name: String
+        /// The type the spy records it as.
         let type: String
         /// Whether the requirement takes it `@escaping`; the forwarder must too, to pass it on.
         let escapes: Bool
     }
 
+    /// The requirement as written.
     let declaration: FunctionDeclSyntax
+    /// Whether it is `static` or `class`.
     let isStatic: Bool
+    /// The argument labels, `_` for none.
     let labels: [String]
+    /// Its parameters, as the spy records them.
     let parameters: [Parameter]
+    /// Whether it throws, so its spy is a `ThrowingSpy`.
     let throwsError: Bool
     /// The error type a typed `throws` names, such as `AuthError`, which the body rethrows the
     /// spy's error as; `nil` for a plain `throws`, `throws(any Error)` or no `throws`.
     let typedError: String?
+    /// Whether it is async, so the body goes through `respond(to:)`.
     let isAsync: Bool
+    /// The type the spy answers with.
     let output: String
     /// The return type as written, which ``obviousAnswer`` reads; `nil` when it returns nothing.
     let returnType: TypeSyntax?
+    /// Whether it returns nothing, so the spy answers `()`.
     let returnsNothing: Bool
+    /// Whether it returns an optional, so the spy can start with `nil`.
     let returnsOptional: Bool
     /// Whether the answer is a closure, which the double's initializer must take `@escaping`.
     let returnsFunction: Bool
@@ -60,76 +73,29 @@ struct FunctionRequirement: Requirement {
         return "\(kind)<\(input), \(output)>"
     }
 
+    /// The function's name.
     var nameToken: TokenSyntax {
         declaration.name
     }
 
+    /// An answer is needed unless it returns nothing or an optional.
     var needsAnswer: Bool {
         !returnsNothing && !returnsOptional
     }
 
+    /// `()` when it returns nothing, otherwise `nil`.
     var defaultAnswer: String {
         returnsNothing ? "()" : "nil"
     }
 
+    /// The output, `@escaping` when it is a closure.
     var answerType: String {
         (returnsFunction ? "@escaping " : "") + output
     }
 
+    /// The obvious value of the return type, when it has one.
     var obviousAnswer: String? {
         returnType.flatMap(obviousDefault(of:))
-    }
-
-    /// The statements that call `spy` and return its answer, cast back to the generic parameter
-    /// the requirement returns, with the spy's error rethrown as the typed `throws` names. A
-    /// wrong-typed answer or error stops the test, naming the spy and both types.
-    func body(on spy: String) -> String {
-        guard let typedError else {
-            return answer(on: spy)
-        }
-        let wrongType = "\(GeneratedName.fatalError)(\"@GenerateSpies: \(spy) threw "
-            + "\\(Swift.type(of: error)), not \\(\(typedError).self)\")"
-        return """
-            do {
-            \(answer(on: spy))
-            } catch let error as \(typedError) {
-            throw error
-            } catch {
-            \(wrongType)
-            }
-            """
-    }
-
-    /// The statements that call `spy` and return its answer, cast back to the generic parameter
-    /// the requirement returns. A wrong-typed answer stops the test, naming the spy and both types.
-    private func answer(on spy: String) -> String {
-        guard let generic = returnedGeneric else {
-            return "return " + call(on: spy)
-        }
-        let answer = "__understudy_answer"
-        let wrongType = "\(GeneratedName.fatalError)(\"@GenerateSpies: \(spy) answered "
-            + "\\(Swift.type(of: \(answer))), not \\(\(generic).self)\")"
-        let fetch = returnsOptional
-            ? "guard let \(answer) = \(call(on: spy)) else {\nreturn nil\n}"
-            : "let \(answer) = \(call(on: spy))"
-        return """
-            \(fetch)
-            guard let typed = \(answer) as? \(generic) else {
-            \(wrongType)
-            }
-            return typed
-            """
-    }
-
-    /// The call that records the input and gives the answer: through `respond(to:)` when the
-    /// requirement is async, so the test can hold the call.
-    func call(on spy: String) -> String {
-        let attempt = throwsError ? "try " : ""
-        guard isAsync else {
-            return "\(attempt)self.\(spy)(\(callArgument))"
-        }
-        let input = parameters.isEmpty ? "()" : callArgument
-        return "\(attempt)await self.\(spy).respond(to: \(input))"
     }
 
     /// The name of the private function `@GenerateSpies` writes for this requirement on a class.
@@ -191,6 +157,13 @@ struct FunctionRequirement: Requirement {
         returnsFunction = returned.isFunction
     }
 
+    /// Whether a type is optional: `T?`, `T!` or `Optional<T>`, so `nil` is a fine first answer.
+    static func isOptional(_ type: TypeSyntax) -> Bool {
+        type.is(OptionalTypeSyntax.self)
+            || type.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)
+            || type.trimmedDescription.hasPrefix("Optional<")
+    }
+
     /// Whether a type is a closure, such as `() -> Void`, `@Sendable () -> Void` or `(() -> Void)`.
     static func isFunction(_ type: TypeSyntax) -> Bool {
         if type.is(FunctionTypeSyntax.self) {
@@ -204,5 +177,57 @@ struct FunctionRequirement: Requirement {
             return isFunction(only.type)
         }
         return false
+    }
+
+    /// The statements that call `spy` and return its answer, cast back to the generic parameter
+    /// the requirement returns, with the spy's error rethrown as the typed `throws` names. A
+    /// wrong-typed answer or error stops the test, naming the spy and both types.
+    func body(on spy: String) -> String {
+        guard let typedError else {
+            return answer(on: spy)
+        }
+        let wrongType = "\(GeneratedName.fatalError)(\"@GenerateSpies: \(spy) threw "
+            + "\\(Swift.type(of: error)), not \\(\(typedError).self)\")"
+        return """
+            do {
+            \(answer(on: spy))
+            } catch let error as \(typedError) {
+            throw error
+            } catch {
+            \(wrongType)
+            }
+            """
+    }
+
+    /// The statements that call `spy` and return its answer, cast back to the generic parameter
+    /// the requirement returns. A wrong-typed answer stops the test, naming the spy and both types.
+    private func answer(on spy: String) -> String {
+        guard let generic = returnedGeneric else {
+            return "return " + call(on: spy)
+        }
+        let answer = "__understudy_answer"
+        let wrongType = "\(GeneratedName.fatalError)(\"@GenerateSpies: \(spy) answered "
+            + "\\(Swift.type(of: \(answer))), not \\(\(generic).self)\")"
+        let fetch = returnsOptional
+            ? "guard let \(answer) = \(call(on: spy)) else {\nreturn nil\n}"
+            : "let \(answer) = \(call(on: spy))"
+        return """
+            \(fetch)
+            guard let typed = \(answer) as? \(generic) else {
+            \(wrongType)
+            }
+            return typed
+            """
+    }
+
+    /// The call that records the input and gives the answer: through `respond(to:)` when the
+    /// requirement is async, so the test can hold the call.
+    func call(on spy: String) -> String {
+        let attempt = throwsError ? "try " : ""
+        guard isAsync else {
+            return "\(attempt)self.\(spy)(\(callArgument))"
+        }
+        let input = parameters.isEmpty ? "()" : callArgument
+        return "\(attempt)await self.\(spy).respond(to: \(input))"
     }
 }

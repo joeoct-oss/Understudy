@@ -13,13 +13,15 @@ extension FunctionRequirement {
     /// What a function's signature says it does besides answering: whether it is async, and
     /// whether and what it throws.
     struct Effects {
+        /// The ways to write a typed `throws` that is a plain `throws`.
+        private static let untypedErrors = ["any Error", "Error", "any Swift.Error", "Swift.Error"]
+
+        /// Whether it throws.
         let throwsError: Bool
         /// The error type a typed `throws` names; `nil` for a plain `throws` or none.
         let typedError: String?
+        /// Whether it is async.
         let isAsync: Bool
-
-        /// The ways to write a typed `throws` that is a plain `throws`.
-        private static let untypedErrors = ["any Error", "Error", "any Swift.Error", "Swift.Error"]
 
         /// Reads the effects of `declaration`, or explains why a spy can't have them: `rethrows`,
         /// or a `throws` of one of its generic parameters.
@@ -57,7 +59,9 @@ extension FunctionRequirement {
         let generic: String?
         /// The generic parameter in ``generic``.
         let parameter: String?
+        /// Whether it returns nothing.
         let isNothing: Bool
+        /// Whether it returns an optional.
         let isOptional: Bool
         /// Whether the answer is a closure.
         let isFunction: Bool
@@ -93,13 +97,12 @@ extension FunctionRequirement {
             self.init(
                 output: text,
                 isNothing: text == "Void" || text == "()",
-                isOptional: returnType.is(OptionalTypeSyntax.self)
-                    || returnType.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)
-                    || text.hasPrefix("Optional<"),
+                isOptional: FunctionRequirement.isOptional(returnType),
                 isFunction: FunctionRequirement.isFunction(returnType)
             )
         }
 
+        /// A return with the values given, the others left as nothing special.
         private init(
             output: String,
             generic: String? = nil,
