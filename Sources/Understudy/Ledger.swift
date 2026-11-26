@@ -16,12 +16,30 @@ import Foundation
 /// - `@unchecked Sendable` when `Input` and `Output` are, because every stored value is read and
 ///   written only under `lock`.
 final class Ledger<Input, Output> {
+    /// A held call: runs in the caller's isolation, takes the call's input and the answer the spy
+    /// would have given, and gives the answer the call returns.
+    typealias Hold = (isolated (any Actor)?, Input, Output) async -> Output
+
     /// How the ledger answers a call.
     enum Answer {
         /// The same value for every call.
         case value(Output)
         /// A value worked out from each call's input.
         case computed(@Sendable (Input) -> Output)
+    }
+
+    /// One expectation: the calls it matches, how many it wants, how a report names them, and
+    /// where the test set it.
+    struct Expectation {
+        /// Whether a call matches. A test's own closure comes in `@Sendable`; the equality check
+        /// captures only the expected input, which is `Sendable` whenever the spy is.
+        let matches: (Input) -> Bool
+        /// How many matching calls it wants.
+        let times: Int
+        /// How a report names the calls it matches.
+        let description: String
+        /// The `expect` call, where `.verifiesMocks` reports it when it isn't met.
+        let site: ExpectationSite?
     }
 
     /// Guards every stored value below.
@@ -58,21 +76,14 @@ final class Ledger<Input, Output> {
     /// What the test expects, in the order it said so. `var` because each expectation adds one.
     private var expectations: [Expectation] = []
 
-    /// Whether the spy is strict: set once the test expects anything, even no calls at all.
+    /// Whether the spy is strict: set once the test expects anything, even no calls at all. `var`
+    /// because ``expect(_:)`` and ``expectNoCalls()`` set it, and ``reset()`` clears it.
     private var isStrict = false
 
-    /// A held call: runs in the caller's isolation, takes the call's input and the answer the spy
-    /// would have given, and gives the answer the call returns.
-    typealias Hold = (isolated (any Actor)?, Input, Output) async -> Output
-
-    /// One expectation: the calls it matches, how many it wants, and how a report names them.
-    struct Expectation {
-        /// Whether a call matches. A test's own closure comes in `@Sendable`; the equality check
-        /// captures only the expected input, which is `Sendable` whenever the spy is.
-        let matches: (Input) -> Bool
-        let times: Int
-        let description: String
-    }
+    /// The identity of each problem ``verify(sourceLocation:)`` has reported, so
+    /// `.verifiesMocks` reports only the rest. `var` because each report adds its problems; only
+    /// ``reportProblems()`` adds, and ``reset()`` clears.
+    private var reported: Set<VerificationProblem.ID> = []
 
     /// Every input, oldest first.
     var calls: [Input] {
@@ -188,27 +199,51 @@ final class Ledger<Input, Output> {
             handedOut = 0
             expectations.removeAll()
             isStrict = false
+            reported.removeAll()
         }
     }
 
-    /// Adds an expectation, which makes the spy strict.
+    /// Adds an expectation, which makes the spy strict, and lists the spy with `.verifiesMocks`
+    /// when the test runs with it.
     func expect(_ expectation: Expectation) {
         synchronized {
             expectations.append(expectation)
             isStrict = true
         }
+        MockRegistry.current.get()?.register(self)
     }
 
-    /// Makes the spy strict with no expectations, so any call is unexpected.
+    /// Makes the spy strict with no expectations, so any call is unexpected, and lists the spy
+    /// with `.verifiesMocks` when the test runs with it.
     func expectNoCalls() {
         synchronized {
             isStrict = true
         }
+        MockRegistry.current.get()?.register(self)
     }
 
-    /// Every expectation not met and every call nobody expected, in words. Empty when the spy
-    /// isn't strict.
-    func problems() -> [String] {
+    /// Every problem, in words, for ``verify(sourceLocation:)``, which remembers them so
+    /// `.verifiesMocks` doesn't report them again.
+    func reportProblems() -> [String] {
+        let found = problems()
+        synchronized {
+            reported.formUnion(found.map(\.id))
+        }
+        return found.map(\.message)
+    }
+
+    /// The problems found now that ``reportProblems()`` didn't report. An unmet expectation
+    /// whose call count changed since is a new problem.
+    func unreportedProblems() -> [VerificationProblem] {
+        let alreadyReported = synchronized {
+            reported
+        }
+        return problems().filter { !alreadyReported.contains($0.id) }
+    }
+
+    /// Every expectation not met and every call nobody expected, each with the `expect` it is
+    /// about. Empty when the spy isn't strict.
+    private func problems() -> [VerificationProblem] {
         let snapshot: (calls: [Input], expected: [Expectation], strict: Bool) = synchronized {
             (recordedCalls, expectations, isStrict)
         }
@@ -217,18 +252,20 @@ final class Ledger<Input, Output> {
         guard snapshot.strict else {
             return []
         }
-        let missed: [String] = expected.compactMap { expectation -> String? in
+        let missed = expected.enumerated().compactMap { index, expectation -> VerificationProblem? in
             let count = calls.filter(expectation.matches).count
             guard count != expectation.times else {
                 return nil
             }
-            return "expected \(Self.times(expectation.times)) with \(expectation.description), "
+            let message = "expected \(Self.times(expectation.times)) with \(expectation.description), "
                 + "got \(Self.times(count))"
+            return VerificationProblem(id: .unmet(index, calls: count), message: message, site: expectation.site)
         }
-        let unexpected: [String] = calls.filter { input in
+        let unexpected = calls.enumerated().filter { _, input in
             !expected.contains { $0.matches(input) }
-        }.map { input in
-            "unexpected call with \(String(describing: input))"
+        }.map { index, input in
+            let message = "unexpected call with \(String(describing: input))"
+            return VerificationProblem(id: .unexpected(index), message: message, site: nil)
         }
         return missed + unexpected
     }

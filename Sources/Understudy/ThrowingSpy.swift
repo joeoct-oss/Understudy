@@ -130,26 +130,30 @@ public final class ThrowingSpy<Input, Output> {
         }
     }
 
+    #if canImport(Testing)
     /// Expects `times` calls that `matches` accepts; any call by default. The spy becomes strict:
-    /// ``verify(sourceLocation:)`` then reports each expectation not met and each call no
-    /// expectation accepts.
-    public func expect(times: Int = 1, where matches: @escaping @Sendable (Input) -> Bool = { _ in true }) {
-        ledger.expect(.init(matches: matches, times: times, description: "a matching input"))
+    /// ``verify(sourceLocation:)``, or `.verifiesMocks` when the test ends, then reports each
+    /// expectation not met, at `sourceLocation`, and each call no expectation accepts.
+    public func expect(
+        times: Int = 1,
+        where matches: @escaping @Sendable (Input) -> Bool = { _ in true },
+        sourceLocation: VerificationLocation = #_sourceLocation
+    ) {
+        ledger.expect(.init(matches: matches, times: times, description: "a matching input", site: sourceLocation))
     }
 
-    /// Expects no calls at all. The spy becomes strict, so ``verify(sourceLocation:)`` reports
-    /// every call.
+    /// Expects no calls at all. The spy becomes strict, so ``verify(sourceLocation:)``, or
+    /// `.verifiesMocks` when the test ends, reports every call.
     public func expectNoCalls() {
         ledger.expectNoCalls()
     }
 
-    #if canImport(Testing)
     /// Reports, as a Swift Testing issue at the test's line, every expectation not met and every
     /// call nobody expected, and gives the problems back. Reports nothing for a spy with no
     /// expectations.
     @discardableResult
     public func verify(sourceLocation: VerificationLocation = #_sourceLocation) -> [String] {
-        report(ledger.problems(), at: sourceLocation)
+        report(ledger.reportProblems(), at: sourceLocation)
     }
     #endif
 
@@ -167,11 +171,15 @@ extension ThrowingSpy where Input == Void {
 extension ThrowingSpy: @unchecked Sendable where Input: Sendable, Output: Sendable { }
 
 extension ThrowingSpy where Input: Equatable {
-    /// Expects `times` calls with `input`. The spy becomes strict: ``verify(sourceLocation:)``
-    /// then reports each expectation not met and each call no expectation accepts.
-    public func expect(_ input: Input, times: Int = 1) {
-        ledger.expect(.init(matches: { $0 == input }, times: times, description: String(describing: input)))
+    #if canImport(Testing)
+    /// Expects `times` calls with `input`. The spy becomes strict: ``verify(sourceLocation:)``,
+    /// or `.verifiesMocks` when the test ends, then reports each expectation not met, at
+    /// `sourceLocation`, and each call no expectation accepts.
+    public func expect(_ input: Input, times: Int = 1, sourceLocation: VerificationLocation = #_sourceLocation) {
+        let description = String(describing: input)
+        ledger.expect(.init(matches: { $0 == input }, times: times, description: description, site: sourceLocation))
     }
+    #endif
 }
 
 extension ThrowingSpy where Input: Sendable {

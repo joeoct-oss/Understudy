@@ -27,6 +27,21 @@ struct StrictSpyTests {
         #expect(problems.isEmpty)
     }
 
+    @Test("An expectation of a number of calls with no matcher counts every call")
+    func expectationWithNoMatcherCountsEveryCall() throws {
+        let spy = Spy<Int, Void>()
+        let loader = ThrowingSpy<String, Int>(returning: 0)
+        spy.expect(times: 2)
+        loader.expect(times: 1)
+
+        spy(1)
+        spy(2)
+        _ = try loader("a")
+        let problems = spy.verify() + loader.verify()
+
+        #expect(problems.isEmpty)
+    }
+
     @Test("verify reports missing, extra and unexpected calls")
     func verifyReportsMissingExtraAndUnexpectedCalls() throws {
         let loader = ThrowingSpy<String, Int>(returning: 0)
