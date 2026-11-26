@@ -4,6 +4,9 @@
 
 # Understudy
 
+[![Swift versions](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fjoeoct-oss%2FUnderstudy%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/joeoct-oss/Understudy)
+[![Platforms](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fjoeoct-oss%2FUnderstudy%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/joeoct-oss/Understudy)
+
 **Mocks and fakes for your Swift tests, written for you.** Mark the functions and properties your fake stands in for, and Understudy's Swift macros record every call and answer the way your test says.
 
 These stand-ins are called *test doubles*, as a stunt double stands in for an actor: a test uses one in place of a real dependency, such as a network client, a database or a clock, so the test decides what it answers and can check how it was called.
@@ -15,6 +18,8 @@ It has three tools, in two products:
 - **Sample values** (`UnderstudySamples`): `@Sample` writes `sample(...)` for a struct, so a test gets a complete value in one call.
 
 **Contents:** [Install](#install) · [Quick start](#quick-start) · [Spies](#spies) · [Test clock](#test-clock) · [Sample values](#sample-values) · [What the macros refuse](#what-the-macros-refuse) · [What 1.x promises](#what-1x-promises)
+
+The API docs for both products are on the [Swift Package Index](https://swiftpackageindex.com/joeoct-oss/Understudy/documentation), built for each release.
 
 ## Install
 
