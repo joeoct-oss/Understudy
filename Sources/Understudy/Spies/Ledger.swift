@@ -111,12 +111,16 @@ final class Ledger<Input, Output> {
     /// Keeps the input, then gives the next queued answer, or else the standing one.
     ///
     /// A computed answer and the watchers run outside the lock, so they may call the spy again.
+    /// Takes the lock itself, not through ``synchronized(_:)``, because every call to a spy comes
+    /// through here and the closure costs a debug build about a quarter of the call. An async
+    /// function can't take an `NSLock` directly, so ``recordHolding(_:isolation:)`` still uses it.
     func record(_ input: Input) -> Output {
-        let (answer, watching) = synchronized {
-            recordedCalls.append(input)
-            return (nextAnswer(), Array(watchers.values))
-        }
-        watching.forEach { watch in
+        lock.lock()
+        recordedCalls.append(input)
+        let answer = nextAnswer()
+        let watching = currentWatchers()
+        lock.unlock()
+        for watch in watching {
             watch(input)
         }
         return resolve(answer, for: input)
@@ -128,7 +132,7 @@ final class Ledger<Input, Output> {
         let (answer, watching, hold) = synchronized {
             recordedCalls.append(input)
             let hold = holds.isEmpty ? nil : holds.removeFirst()
-            return (nextAnswer(), Array(watchers.values), hold)
+            return (nextAnswer(), currentWatchers(), hold)
         }
         watching.forEach { watch in
             watch(input)
@@ -146,6 +150,12 @@ final class Ledger<Input, Output> {
             return Answer.value(queuedAnswers.removeFirst())
         }
         return standingAnswer
+    }
+
+    /// The watchers to run for a call, copied so they run outside the lock; no copy when there are
+    /// none, as on most calls. Called under the lock.
+    private func currentWatchers() -> [(Input) -> Void] {
+        watchers.isEmpty ? [] : Array(watchers.values)
     }
 
     /// The output `answer` gives for `input`.
