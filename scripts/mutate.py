@@ -29,11 +29,16 @@ Usage: scripts/mutate.py [--list] [--timeout <seconds>] [<file or folder under S
 """
 
 import argparse
+import ctypes
+import os
 import re
+import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
 
+PR_SET_CHILD_SUBREAPER = 36
 ROOT = Path(__file__).resolve().parent.parent
 STRING = re.compile(r'"(?:[^"\\]|\\.)*"')
 INLINE_COMMENT = re.compile(r"/\*.*?\*/")
@@ -111,12 +116,131 @@ def mutants(path):
 
 
 def run(arguments, timeout):
-    """Whether the command passed, failed or ran out of time."""
+    """Whether the command passed, failed or ran out of time. A command that runs out of time, or
+    is interrupted, is stopped with every process it started, so a mutant that hangs leaves
+    nothing running: `swift test` starts its test runner in a process group of its own."""
+    process = subprocess.Popen(arguments, cwd=ROOT, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL)
     try:
-        result = subprocess.run(arguments, cwd=ROOT, capture_output=True, timeout=timeout)
+        returncode = process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
+        stop_with_descendants(process)
         return "timeout"
-    return "pass" if result.returncode == 0 else "fail"
+    except KeyboardInterrupt:
+        stop_with_descendants(process)
+        raise
+    reap_ended_orphans()
+    return "pass" if returncode == 0 else "fail"
+
+
+def adopt_orphans():
+    """On Linux, makes this script the new parent of every process below it whose own parent
+    exits, so a cleanup still finds a runner whose parent ended first. macOS has no such setting:
+    there a runner whose parent ended before the cleanup can be missed and has to be stopped by
+    hand."""
+    if sys.platform.startswith("linux"):
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0)
+
+
+def stop_with_descendants(process):
+    """Kills `process` and every process below this script, then waits for them to end. The
+    script runs one command at a time, so every process below it belongs to the command, and on
+    Linux that includes the ones whose parent already ended (`adopt_orphans`). The command is
+    paused first, then the rest again and again until no new process appears, so nothing started
+    meanwhile is missed. The command itself is killed even when the process list can't be read,
+    and a second interrupt can't cut the kill short."""
+    paused = [process.pid]
+    signal_if_running(process.pid, signal.SIGSTOP)
+    try:
+        while True:
+            found = [pid for pid in descendants(os.getpid()) if pid not in paused]
+            if not found:
+                break
+            paused += found
+            for pid in found:
+                signal_if_running(pid, signal.SIGSTOP)
+    finally:
+        interrupt = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            for pid in paused:
+                signal_if_running(pid, signal.SIGKILL)
+            process.wait()
+            for pid in paused[1:]:
+                reap(pid)
+        finally:
+            signal.signal(signal.SIGINT, interrupt)
+
+
+def descendants(root):
+    """Every process below `root`."""
+    children = {}
+    for pid, parent in processes():
+        children.setdefault(parent, []).append(pid)
+    tree, pending = [], list(children.get(root, []))
+    while pending:
+        pid = pending.pop()
+        tree.append(pid)
+        pending.extend(children.get(pid, []))
+    return tree
+
+
+def processes():
+    """Every running process, as (pid, parent pid): on Linux read from /proc, so the script needs
+    nothing but Python there, and elsewhere from `ps`, which macOS has. The `ps` itself is left
+    out."""
+    if sys.platform.startswith("linux"):
+        found = []
+        for entry in Path("/proc").iterdir():
+            stat = read_stat(entry) if entry.name.isdigit() else None
+            if stat:
+                # The name, in brackets, can hold spaces: the parent pid is 2 fields after it.
+                found.append((int(entry.name), int(stat[stat.rindex(")") + 2:].split()[1])))
+        return found
+    command = [shutil.which("ps") or "/bin/ps", "-A", "-o", "pid=,ppid="]
+    with subprocess.Popen(command, stdout=subprocess.PIPE, text=True) as listing:
+        output = listing.communicate()[0]
+    if listing.returncode != 0:
+        raise subprocess.CalledProcessError(listing.returncode, command)
+    pairs = [tuple(int(field) for field in line.split()) for line in output.splitlines()]
+    return [(pid, parent) for pid, parent in pairs if pid != listing.pid]
+
+
+def read_stat(entry):
+    """A process's /proc stat line, or None when the process ended while the list was read; any
+    other read failure is raised."""
+    try:
+        return (entry / "stat").read_text(encoding="utf-8", errors="replace")
+    except (FileNotFoundError, ProcessLookupError):
+        return None
+
+
+def reap(pid, wait=True):
+    """Collects a process this script adopted once it has ended, so it doesn't stay behind as a
+    zombie: waits for it to end, or only collects it if it already has when `wait` is false.
+    Returns whether it was collected; a process that isn't this script's child is not."""
+    try:
+        collected, _ = os.waitpid(pid, 0 if wait else os.WNOHANG)
+    except ChildProcessError:
+        return False
+    return collected == pid
+
+
+def reap_ended_orphans():
+    """Collects every adopted process that has already ended, after a command ended normally. It
+    waits on each one by pid, never on any child, which could take the next command's status."""
+    for pid in descendants(os.getpid()):
+        reap(pid, wait=False)
+
+
+def signal_if_running(pid, number):
+    """Sends `number` to `pid`; a process that has already ended needs nothing, so that case is
+    not an error."""
+    try:
+        os.kill(pid, number)
+    except ProcessLookupError:
+        return False
+    return True
 
 
 def outcome(relative, timeout):
@@ -147,6 +271,7 @@ def sources(paths):
 
 
 def main():
+    adopt_orphans()
     parser = argparse.ArgumentParser(description="Mutation testing for Understudy.")
     parser.add_argument("paths", nargs="*", help="files or folders under the package, Sources/ by default")
     parser.add_argument("--list", action="store_true", help="list the mutants without running them")
