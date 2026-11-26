@@ -210,7 +210,7 @@ def read_stat(entry):
     """A process's /proc stat line, or None when the process ended while the list was read; any
     other read failure is raised."""
     try:
-        return (entry / "stat").read_text(encoding="utf-8")
+        return (entry / "stat").read_text(encoding="utf-8", errors="replace")
     except (FileNotFoundError, ProcessLookupError):
         return None
 
