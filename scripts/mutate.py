@@ -154,12 +154,12 @@ def main():
     out = ROOT / "mutants.tsv"
     # A file changed before the run would be taken as the original, and an earlier run stopped
     # abruptly may have left a mutant behind: start only from what git has.
-    changed = subprocess.run(["git", "status", "--porcelain", "--", "Sources"], cwd=ROOT,
-                             capture_output=True, text=True, check=True).stdout
+    status = ["git", "status", "--porcelain", "--ignored", "--untracked-files=all", "--", "Sources"]
+    changed = subprocess.run(status, cwd=ROOT, capture_output=True, text=True, check=True).stdout
     if changed and not options.list:
         sys.exit(f"error: Sources/ has changes git doesn't have; commit or restore them first:\n{changed}")
     # Each result keeps the line it mutated, so a result whose line has changed since is run again.
-    rows = [line.split("\t") for line in out.read_text().splitlines()] if out.exists() else []
+    rows = [line.split("\t", 4) for line in out.read_text().splitlines()] if out.exists() else []
     done = {(*row[:3], row[4]) for row in rows if len(row) == 5}
     for path in sources(options.paths):
         relative = path.relative_to(ROOT).as_posix()
