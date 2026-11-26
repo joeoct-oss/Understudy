@@ -221,9 +221,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
 
     /// Whether a subscript has an accessor marked `@Spied`.
     private static func hasSpiedAccessor(_ declaration: SubscriptDeclSyntax) -> Bool {
-        guard let accessors = declaration.accessorBlock?.accessors.as(AccessorDeclListSyntax.self) else {
-            return false
-        }
+        let accessors = declaration.accessorBlock?.accessors.as(AccessorDeclListSyntax.self) ?? []
         return accessors.contains { accessor in
             accessor.attributes.contains { isAttribute($0, named: "Spied") }
         }
