@@ -1,6 +1,6 @@
 <!--
-Fill in every section. CodeRabbit's pre-merge checks hold the merge while a section is missing
-or still holds only this template's text. Write "not needed, because ..." instead of deleting a
+Fill in every section. The required "Pull request rules" check holds the merge while a section
+is missing or still holds only this template's text. Write "not needed, because ..." instead of deleting a
 section or a line. The comments can stay; they don't show on the page.
 -->
 
@@ -36,5 +36,5 @@ needed. -->
 
 ## Checklist
 
-- [ ] Code follows `CODE_STYLE.md`
+- [ ] Code follows `CODE_STYLE.md`, including a reason for every protocol conformance
 - [ ] No tool or AI attribution in this body, the commits or the files
