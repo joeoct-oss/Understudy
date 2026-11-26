@@ -77,6 +77,24 @@ struct VerifiesMocksTests {
         #expect(issues.map(\.message) == expected)
     }
 
+    @Test("A problem verify reported before a reset is reported again when it happens after it")
+    func problemReportedBeforeAResetIsReportedAgainAfterIt() async throws {
+        let issues = try await issuesAfterTest {
+            let analytics = Spy<String, Void>()
+            analytics.expectNoCalls()
+            analytics("refund")
+            withKnownIssue(isIntermittent: true) {
+                analytics.verify()
+            }
+            analytics.reset()
+            analytics.expectNoCalls()
+            analytics("refund")
+        }
+
+        let expected = ["unexpected call with refund"]
+        #expect(issues.map(\.message) == expected)
+    }
+
     @Test("An expectation with the same words as one verify reported is still reported when unmet")
     func sameWordsAsAReportedProblemStillReported() async throws {
         let issues = try await issuesAfterTest {
