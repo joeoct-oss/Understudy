@@ -82,7 +82,7 @@ jobs:
   # The manual run, in three jobs: the list of groups, one job per group, and the summary.
   shards:
     name: Mutation groups
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}
@@ -157,9 +157,17 @@ jobs:
           path: results
 
       # Every group's lines in one file, kept for the inventory, and every survivor in the summary.
+      # One artifact downloads to results/mutants.tsv and several to results/<name>/mutants.tsv,
+      # so the files are found at any depth. No result at all fails the job.
       - name: Join the results
+        shell: bash
         run: |
-          cat results/*/mutants.tsv | sort -t "$(printf '\t')" -k1,1 -k2,2n >mutants.tsv
+          mapfile -t found < <(find results -name mutants.tsv -type f | sort)
+          if [[ ${#found[@]} -eq 0 ]]; then
+            echo "::error::No group kept any results"
+            exit 1
+          fi
+          cat "${found[@]}" | sort -t $'\t' -k1,1 -k2,2n >mutants.tsv
           {
             echo "## Mutation testing, every source"
             echo

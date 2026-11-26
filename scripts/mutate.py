@@ -29,7 +29,8 @@ With `--shard K/N`, only the K-th of N groups of the files is mutated. The group
 same number of mutants each, and are the same on every machine, so N jobs can run the N groups in
 parallel and their mutants.tsv files together hold every mutant once.
 
-Usage: scripts/mutate.py [--list] [--timeout <seconds>] [--shard <k>/<n>] [<file or folder under Sources/>...]
+Usage: scripts/mutate.py [--list] [--timeout <seconds>] [--shard <k>/<n>]
+                         [<file or folder under Sources/>...]
 """
 
 import argparse
@@ -292,6 +293,12 @@ def shard(files, part):
     return sorted(groups[index])
 
 
+def selected(paths, part):
+    """The files to mutate: every one under `paths`, or one group of them when `part` is set."""
+    files = sources(paths)
+    return shard(files, part) if part else files
+
+
 def main():
     adopt_orphans()
     parser = argparse.ArgumentParser(description="Mutation testing for Understudy.")
@@ -316,8 +323,7 @@ def main():
     # Each result keeps the line it mutated, so a result whose line has changed since is run again.
     rows = [line.split("\t", 4) for line in out.read_text().splitlines()] if out.exists() else []
     done = {(*row[:3], row[4]) for row in rows if len(row) == 5}
-    files = sources(options.paths)
-    for path in shard(files, options.shard) if options.shard else files:
+    for path in selected(options.paths, options.shard):
         relative = path.relative_to(ROOT).as_posix()
         original = path.read_text()
         lines = original.split("\n")
