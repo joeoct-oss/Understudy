@@ -8,12 +8,13 @@
 
 These stand-ins are called *test doubles*, as a stunt double stands in for an actor: a test uses one in place of a real dependency, such as a network client, a database or a clock, so the test decides what it answers and can check how it was called.
 
-It has two tools, in two products:
+It has three tools, in two products:
 
 - **Spies** (`Understudy`): `@GenerateSpies` writes a test double for your protocol. Each function and property gets a spy that records its calls and gives scripted answers.
+- **Test clock** (`Understudy`): `TestClock` moves only when your test moves it, so code that waits can be tested without real time passing.
 - **Sample values** (`UnderstudySamples`): `@Sample` writes `sample(...)` for a struct, so a test gets a complete value in one call.
 
-**Contents:** [Install](#install) · [Quick start](#quick-start) · [Spies](#spies) · [Sample values](#sample-values) · [What the macros refuse](#what-the-macros-refuse)
+**Contents:** [Install](#install) · [Quick start](#quick-start) · [Spies](#spies) · [Test clock](#test-clock) · [Sample values](#sample-values) · [What the macros refuse](#what-the-macros-refuse)
 
 ## Install
 
@@ -374,6 +375,52 @@ final class SpyCatalog: Catalog {
 ```
 
 `ThrowingSpy` does the same for functions that throw. In an async function, call `await productSpy.respond(to: id)`, so the test can hold the call. All three work under Swift 6 strict concurrency, in main-actor and `Sendable` doubles alike.
+
+## Test clock
+
+`TestClock` is a clock that moves only when your test moves it. Code that waits, such as a retry delay, a debounce or a timeout, takes a clock with the real one as its default:
+
+```swift
+final class AuthService {
+    private let clock: any Clock<Duration>
+
+    init(clock: any Clock<Duration> = ContinuousClock()) {
+        self.clock = clock
+    }
+
+    func signIn(email: String, password: String) async throws -> Account {
+        try await clock.sleep(for: .milliseconds(400))
+        // ...
+    }
+}
+```
+
+The test passes a `TestClock` and moves it, so no real time passes:
+
+```swift
+@Test
+func signInWaitsForTheServer() async throws {
+    let clock = TestClock()
+    let auth = AuthService(clock: clock)
+
+    async let account = auth.signIn(email: "ana@example.com", password: "pw")
+    await clock.advance(by: .milliseconds(400))
+
+    #expect(try await account.email == "ana@example.com")
+}
+```
+
+- `now` starts at zero, and the clock never goes back: `advance(to:)` with an instant in the past moves nothing.
+- `advance(by:)` and `advance(to:)` wake each sleep the window reaches, in deadline order, with `now` set to each sleep's deadline as it wakes. A sleep that starts during the advance, inside the window, wakes in the same call. `advance()` lets ready work run without moving time, and `run()` moves on until nothing waits.
+- A sleep until a deadline already reached returns at once, and a cancelled sleep throws `CancellationError`, as the system clocks do.
+
+**What `advance` promises.** A woken task reads `now` as the deadline it woke at until it sleeps again, or until the end of the next advance, so its next sleep counts from when it woke. After each wake, `advance` lets other tasks run until the woken code sleeps on the clock again, even when it hops across actors and the main actor on the way, and that sleep is woken in the same call. It waits for that for up to 10 ms of real time, which is also how long it lets work run before the first wake, so a task just started reaches its first sleep. Swift has no public way to know when every task has reached its next suspension, so woken code that takes longer, such as code that waits on real network or disk work, may still be running when `advance` returns. It never misses its deadlines, though: a sleep it starts later, inside the window the clock has passed, returns at once. A sleep from a task the clock never woke, started after `advance` returns, counts from the clock's time then. Give a test that uses the clock a time limit, `@Test(.timeLimit(.minutes(1)))`, so a sleep that is never woken fails the test instead of stalling the run. The limit cancels the test's own work, so start the sleeping work as child work of the test, such as the `async let` above: cancelling a test doesn't cancel an unstructured `Task`, and a test that waits on one still stalls.
+
+Its limits:
+
+- **It needs macOS 13, iOS 16, tvOS 16 or watchOS 9**, where Swift's `Clock` arrived. The rest of the package keeps its older floor.
+- **It only helps code that takes a clock.** Code that calls `Task.sleep(for:)` directly still waits for real; change it to `clock.sleep(for:)` with the clock as a parameter.
+- **Another package's `TestClock`.** A widely used clocks package has a type with the same name. A test target that imports both writes `Understudy.TestClock`.
 
 ## Sample values
 
