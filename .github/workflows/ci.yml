@@ -14,6 +14,10 @@
 #   Package.swift allows (read from Package.swift, its one home).
 # - Swift 5 language mode: the package's tests built as a Swift 5 mode project builds them
 #   (Swift5Mode/Package.swift), since the code the macros write compiles in the user's mode.
+# - Public API kept: the Understudy library's public API against the latest released version, so
+#   a change that would break a user's code fails here. A deliberate break belongs in a new major
+#   version: list each one, as the job prints it, in .github/api-breakage-allowlist.txt, and
+#   delete that file once the major version is released and becomes the new baseline.
 # - Workflow lint: actionlint and zizmor over every workflow, and the size limits on the code
 #   (scripts/check-structure.py).
 # Hardening: free GitHub-hosted Linux runners only, no Mac. Every action is pinned to a full commit
@@ -194,9 +198,48 @@ jobs:
         if: ${{ !cancelled() }}
         run: scripts/check-structure.py
 
+  api:
+    name: Public API kept (Swift 6.4)
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    container:
+      image: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
+    steps:
+      # The tags are needed to find the latest release, and its commit to build it.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+
+      # Builds the latest released version and this one, and compares the public declarations of
+      # the Understudy library, the one product users import. Only plain X.Y.Z tags count as
+      # releases, so a prerelease tag never becomes the baseline. The breaks a new major version
+      # makes on purpose are listed in the allowlist, when there is one.
+      - name: Compare the public API with the latest release
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          latest=$(git tag --list | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          if [[ -z "$latest" ]]; then
+            echo "::error::No release tag to compare with."
+            exit 1
+          fi
+          echo "Comparing with $latest"
+          allowlist=.github/api-breakage-allowlist.txt
+          if [[ -f "$allowlist" ]]; then
+            swift package diagnose-api-breaking-changes "$latest" --products Understudy \
+              --breakage-allowlist-path "$allowlist"
+          else
+            swift package diagnose-api-breaking-changes "$latest" --products Understudy
+          fi
+
   gate:
     name: Linux build and tests
-    needs: [coverage, swift, lowest, swift5, lint]
+    needs: [coverage, swift, lowest, swift5, api, lint]
     if: ${{ always() && !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -209,7 +252,7 @@ jobs:
           RESULTS: ${{ join(needs.*.result, ' ') }}
           PR_RESULTS: >-
             ${{ needs.coverage.result }} ${{ needs.lowest.result }} ${{ needs.swift5.result }}
-            ${{ needs.lint.result }}
+            ${{ needs.api.result }} ${{ needs.lint.result }}
         run: |
           if [[ "$EVENT" == "pull_request" ]]; then
             RESULTS="$PR_RESULTS"
