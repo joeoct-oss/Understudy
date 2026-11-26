@@ -201,8 +201,9 @@ reviews:
     - path: "**/*.swift"
       instructions: >-
         Shared code style. Report each broken rule as an inline should-fix finding (major
-        severity) that names the rule, never as a nitpick or trivial item: this package has no
-        linter, so review is the only check. Empty braces have one space
+        severity) that names the rule, never as a nitpick or trivial item. CI's fast checks run
+        swift-format and SwiftLint (scripts/lint.sh), which catch most of these; review catches
+        what they miss and what no tool can judge. Empty braces have one space
         inside, `{ }`, never `{}` (empty collection literals and braces inside string literals or
         test source fixtures are not braces). A type or extension with members opens its brace on
         the declaration line, puts each member on its own line and lists one enum case per line.

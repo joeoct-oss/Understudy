@@ -14,6 +14,7 @@ import SwiftSyntaxMacros
 /// per property the memberwise initializer takes, each with a default, and a body that calls that
 /// initializer.
 public struct SampleMacro: MemberMacro {
+    /// The `sample(...)` function, inside `#if DEBUG`.
     public static func expansion(
         of node: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,

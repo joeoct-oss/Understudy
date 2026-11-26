@@ -108,6 +108,9 @@ private final class SpyGrid: Grid {
         @Spied get { }
         @Spied set { }
     }
-    subscript(name: String) -> Int? { @Spied get { } }
+
+    subscript(name: String) -> Int? {
+        @Spied get { }
+    }
 }
 #endif
