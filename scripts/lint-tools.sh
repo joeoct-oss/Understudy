@@ -58,7 +58,7 @@ install_swiftlint() {
         unpack_dir="$(mktemp -d .tools/swiftlint-unpack.XXXXXX)"
         unzip -q -o "$zip_path" -d "$unpack_dir"
         rm -f "$zip_path"
-        rm -rf "$install_dir"
+        rm -rf "${install_dir:?}"
         mv "$unpack_dir" "$install_dir"
     fi
     mkdir -p .tools/bin
