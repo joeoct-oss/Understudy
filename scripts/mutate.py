@@ -132,10 +132,13 @@ def run(arguments, timeout):
 
 
 def stop_with_descendants(process):
-    """Kills `process` and every process below it, then waits for `process` to end. The tree is
-    paused first, again and again until no new process appears, so nothing it starts meanwhile is
-    missed; the command itself is killed even when `ps` fails."""
-    paused = []
+    """Kills `process` and every process below it, then waits for `process` to end. The command
+    is paused first, so it can't exit and leave its children without a parent, and then the tree
+    again and again until no new process appears, so nothing started meanwhile is missed. The
+    command itself is killed even when `ps` fails, and a second interrupt can't cut the kill
+    short."""
+    paused = [process.pid]
+    signal_if_running(process.pid, signal.SIGSTOP)
     try:
         while True:
             found = [pid for pid in descendants(process.pid) if pid not in paused]
@@ -145,9 +148,13 @@ def stop_with_descendants(process):
             for pid in found:
                 signal_if_running(pid, signal.SIGSTOP)
     finally:
-        for pid in [process.pid, *paused]:
-            signal_if_running(pid, signal.SIGKILL)
-        process.wait()
+        interrupt = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            for pid in paused:
+                signal_if_running(pid, signal.SIGKILL)
+            process.wait()
+        finally:
+            signal.signal(signal.SIGINT, interrupt)
 
 
 def descendants(root):
