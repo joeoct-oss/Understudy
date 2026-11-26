@@ -4,9 +4,17 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+## 0.8.0 - 2026-11-26
+
+Nothing a test writes changes in this release, and the macros write the same code and give the same messages as in 0.7.0. It reorganises the package's own code so it is easier to read and change.
+
 ### Added
 
 - `scripts/compare-expansions.sh <git ref>`, for contributors: shows how the code the macros write, and the messages they give, changed since that commit, and prints nothing when they are the same. `--record` prints the whole record. It runs the macros of each commit over every Swift file under `Tests/`, with the tool in `Tools/ExpansionRecord`, a package of its own that no project depending on Understudy builds.
+
+### Changed
+
+- The package's code is in folders by job, one type per file, with functions of a few named steps: the macros in `Macros/`, `Requirements/`, `Protocols/`, `Writing/` and `Diagnostics/`, and the runtime in `Spies/`, `Waiting/`, `Checking/`, `Traits/` and `Clock/`. Every name the generated code uses is written in one place. The tests are in one file per feature. For contributors, `CODE_STYLE.md` says where each kind of code goes, and CI fails when a file, a function body or a line grows past the limits in `scripts/check-structure.py`.
 
 ## 0.7.0 - 2026-11-26
 
