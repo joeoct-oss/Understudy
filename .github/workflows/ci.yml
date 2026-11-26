@@ -12,7 +12,8 @@
 #   covers the ones in between, and main checks the rest before anything is published.
 # - Lowest versions: Swift 6.0, the tools version in Package.swift, with the lowest swift-syntax
 #   Package.swift allows (read from Package.swift, its one home).
-# - Workflow lint: actionlint and zizmor over every workflow.
+# - Workflow lint: actionlint and zizmor over every workflow, and the size limits on the code
+#   (scripts/check-structure.py).
 # Hardening: free GitHub-hosted Linux runners only, no Mac. Every action is pinned to a full commit
 # SHA and every image to a digest, with the version in a comment; Dependabot bumps the actions,
 # and the images are bumped by hand in the same PR. Each job reads the repo and nothing else, and
@@ -136,6 +137,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # Fails on a file, a body or a line past the package's size limits (CODE_STYLE.md, "Where
+      # code goes"). Python 3 is on the runner, so nothing is installed.
+      - name: Size limits
+        run: scripts/check-structure.py
 
       # Checks workflow syntax, expressions and, through the runner's shellcheck, every run script.
       # The download follows HTTPS only and is checked against its checksum.
