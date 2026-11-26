@@ -29,7 +29,9 @@ Usage: scripts/mutate.py [--list] [--timeout <seconds>] [<file or folder under S
 """
 
 import argparse
+import os
 import re
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -111,12 +113,18 @@ def mutants(path):
 
 
 def run(arguments, timeout):
-    """Whether the command passed, failed or ran out of time."""
-    try:
-        result = subprocess.run(arguments, cwd=ROOT, capture_output=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        return "timeout"
-    return "pass" if result.returncode == 0 else "fail"
+    """Whether the command passed, failed or ran out of time. A command that runs out of time is
+    stopped with every process it started, such as the test runner `swift test` starts, so a
+    mutant that hangs leaves nothing running."""
+    with subprocess.Popen(arguments, cwd=ROOT, stdout=subprocess.DEVNULL,
+                          stderr=subprocess.DEVNULL, start_new_session=True) as process:
+        try:
+            returncode = process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            return "timeout"
+    return "pass" if returncode == 0 else "fail"
 
 
 def outcome(relative, timeout):
