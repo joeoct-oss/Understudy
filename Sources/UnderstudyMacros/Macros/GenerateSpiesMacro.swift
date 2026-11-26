@@ -158,17 +158,17 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
     }
 
     /// The `@Spied` functions, properties and subscripts of a class, in order.
-    private static func spiedRequirements(of block: MemberBlockSyntax) throws -> [any SpiedMember] {
-        try block.members.compactMap { member -> (any SpiedMember)? in
+    private static func spiedRequirements(of block: MemberBlockSyntax) throws -> [any Requirement] {
+        try block.members.compactMap { member -> (any Requirement)? in
             if let spied = member.decl.as(SubscriptDeclSyntax.self),
                spied.accessorBlock?.accessors.as(AccessorDeclListSyntax.self)?.contains(where: { accessor in
                    accessor.attributes.contains { isAttribute($0, named: "Spied") }
                }) == true {
-                return try Subscript(spied, inProtocol: false)
+                return try SubscriptRequirement(spied, inProtocol: false)
             }
             if let property = member.decl.as(VariableDeclSyntax.self),
                property.attributes.contains(where: { isAttribute($0, named: "SpiedProperty") }) {
-                return try Property(property, inProtocol: false)
+                return try PropertyRequirement(property, inProtocol: false)
             }
             guard let function = member.decl.as(FunctionDeclSyntax.self),
                   function.attributes.contains(where: { isAttribute($0, named: "Spied") }) else {
@@ -184,7 +184,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
                     fixIt: .replace(message: UnderstudyFixIt("Remove the body"), oldNode: function, newNode: bare)
                 )
             }
-            return try Requirement(function)
+            return try FunctionRequirement(function)
         }
     }
 
@@ -215,7 +215,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
     /// default, defaulting those with an obvious value. An actor's spies are `nonisolated`, so a
     /// test reads them without `await`.
     private static func storage(
-        for requirements: [any SpiedMember],
+        for requirements: [any Requirement],
         in typeName: String,
         access: String,
         isActor: Bool,
@@ -276,7 +276,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
     /// property per spy that reads the current box. A static spy has no initializer to take its
     /// first answer, so it starts from the obvious one; a requirement with none is refused.
     private static func staticStorage(
-        for statics: [(any SpiedMember, String)],
+        for statics: [(any Requirement, String)],
         in typeName: String,
         prefix: String
     ) throws -> [DeclSyntax] {

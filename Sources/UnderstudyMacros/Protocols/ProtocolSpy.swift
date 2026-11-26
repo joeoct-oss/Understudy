@@ -66,7 +66,7 @@ struct ProtocolSpy {
     /// Each associated type's name and the constraints its generic parameter keeps.
     let associatedTypes: [(name: String, constraints: [String])]
     /// The requirements the protocol declares itself, each of which gets a spy.
-    let requirements: [any SpiedMember]
+    let requirements: [any Requirement]
     /// The name of each requirement's spy, in the order of `requirements`.
     let spyNames: [String]
 
@@ -233,15 +233,15 @@ struct ProtocolSpy {
     private static func requirement(
         _ member: DeclSyntax,
         in declaration: ProtocolDeclSyntax
-    ) throws -> (any SpiedMember)? {
+    ) throws -> (any Requirement)? {
         if let function = member.as(FunctionDeclSyntax.self) {
-            return try Requirement(function)
+            return try FunctionRequirement(function)
         }
         if let property = member.as(VariableDeclSyntax.self) {
-            return try Property(property, inProtocol: true)
+            return try PropertyRequirement(property, inProtocol: true)
         }
         if let spied = member.as(SubscriptDeclSyntax.self) {
-            return try Subscript(spied, inProtocol: true)
+            return try SubscriptRequirement(spied, inProtocol: true)
         }
         if member.is(AssociatedTypeDeclSyntax.self) {
             return nil
@@ -307,7 +307,7 @@ struct ProtocolSpy {
 
     /// The computed properties that reach `requirement`'s spies in the stored parent spy, so a
     /// test reads them on the child's spy and the forwarded implementation calls them.
-    private func forwardedSpies(of requirement: any SpiedMember, named spy: String, through own: Parent) -> [String] {
+    private func forwardedSpies(of requirement: any Requirement, named spy: String, through own: Parent) -> [String] {
         let holder = requirement.isStatic ? own.spyType : "self." + own.property
         let keyword = requirement.isStatic ? "static var" : "var"
         let get = "\(prefix)\(keyword) \(spy): \(requirement.spyType) { \(holder).\(spy) }"

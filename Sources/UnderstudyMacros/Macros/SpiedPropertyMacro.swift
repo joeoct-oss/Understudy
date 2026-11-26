@@ -25,7 +25,7 @@ public struct SpiedPropertyMacro: AccessorMacro {
             throw UnderstudyError("@SpiedProperty needs @GenerateSpies on the class or actor it is in")
         }
         // `@GenerateSpies` explains a property it can't write, at the property.
-        guard let property = try? Property(variable, inProtocol: false) else {
+        guard let property = try? PropertyRequirement(variable, inProtocol: false) else {
             return []
         }
         return accessors(spy: "self." + property.forwarderName)

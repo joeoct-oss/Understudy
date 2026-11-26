@@ -29,7 +29,7 @@ public struct SpiedMacro: BodyMacro {
         }
         // `@GenerateSpies` explains a requirement it can't write, at the requirement. The body only has
         // to compile until the person fixes it.
-        guard let requirement = try? Requirement(function) else {
+        guard let requirement = try? FunctionRequirement(function) else {
             return ["Swift.fatalError(\"@GenerateSpies can't write this requirement\")"]
         }
         let attempt = requirement.throwsError ? "try " : ""
@@ -52,7 +52,7 @@ public struct SpiedMacro: BodyMacro {
         }
         // `@GenerateSpies` explains a subscript it can't write, at the subscript. The context may
         // hold the subscript without its accessors, so only its indices are read here.
-        guard let spied = try? Subscript(declaration, checkingAccessors: false) else {
+        guard let spied = try? SubscriptRequirement(declaration, checkingAccessors: false) else {
             return ["Swift.fatalError(\"@GenerateSpies can't write this requirement\")"]
         }
         let target = spied.forwarderTarget
@@ -78,7 +78,7 @@ public struct SpiedMacro: BodyMacro {
 
     /// The statements that call a spy directly and return its answer, for the spy class
     /// `@GenerateSpies` writes next to a protocol.
-    static func body(of requirement: Requirement, spy: String) -> CodeBlockItemListSyntax {
+    static func body(of requirement: FunctionRequirement, spy: String) -> CodeBlockItemListSyntax {
         "\(raw: requirement.body(on: spy))"
     }
 }

@@ -1,5 +1,5 @@
 //
-//  Subscript.swift
+//  SubscriptRequirement.swift
 //  Understudy
 //
 //  Created by Yousef Mohamed <youseef.elserwey@gmail.com>.
@@ -11,9 +11,9 @@ import SwiftSyntax
 /// One subscript a double stands in for, read from its declaration: a subscript of a class whose
 /// `get`, and maybe `set`, are marked `@Spied` with empty bodies, or a subscript requirement of a
 /// protocol. Its gets go to one spy, and its sets, when it has any, to a second.
-struct Subscript: SpiedMember {
+struct SubscriptRequirement: Requirement {
     let declaration: SubscriptDeclSyntax
-    let parameters: [Requirement.Parameter]
+    let parameters: [FunctionRequirement.Parameter]
     let output: String
     let returnsOptional: Bool
     let returnsFunction: Bool
@@ -169,9 +169,9 @@ struct Subscript: SpiedMember {
             guard name != "_" else {
                 throw UnderstudyError("\(where_) has an index with no name; name it", at: parameter)
             }
-            return Requirement.Parameter(
+            return FunctionRequirement.Parameter(
                 name: name,
-                type: try Requirement.storedType(of: parameter, generics: [:], in: where_),
+                type: try FunctionRequirement.storedType(of: parameter, generics: [:], in: where_),
                 escapes: false
             )
         }
@@ -180,6 +180,6 @@ struct Subscript: SpiedMember {
         returnsOptional = returnType.is(OptionalTypeSyntax.self)
             || returnType.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)
             || output.hasPrefix("Optional<")
-        returnsFunction = Requirement.isFunction(returnType)
+        returnsFunction = FunctionRequirement.isFunction(returnType)
     }
 }

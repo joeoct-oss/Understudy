@@ -9,7 +9,7 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-extension Requirement {
+extension FunctionRequirement {
     /// The private function a `@Spied` function's body calls on a class: it takes the function's
     /// labels, keeps its isolation and its effects, and calls `spy`.
     func forwarder(spy: String) -> DeclSyntax {
@@ -47,7 +47,7 @@ extension Requirement {
     }
 }
 
-extension Property {
+extension PropertyRequirement {
     /// The private property a `@SpiedProperty` property's accessors go through on a class.
     func forwarder(spy: String) -> DeclSyntax {
         "private \(raw: isStatic ? "static " : "")var \(raw: forwarderName): \(raw: spyType) { self.\(raw: spy) }"
