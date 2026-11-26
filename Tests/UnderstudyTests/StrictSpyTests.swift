@@ -109,4 +109,20 @@ struct StrictSpyTests {
 
         #expect(problems.isEmpty)
     }
+
+    @Test("A throwing spy's expectation with a matcher reports a call count it didn't get")
+    func throwingSpyExpectationReportsShortfall() throws {
+        let loader = ThrowingSpy<(path: String, force: Bool), Int>(returning: 0)
+        loader.expect(times: 2) { !$0.force }
+
+        _ = try loader((path: "b", force: false))
+        // `var` because `withKnownIssue`'s body sets it.
+        var problems: [String] = []
+        withKnownIssue {
+            problems = loader.verify()
+        }
+
+        let expected = ["expected 2 calls with a matching input, got 1 call"]
+        #expect(problems == expected)
+    }
 }
