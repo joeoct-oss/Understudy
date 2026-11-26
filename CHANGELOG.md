@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Changed
+
+- For contributors: CodeRabbit's merge risk and security risk ratings now know what is risky in this package, such as the release workflow, the code the macros generate and the macro plugin's limits. The ratings only inform; they never approve or block a merge.
+
 ## 0.8.0 - 2026-11-26
 
 Nothing a test writes changes in this release, and the macros write the same code and give the same messages as in 0.7.0. It reorganises the package's own code so it is easier to read and change.

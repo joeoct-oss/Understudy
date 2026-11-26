@@ -15,6 +15,25 @@ reviews:
   # nitpicks, where no thread has to be resolved. The tone and path instructions keep the inline
   # comments to blockers and should-fix items.
   profile: chill
+  # Facts for the merge risk and security risk ratings in each review. They only rate the PR:
+  # automatic approvals are off, so they never approve or block a merge.
+  merge_risk_instructions: >-
+    Every merge to main publishes a release, so a merged change reaches package users at once.
+    High risk: a breaking change to public API or to the code a public macro generates; a change
+    to Package.swift platforms, swift-tools-version or dependencies; a change to
+    .github/workflows/release.yml or scripts/release-notes.sh. Moderate risk: locking,
+    concurrency or waiting code in Sources/Understudy; macro code that changes diagnostics or
+    fix-its; a change to scripts/check-coverage.sh, scripts/check-structure.py or a required CI
+    job. Low risk: changes only to Tests/, Sources/UnderstudySamples*, Tools/, docs or
+    CHANGELOG.md that keep the generated code and messages the same.
+  security_risk_instructions: >-
+    Understudy is a test-only Swift package: it runs inside users' test targets and, through its
+    macros, as a compiler plugin in their builds. It runs no service, stores nothing and makes no
+    network calls. The trust boundaries are the macro plugin, which must only read the syntax it
+    is given, and CI: the release job alone holds a contents write token and publishes tags and
+    releases, and every other job is read-only. A change that gives a job more permissions,
+    makes the macros read files, the environment or the network, or adds a dependency is high
+    risk; source and test changes inside those limits are minimal.
   # Keep the PR description as the author wrote it. Never put "@coderabbitai summary" in it.
   high_level_summary: false
   high_level_summary_in_walkthrough: false
