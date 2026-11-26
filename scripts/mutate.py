@@ -113,18 +113,42 @@ def mutants(path):
 
 
 def run(arguments, timeout):
-    """Whether the command passed, failed or ran out of time. A command that runs out of time is
-    stopped with every process it started, such as the test runner `swift test` starts, so a
-    mutant that hangs leaves nothing running."""
-    with subprocess.Popen(arguments, cwd=ROOT, stdout=subprocess.DEVNULL,
-                          stderr=subprocess.DEVNULL, start_new_session=True) as process:
-        try:
-            returncode = process.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
-            return "timeout"
+    """Whether the command passed, failed or ran out of time. A command that runs out of time, or
+    is interrupted, is stopped with every process it started, so a mutant that hangs leaves
+    nothing running: `swift test` starts its test runner in a process group of its own."""
+    process = subprocess.Popen(arguments, cwd=ROOT, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL)
+    try:
+        returncode = process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        stop_with_descendants(process)
+        return "timeout"
+    except KeyboardInterrupt:
+        stop_with_descendants(process)
+        raise
     return "pass" if returncode == 0 else "fail"
+
+
+def stop_with_descendants(process):
+    """Kills `process` and every process below it, children first so none is left without its
+    parent and missed, then waits for `process` to end."""
+    listing = subprocess.run(["ps", "-A", "-o", "pid=,ppid="], capture_output=True, text=True,
+                             check=True).stdout
+    children = {}
+    for line in listing.splitlines():
+        pid, parent = (int(field) for field in line.split())
+        children.setdefault(parent, []).append(pid)
+    tree, pending = [], [process.pid]
+    while pending:
+        pid = pending.pop()
+        tree.append(pid)
+        pending.extend(children.get(pid, []))
+    for pid in reversed(tree):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    process.wait()
 
 
 def outcome(relative, timeout):
