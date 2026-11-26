@@ -64,8 +64,18 @@ code_lines=$(gh api --paginate "repos/$repo/code-scanning/alerts?per_page=100" \
           + (if $where.path then " in `\($where.path | esc):\($where.start_line // 1)`" else "" end)
           + closed')
 
-secret_lines=$(GH_TOKEN="$SECRET_SCANNING_TOKEN" gh api --paginate \
-    "repos/$repo/secret-scanning/alerts?per_page=100" --jq '.[] | @json' |
+# GitHub returns generic patterns, such as private keys and connection strings, only when asked
+# for by name, so they are read in a second request: the list is "Generic" in GitHub's supported
+# secret scanning patterns.
+generic_types="ec_private_key,generic_private_key,http_basic_authentication_header"
+generic_types+=",http_bearer_authentication_header,mongodb_connection_string,mysql_connection_url"
+generic_types+=",openssh_private_key,password,pgp_private_key,postgres_connection_string,rsa_private_key"
+secret_lines=$({
+    GH_TOKEN="$SECRET_SCANNING_TOKEN" gh api --paginate \
+        "repos/$repo/secret-scanning/alerts?per_page=100" --jq '.[] | @json' &&
+    GH_TOKEN="$SECRET_SCANNING_TOKEN" gh api --paginate \
+        "repos/$repo/secret-scanning/alerts?per_page=100&secret_type=$generic_types" --jq '.[] | @json'
+} | awk '!seen[$0]++' |
     jq -r --arg since "$since" --arg until "$until" '
         def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
         def closed: if .state == "open" then "" else " (now \(.state))" end;
