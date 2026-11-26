@@ -25,8 +25,12 @@
 /// On an actor, it writes the same members, with spies a test reads without `await`. On a
 /// protocol you own, it writes a class named after the protocol with `Spy` added, such as
 /// `CatalogSpy`, next to it, or an actor when the protocol inherits `Actor`. The protocol's target
-/// then depends on Understudy. A protocol that inherits another, other than `Sendable`,
-/// `AnyObject` or `Actor`, needs the class form.
+/// then depends on Understudy. A protocol with associated types gets a generic spy, one generic
+/// parameter per associated type with its constraints: `RepositorySpy<Product>`. A protocol that
+/// inherits another protocol with `@GenerateSpies` gets a spy that stores the parent's spy, taken
+/// by its initializer, `ChildSpy(base: BaseSpy())`, and answers the parent's requirements
+/// through it, with the parent's spies read on the child's: `child.pingSpy`. For that, the macro
+/// also writes `<Name>SpyForwarding` next to every protocol.
 ///
 /// Each spy is named after its requirement with `Spy` added, such as `productSpy`; overloads add
 /// their argument labels, such as `removeIdSpy` and `removeNamedSpy`. A requirement with several
@@ -49,8 +53,8 @@
 /// starts from the obvious one, and a requirement with none is refused. The class or actor then
 /// conforms to ``StaticSpies``.
 @attached(member, names: arbitrary)
-@attached(peer, names: suffixed(Spy))
-@attached(extension, conformances: StaticSpies)
+@attached(peer, names: suffixed(Spy), suffixed(SpyForwarding))
+@attached(extension, conformances: StaticSpies, names: arbitrary)
 public macro GenerateSpies() = #externalMacro(module: "UnderstudyMacros", type: "GenerateSpiesMacro")
 
 /// Marks a function of a ``GenerateSpies()`` class that the macro writes. Give it no body.
