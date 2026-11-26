@@ -231,7 +231,8 @@ reviews:
       instructions: >-
         Actions are pinned to a full commit SHA with the version in a comment, images to a
         digest, each job gets only the permissions it uses, no checkout keeps the token, and
-        only free GitHub-hosted runners are used. A download follows HTTPS only and is checked
+        only free GitHub-hosted runners are used: Linux, and the standard macOS labels for the
+        Apple checks, never a larger (-large, -xlarge) or self-hosted runner. A download follows HTTPS only and is checked
         against a checksum. Report each security problem as an inline should-fix finding (major
         severity), even where zizmor in CI may also report it, since CI's workflow lint runs
         only after the SonarQube Cloud gate passes: pull_request_target or workflow_run that
@@ -241,7 +242,8 @@ reviews:
         action pinned to a tag or branch; a checkout without persist-credentials: false; a
         self-hosted runner; a secret passed to a step that doesn't need it. Flag a change that
         drops the Swift 6.0 (lowest versions) or Swift 6.4 job from pull requests, drops Swift
-        6.1 to 6.3 from the run on main and before a release, renames a job that is a required
+        6.1 to 6.3 from the run on main and before a release, drops a job from the Apple
+        platform checks or stops a release waiting for them, renames a job that is a required
         check (SonarQube Cloud quality gate, Linux checks / Linux build and tests, Branch name,
         Release / Release check, CodeRabbit), or lets a job in checks.yml start before the
         SonarQube Cloud quality gate passed. Flag a new pinned commit of

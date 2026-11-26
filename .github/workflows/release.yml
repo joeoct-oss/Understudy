@@ -9,9 +9,9 @@
 #   tag.
 # - On a push to main (publish): when the top version has no tag yet, creates the tag on the
 #   pushed commit and the GitHub release with that version's notes, marked Latest. When it is
-#   already tagged, does nothing. Publishing waits for the Linux checks (ci.yml), which run again
-#   on the pushed commit: a squash merge makes a commit no PR check saw, so nothing is tagged
-#   unless the Linux checks passed on exactly that commit.
+#   already tagged, does nothing. Publishing waits for the Linux checks (ci.yml) and the Apple
+#   platform checks (apple.yml), which run again on the pushed commit: a squash merge makes a
+#   commit no PR check saw, so nothing is tagged unless both passed on exactly that commit.
 # Uses only actions/checkout (pinned to a commit SHA), the runner's gh and GITHUB_TOKEN, on free
 # GitHub-hosted runners. Each job gets only the permissions it uses.
 name: Release
@@ -72,11 +72,19 @@ jobs:
     # The documented local form: it always runs ci.yml from this same commit.
     uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
 
+  # The Apple platform checks on the pushed commit, on every push to main, for the same reason.
+  apple-checks:
+    name: Apple platform checks
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/apple.yml # zizmor: ignore[self-repository]
+
   # Runs only on main, only when the check found an untagged version, and only after the Linux
-  # checks passed on the same commit.
+  # and Apple checks passed on the same commit.
   publish:
     name: Publish
-    needs: [check, linux-checks]
+    needs: [check, linux-checks, apple-checks]
     if: github.event_name == 'push' && needs.check.outputs.tagged == 'false'
     runs-on: ubuntu-24.04
     timeout-minutes: 5

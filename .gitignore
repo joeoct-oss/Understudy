@@ -9,6 +9,10 @@
 /Swift5Mode/.build
 /Swift5Mode/.swiftpm
 /Swift5Mode/Package.resolved
+# And the Apple platforms package, built by the Apple checks with the same pins.
+/ApplePlatforms/.build
+/ApplePlatforms/.swiftpm
+/ApplePlatforms/Package.resolved
 /Packages
 xcuserdata/
 DerivedData/
