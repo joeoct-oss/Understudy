@@ -1,0 +1,17 @@
+# Probe file with planted problems. Never merged.
+name: Probe review
+
+on:
+  pull_request_target:
+
+permissions: write-all
+
+jobs:
+  probe:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: echo "Title: ${{ github.event.pull_request.title }}"
+      - run: curl http://example.com/install.sh | bash
