@@ -31,11 +31,13 @@ Usage: scripts/mutate.py [--list] [--timeout <seconds>] [<file or folder under S
 import argparse
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
 from pathlib import Path
 
+PS = shutil.which("ps") or "/bin/ps"
 ROOT = Path(__file__).resolve().parent.parent
 STRING = re.compile(r'"(?:[^"\\]|\\.)*"')
 INLINE_COMMENT = re.compile(r"/\*.*?\*/")
@@ -130,25 +132,48 @@ def run(arguments, timeout):
 
 
 def stop_with_descendants(process):
-    """Kills `process` and every process below it, children first so none is left without its
-    parent and missed, then waits for `process` to end."""
-    listing = subprocess.run(["ps", "-A", "-o", "pid=,ppid="], capture_output=True, text=True,
+    """Kills `process` and every process below it, then waits for `process` to end. The tree is
+    paused first, again and again until no new process appears, so nothing it starts meanwhile is
+    missed; the command itself is killed even when `ps` fails."""
+    paused = []
+    try:
+        while True:
+            found = [pid for pid in descendants(process.pid) if pid not in paused]
+            if not found:
+                break
+            for pid in found:
+                signal_if_running(pid, signal.SIGSTOP)
+            paused += found
+    finally:
+        for pid in [process.pid, *paused]:
+            signal_if_running(pid, signal.SIGKILL)
+        process.wait()
+
+
+def descendants(root):
+    """`root` and every process below it, read from `ps`, which macOS and Linux both have."""
+    listing = subprocess.run([PS, "-A", "-o", "pid=,ppid="], capture_output=True, text=True,
                              check=True).stdout
     children = {}
     for line in listing.splitlines():
         pid, parent = (int(field) for field in line.split())
         children.setdefault(parent, []).append(pid)
-    tree, pending = [], [process.pid]
+    tree, pending = [], [root]
     while pending:
         pid = pending.pop()
         tree.append(pid)
         pending.extend(children.get(pid, []))
-    for pid in reversed(tree):
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    process.wait()
+    return tree
+
+
+def signal_if_running(pid, number):
+    """Sends `number` to `pid`; a process that has already ended needs nothing, so that case is
+    not an error."""
+    try:
+        os.kill(pid, number)
+    except ProcessLookupError:
+        return False
+    return True
 
 
 def outcome(relative, timeout):
