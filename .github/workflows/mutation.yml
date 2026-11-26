@@ -63,14 +63,14 @@ jobs:
               exit 0
             fi
           fi
-          swift build --build-tests --quiet
-          scripts/mutate.py --out "$RUNNER_TEMP/mutants.tsv" ${files[@]+"${files[@]}"}
+          swift build --build-tests --quiet --force-resolved-versions
+          scripts/mutate.py ${files[@]+"${files[@]}"}
           {
             echo "## Mutation testing"
             echo
             echo "| File | Line | Change | Result |"
             echo "| --- | --- | --- | --- |"
-            awk -F '\t' '$4 == "survived" { printf "| %s | %s | %s | %s |\n", $1, $2, $3, $4 }' "$RUNNER_TEMP/mutants.tsv"
+            awk -F '\t' '$4 == "survived" { printf "| %s | %s | %s | %s |\n", $1, $2, $3, $4 }' mutants.tsv
             echo
-            awk -F '\t' '{ count[$4]++ } END { for (r in count) printf "%s: %d  \n", r, count[r] }' "$RUNNER_TEMP/mutants.tsv"
+            awk -F '\t' '{ count[$4]++ } END { for (r in count) printf "%s: %d  \n", r, count[r] }' mutants.tsv
           } >>"$GITHUB_STEP_SUMMARY"

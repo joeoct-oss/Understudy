@@ -19,10 +19,11 @@ survived. The tests of the feature the file belongs to run first; a mutant they 
 every test before it is recorded as survived, so a survivor is one the whole suite misses. A run
 longer than the time limit counts as killed, since a test that hangs noticed the change.
 
-Results go to a TSV file, one line per mutant, as they come; a run reads it first and skips every
-mutant already in it, so a long run can stop and go on later.
+Results go to mutants.tsv at the package's root, which git ignores, one line per mutant, as they
+come; a run reads it first and skips every mutant already in it, so a long run can stop and go on
+later. Only files under Sources/ are mutated.
 
-Usage: scripts/mutate.py [--list] [--out <file>] [--timeout <seconds>] [<file or folder>...]
+Usage: scripts/mutate.py [--list] [--timeout <seconds>] [<file or folder under Sources/>...]
 """
 
 import argparse
@@ -50,7 +51,7 @@ SWAPS = [
 ]
 # A line that is a whole statement on its own, which removing leaves the code still building often
 # enough to be worth trying: a call, an assignment or a mutation, never a declaration or control.
-STATEMENT = re.compile(r"^\s*(self\.)?[a-z_][\w.]*(\(.*\)|\s*(=|\+=|-=)\s*.+)\s*$")
+STATEMENT = re.compile(r"^\s*(?:self\.)?[a-z_][\w.]*(?:\(|\s*[+-]?=\s)")
 NOT_STATEMENT = re.compile(
     r"^\s*(let|var|return|guard|if|else|for|while|switch|case|default|func|init|throw|try|await|"
     r"defer|do|catch|break|continue|fallthrough|super\.init|self\.init)\b"
@@ -123,8 +124,13 @@ def outcome(relative, timeout):
 
 
 def sources(paths):
-    """Every Swift file under the paths given, or under Sources/, except compiler plugin entries."""
-    roots = [ROOT / path for path in paths] or [ROOT / "Sources"]
+    """Every Swift file under the paths given, or under Sources/, except compiler plugin entries.
+    A path outside Sources/ stops the run, so the script never writes anywhere else."""
+    allowed = (ROOT / "Sources").resolve()
+    roots = [(ROOT / path).resolve() for path in paths] or [allowed]
+    for root in roots:
+        if root != allowed and allowed not in root.parents:
+            sys.exit(f"error: {root} is not under Sources/")
     files = [file for root in roots for file in ([root] if root.is_file() else sorted(root.rglob("*.swift")))]
     return [file for file in files if file.name != "Plugin.swift"]
 
@@ -133,10 +139,9 @@ def main():
     parser = argparse.ArgumentParser(description="Mutation testing for Understudy.")
     parser.add_argument("paths", nargs="*", help="files or folders under the package, Sources/ by default")
     parser.add_argument("--list", action="store_true", help="list the mutants without running them")
-    parser.add_argument("--out", default="mutants.tsv", help="the results file, read again to go on")
     parser.add_argument("--timeout", type=int, default=600, help="seconds a build or a test run may take")
     options = parser.parse_args()
-    out = Path(options.out)
+    out = ROOT / "mutants.tsv"
     done = {tuple(line.split("\t")[:3]) for line in out.read_text().splitlines()} if out.exists() else set()
     for path in sources(options.paths):
         relative = path.relative_to(ROOT).as_posix()
