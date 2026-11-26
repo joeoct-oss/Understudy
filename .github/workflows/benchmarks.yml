@@ -1,0 +1,72 @@
+# Measures what Understudy costs a project that uses it (scripts/benchmark.sh), and shows the table
+# in the job summary. Timings on shared runners vary by 10% or more, so they are reported, never
+# enforced, and no required check waits on this workflow.
+# - Pull requests to main: every area but the build benchmark, which takes minutes of builds. Drafts
+#   are skipped until they are ready for review, and a newer push cancels the run still going.
+# - A manual run: every area, and the build benchmark too when `build` is ticked. A pull request
+#   that changes the code the macros write runs it this way, and puts the numbers in its body.
+# Hardening as in ci.yml: free GitHub-hosted Linux runners only, the action pinned to a full commit
+# SHA and the image to a digest, read-only, no checkout keeps the token, and the build cache is
+# used on pull requests only.
+name: Benchmarks
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      build:
+        description: Also run the build benchmark, which takes about 15 minutes
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: benchmarks-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  benchmarks:
+    name: Benchmarks (Swift 6.4)
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    container:
+      image: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Restore the build cache
+        if: github.event_name == 'pull_request'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .build
+            Benchmarks/.build
+          key: benchmarks-swift-6.4.3-${{ hashFiles('Package.swift', 'Package.resolved', 'Benchmarks/Package.swift') }}
+
+      # Bash, which the container's default `sh` isn't, for the script's own conventions.
+      - name: Run the benchmarks
+        shell: bash
+        env:
+          BUILD: ${{ inputs.build }}
+        run: |
+          if [[ "$BUILD" == "true" ]]; then
+            scripts/benchmark.sh --all >"$RUNNER_TEMP/table.md"
+          else
+            scripts/benchmark.sh >"$RUNNER_TEMP/table.md"
+          fi
+          {
+            echo "## Benchmarks"
+            echo
+            echo "Medians and ranges of 10 runs on a shared runner, in debug. Compare with a run on the same kind of machine."
+            echo
+            cat "$RUNNER_TEMP/table.md"
+          } >>"$GITHUB_STEP_SUMMARY"

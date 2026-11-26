@@ -13,16 +13,18 @@
 # under Tests/ in the working tree, so it covers every double the tests build and every source the
 # macro tests expand from a plain string literal. A source the macro tests build with interpolation,
 # such as most refusals, isn't in it; their tests check those messages. With `--record`, prints the
-# working tree's record instead of a difference. The tool is Tools/ExpansionRecord.
+# working tree's record instead of a difference; with `--count`, how much code the working tree's
+# macros write for those files; with `--time`, how long they take to expand them. The tool is
+# Tools/ExpansionRecord.
 #
 # Usage: scripts/compare-expansions.sh <git ref>
-#        scripts/compare-expansions.sh --record
+#        scripts/compare-expansions.sh --record | --count | --time
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [[ $# -ne 1 ]]; then
-    echo "usage: $0 <git ref> | --record" >&2
+    echo "usage: $0 <git ref> | --record | --count | --time" >&2
     exit 2
 fi
 
@@ -38,9 +40,11 @@ done < <(find "$root/Tests" -name '*.swift' | LC_ALL=C sort)
 # The tool is built in .build, which git ignores, so swift-syntax is built once and reused.
 tool="$root/.build/expansion-record"
 
-# Prints the record of the macro sources in `$1`, a folder that holds Sources/ of some commit.
+# Prints the record of the macro sources in `$1`, a folder that holds Sources/ of some commit, or
+# with a second argument, `--count` or `--time`, what that mode of the tool prints.
 record() {
     local sources="$1"
+    local mode=("${@:2}")
     mkdir -p "$tool"
     rm -rf -- "${tool:?}/Sources"
     cp -R "$root/Tools/ExpansionRecord/." "$tool/"
@@ -51,14 +55,20 @@ record() {
     # so the record always uses the swift-syntax the package is built with.
     cp "$root/Package.resolved" "$tool/"
     swift build --package-path "$tool" --product ExpansionRecord --quiet >&2
-    "$(swift build --package-path "$tool" --show-bin-path)/ExpansionRecord" -- "${inputs[@]}" |
+    "$(swift build --package-path "$tool" --show-bin-path)/ExpansionRecord" ${mode[@]+"${mode[@]}"} -- "${inputs[@]}" |
         sed "s|$root/||"
 }
 
-if [[ "$1" == "--record" ]]; then
-    record "$root"
-    exit 0
-fi
+case "$1" in
+    --record)
+        record "$root"
+        exit 0
+        ;;
+    --count | --time)
+        record "$root" "$1"
+        exit 0
+        ;;
+esac
 
 # The ref is resolved to a commit first, so it can never be read as an option.
 if ! commit=$(git rev-parse --verify --quiet --end-of-options "$1^{commit}"); then

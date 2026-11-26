@@ -1,6 +1,10 @@
 .DS_Store
 /.build
 /.swiftpm
+# The benchmarks package builds on its own; scripts/benchmark.sh gives it the package's pins.
+/Benchmarks/.build
+/Benchmarks/.swiftpm
+/Benchmarks/Package.resolved
 /Packages
 xcuserdata/
 DerivedData/
