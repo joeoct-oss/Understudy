@@ -56,6 +56,10 @@ jobs:
               exit 0
             fi
           fi
+          # The Swift image has no Python, which scripts/mutate.py needs: it comes from the image's
+          # own Ubuntu archive, which apt checks against its signed index.
+          apt-get update -q
+          apt-get install -y -q --no-install-recommends python3
           swift build --build-tests --quiet --force-resolved-versions
           touch mutants.tsv
           scripts/mutate.py ${files[@]+"${files[@]}"}
