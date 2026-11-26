@@ -184,9 +184,9 @@ struct AsyncControlTests {
         #expect(next == 1)
     }
 
-    /// The wait and the call race, so the test runs them many times to meet the case where the
-    /// wait is on before the call comes.
-    @Test("A call that comes while a wait is on is given to that wait only, and a later wait gets the next")
+    /// The wait and the call race, so the call may come before or during the wait. The test runs
+    /// them many times, so both cases happen.
+    @Test("A call made from another task is given to one wait only, and a later wait gets the next")
     func callDuringAWaitIsGivenOnce() async {
         for _ in 1...Self.raceRuns {
             let spy = Spy<Int, Void>()
@@ -205,9 +205,9 @@ struct AsyncControlTests {
         }
     }
 
-    /// The waits and the calls race, so the test runs them many times to meet the case where
-    /// both waits are on before the first call comes.
-    @Test("Two waits on at once each get a call of their own")
+    /// The waits and the calls race, so the calls may come before, between or after the waits
+    /// start. The test runs them many times, so each case happens.
+    @Test("Two waits started together each get a call of their own, whenever the calls come")
     func twoWaitsAtOnceEachGetTheirOwnCall() async {
         for _ in 1...Self.raceRuns {
             let spy = Spy<Int, Void>()
