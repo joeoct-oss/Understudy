@@ -1,0 +1,126 @@
+# Runs the whole test suite many times under the thread sanitizer, to show that no test fails at
+# random (plan 50's flakiness criterion: 100 runs in parallel with no failure). Each suite run also
+# runs the clock hop test 1,000 times (`hopRuns` in TestClockTests), so 100 runs hop 100,000 times.
+# - Manual runs only, from main: it takes many runner hours and no pull request waits on it.
+# - The runs are spread over parallel jobs, each built once with the sanitizer and running its
+#   share of the runs one after another, so the runs inside a job don't compete for threads with
+#   each other, while the jobs together run at once. Every run goes ahead after a failure, so the
+#   summary counts every failure, and any failure fails the job.
+# Hardening as in ci.yml: free GitHub-hosted Linux runners only, the action pinned to a full commit
+# SHA and the image to a digest, read-only, no checkout keeps the token, and no build cache.
+name: Stress
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: How many times the suite runs in all
+        type: number
+        default: 100
+      jobs:
+        description: How many parallel jobs share the runs (1 to 20)
+        type: number
+        default: 20
+
+permissions: {}
+
+jobs:
+  plan:
+    name: Stress jobs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
+    outputs:
+      jobs: ${{ steps.jobs.outputs.jobs }}
+    steps:
+      # Free accounts run 20 jobs at a time, so more jobs would only queue.
+      - name: List the jobs
+        id: jobs
+        env:
+          RUNS: ${{ inputs.runs }}
+          JOBS: ${{ inputs.jobs }}
+        run: |
+          if ! [[ "$RUNS" =~ ^[0-9]+$ ]] || (( RUNS < 1 )); then
+            echo "::error::runs must be a whole number of at least 1, not $RUNS"
+            exit 1
+          fi
+          if ! [[ "$JOBS" =~ ^[0-9]+$ ]] || (( JOBS < 1 || JOBS > 20 || JOBS > RUNS )); then
+            echo "::error::jobs must be a whole number from 1 to 20, and no more than runs, not $JOBS"
+            exit 1
+          fi
+          echo "jobs=$(seq -s, 1 "$JOBS" | sed 's/.*/[&]/')" >>"$GITHUB_OUTPUT"
+
+  tsan:
+    name: Thread sanitizer, job ${{ matrix.job }} of ${{ inputs.jobs }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJSON(needs.plan.outputs.jobs) }}
+    # The thread sanitizer turns off address randomisation with `personality`, which Docker's
+    # default seccomp profile blocks, so the container runs without it.
+    container:
+      image: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
+      options: --security-opt seccomp=unconfined
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build with the thread sanitizer
+        run: swift build --build-tests --sanitize=thread --force-resolved-versions
+
+      # Run n of the whole set goes to job ((n - 1) mod jobs) + 1. A failed run's output is kept
+      # in failures/ and its failing tests are named in the summary. Bash, which the container's
+      # default `sh` isn't, for the arithmetic.
+      - name: Run the suite under the thread sanitizer
+        shell: bash
+        env:
+          JOB: ${{ matrix.job }}
+          JOBS: ${{ inputs.jobs }}
+          RUNS: ${{ inputs.runs }}
+        run: |
+          mkdir -p failures
+          passed=0
+          failed=0
+          for (( run = JOB; run <= RUNS; run += JOBS )); do
+            log="failures/run-$run.log"
+            if swift test --skip-build --sanitize=thread >"$log" 2>&1; then
+              passed=$((passed + 1))
+              rm "$log"
+            else
+              failed=$((failed + 1))
+              echo "::error::Run $run failed; its output is in the stress-failures-$JOB artifact"
+            fi
+            echo "Run $run: $([[ -f "$log" ]] && echo failed || echo passed)"
+          done
+          {
+            echo "## Thread sanitizer, job $JOB of $JOBS"
+            echo
+            echo "Passed: $passed  "
+            echo "Failed: $failed"
+            for log in failures/*.log; do
+              [[ -f "$log" ]] || continue
+              echo
+              echo "### $(basename "$log" .log)"
+              echo
+              echo '```'
+              grep -E '✘|error:|WARNING: ThreadSanitizer' "$log" | head -20
+              echo '```'
+            done
+          } >>"$GITHUB_STEP_SUMMARY"
+          (( failed == 0 ))
+
+      - name: Keep the output of failed runs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: stress-failures-${{ matrix.job }}
+          path: failures
+          if-no-files-found: ignore
+          retention-days: 30
