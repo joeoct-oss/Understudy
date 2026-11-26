@@ -160,6 +160,14 @@ extension ExpansionTests {
             marker: ""
         ),
         refusedRequirement(
+            "an accessor with another attribute and no @Spied",
+            "subscript(index: Int) -> Int { @Spied get {} @inlinable set {} }",
+            "'subscript' has @Spied accessors, so write it as { @Spied get {} @Spied set {} }, "
+                + "or { @Spied get {} } with no set",
+            column: 5,
+            marker: ""
+        ),
+        refusedRequirement(
             "a subscript index with no name",
             "subscript(_: Int) -> Int { @Spied get {} }",
             "'subscript' has an index with no name; name it",
@@ -201,6 +209,14 @@ extension ExpansionTests {
             "a standard library parent",
             "protocol Account: Identifiable {",
             "'Account' inherits 'Identifiable', which has no spy to forward to; \(classForm) 'Account' instead",
+            line: 2,
+            column: 19
+        ),
+        refusedProtocol(
+            "a standard library parent written with its module",
+            "protocol Account: Swift.Identifiable {",
+            "'Account' inherits 'Swift.Identifiable', which has no spy to forward to; \(classForm) 'Account' "
+                + "instead",
             line: 2,
             column: 19
         ),
