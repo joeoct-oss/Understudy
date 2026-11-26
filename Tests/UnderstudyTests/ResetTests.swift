@@ -51,6 +51,18 @@ struct ResetTests {
         #expect(problems.isEmpty)
     }
 
+    @Test("Expectations set after a reset are the only ones checked")
+    func expectationsSetAfterAResetAreTheOnlyOnesChecked() throws {
+        let loader = ThrowingSpy<String, Int>(returning: 0)
+        loader.expect("a")
+
+        loader.reset()
+        loader.expect("b")
+        _ = try loader("b")
+
+        #expect(loader.verify().isEmpty)
+    }
+
     @Test("nextCall starts again from the first call after a reset")
     func nextCallStartsAgainFromTheFirstCallAfterTheReset() async {
         let spy = Spy<Int, Void>()
