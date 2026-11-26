@@ -114,8 +114,8 @@ reviews:
     # that repo is private and outside its install. This entry restates only what a reviewer can
     # check in a diff. Once Waypoint is public and CodeRabbit can read it, delete this entry and
     # add "joeoct-oss/Waypoint:CODE_STYLE.md" to knowledge_base.code_guidelines.filePatterns.
-    # SonarQube Cloud's free plan runs only its built-in Swift profile (bugs and security), so the
-    # clean-code checks below are CodeRabbit's alone.
+    # SonarQube Cloud's "Sonar way comprehensive" rules also check code quality, but none of the
+    # rules below, so they are CodeRabbit's alone.
     - path: "**/*.swift"
       instructions: >-
         Shared code style. Report each broken rule as an inline should-fix finding (major
@@ -231,8 +231,10 @@ reviews:
         only free GitHub-hosted runners are used. A download follows HTTPS only and is checked
         against a checksum. Flag a change that drops the Swift 6.0 (lowest versions) or Swift
         6.4 job from pull requests, drops Swift 6.1 to 6.3 from the run on main and before a
-        release, or renames a job that is a required check (Linux build and tests, Branch
-        name, Release check, CodeRabbit). Flag a new pinned commit of codecov/codecov-action: the
+        release, renames a job that is a required check (SonarQube Cloud quality gate,
+        Linux checks / Linux build and tests, Branch name, Release / Release check,
+        CodeRabbit), or lets a job in checks.yml start before the SonarQube Cloud quality gate
+        passed. Flag a new pinned commit of codecov/codecov-action: the
         org's Actions policy allows exactly one commit, so the PR must say the allow list was
         updated too. actionlint and zizmor already run in CI, so don't repeat their findings.
     - path: "scripts/**"
