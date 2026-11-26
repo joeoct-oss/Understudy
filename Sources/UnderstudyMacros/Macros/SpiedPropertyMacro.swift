@@ -14,7 +14,7 @@ import SwiftSyntaxMacros
 /// `@GenerateSpies` wrote for the property, to its ``PropertySpy``.
 public struct SpiedPropertyMacro: AccessorMacro {
     public static func expansion(
-        of node: AttributeSyntax,
+        of _: AttributeSyntax,
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [AccessorDeclSyntax] {

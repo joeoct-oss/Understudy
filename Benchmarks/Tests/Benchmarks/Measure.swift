@@ -84,6 +84,11 @@ enum Measure {
 
     /// `value` with three significant figures, so small and large times read alike.
     private static func format(_ value: Double) -> String {
-        String(format: value < 10 ? "%.2f" : value < 100 ? "%.1f" : "%.0f", value)
+        let format = switch value {
+        case ..<10: "%.2f"
+        case ..<100: "%.1f"
+        default: "%.0f"
+        }
+        return String(format: format, value)
     }
 }

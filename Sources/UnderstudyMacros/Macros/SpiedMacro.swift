@@ -14,7 +14,7 @@ import SwiftSyntaxMacros
 /// overload reaches its own spy.
 public struct SpiedMacro: BodyMacro {
     public static func expansion(
-        of node: AttributeSyntax,
+        of _: AttributeSyntax,
         providingBodyFor declaration: some DeclSyntaxProtocol & WithOptionalCodeBlockSyntax,
         in context: some MacroExpansionContext
     ) throws -> [CodeBlockItemSyntax] {

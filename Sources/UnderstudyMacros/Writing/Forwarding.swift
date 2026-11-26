@@ -81,8 +81,8 @@ extension ProtocolSpy {
     }
 }
 
-/// The name of the protocol that forwards `protocol`'s requirements to its spy, such as
+/// The name of the protocol that forwards `protocolName`'s requirements to its spy, such as
 /// `BaseSpyForwarding` for `Base`.
-func forwardingName(of protocol: String) -> String {
-    `protocol` + spySuffix + "Forwarding"
+func forwardingName(of protocolName: String) -> String {
+    protocolName + spySuffix + "Forwarding"
 }

@@ -78,53 +78,76 @@ def read(lines):
     """Reads Swift lexically, carrying block comments (nested ones too) and multiline strings
     across lines, so a brace or `//` inside a string or a comment counts for nothing. A string
     keeps its quotes, so a line of string text still counts as code."""
-    result = []
-    comment_depth = 0
-    multiline = False
-    for text in lines:
-        code = []
+    reader = Reader()
+    return [reader.line(text) for text in lines]
+
+
+class Reader:
+    """Reads one line at a time, remembering the block comment or multiline string a line ends
+    inside, for the next one."""
+
+    def __init__(self):
+        self.comment_depth = 0
+        self.multiline = False
+
+    def line(self, text):
+        """The line's code, with comments taken out and strings emptied."""
+        code = ['"'] if self.multiline else []
         had_comment = False
         index = 0
-        if multiline:
-            code.append('"')
         while index < len(text):
-            rest = text[index:]
-            if comment_depth:
+            if self.comment_depth:
                 had_comment = True
-                if rest.startswith("/*"):
-                    comment_depth, index = comment_depth + 1, index + 2
-                elif rest.startswith("*/"):
-                    comment_depth, index = comment_depth - 1, index + 2
-                else:
-                    index += 1
-            elif multiline:
-                if rest.startswith("\\"):
-                    index += 2
-                elif rest.startswith('"""'):
-                    multiline, index = False, index + 3
-                    code.append('"')
-                else:
-                    index += 1
-            elif rest.startswith("//"):
+                index = self.in_comment(text, index)
+            elif self.multiline:
+                index = self.in_multiline(text, index, code)
+            elif text.startswith("//", index):
                 had_comment = True
                 break
-            elif rest.startswith("/*"):
-                had_comment, comment_depth, index = True, 1, index + 2
-            elif rest.startswith('"""'):
-                multiline, index = True, index + 3
-                code.append('"')
-            elif rest.startswith('"'):
-                index = string_end(text, index + 1)
-                code.append('""')
-            elif regex_opens(text, index):
-                index = regex_end(text, index)
-                code.append("#//#")
             else:
-                code.append(text[index])
-                index += 1
+                had_comment = had_comment or text.startswith("/*", index)
+                index = self.in_code(text, index, code)
         joined = "".join(code)
-        result.append(Line(joined, had_comment and not joined.strip()))
-    return result
+        return Line(joined, had_comment and not joined.strip())
+
+    def in_comment(self, text, index):
+        """Steps through a block comment, counting nested ones; the index after the step."""
+        if text.startswith("/*", index):
+            self.comment_depth += 1
+            return index + 2
+        if text.startswith("*/", index):
+            self.comment_depth -= 1
+            return index + 2
+        return index + 1
+
+    def in_multiline(self, text, index, code):
+        """Steps through a multiline string, skipping escapes; the index after the step."""
+        if text.startswith("\\", index):
+            return index + 2
+        if text.startswith('"""', index):
+            self.multiline = False
+            code.append('"')
+            return index + 3
+        return index + 1
+
+    def in_code(self, text, index, code):
+        """Steps through code, opening a comment, a string or a regex literal; the index after
+        the step."""
+        if text.startswith("/*", index):
+            self.comment_depth = 1
+            return index + 2
+        if text.startswith('"""', index):
+            self.multiline = True
+            code.append('"')
+            return index + 3
+        if text.startswith('"', index):
+            code.append('""')
+            return string_end(text, index + 1)
+        if regex_opens(text, index):
+            code.append("#//#")
+            return regex_end(text, index)
+        code.append(text[index])
+        return index + 1
 
 
 def string_end(text, index):
@@ -225,21 +248,26 @@ def problems():
     """Every problem, as one line each."""
     for folder in ("Sources", "Tests", "Tools", "Benchmarks"):
         for path in swift_files(folder):
-            name = path.relative_to(ROOT)
-            texts = path.read_text(encoding="utf-8").splitlines()
-            lines = read(texts)
-            limit = FILE_LIMITS.get(folder)
-            count = code_lines(lines)
-            if limit is not None and count > limit:
-                yield f"{name}: {count} lines of code, more than {limit}; split it by job"
-            if folder == "Sources":
-                for number, length in long_bodies(lines):
-                    yield (
-                        f"{name}:{number}: a body of {length} lines, more than {BODY_LIMIT}; "
-                        "split it into named steps"
-                    )
-            for number, width, limit in wide_lines(texts, lines):
-                yield f"{name}:{number}: {width} columns, more than {limit}"
+            yield from file_problems(path, folder)
+
+
+def file_problems(path, folder):
+    """The problems of one file in `folder`, as one line each."""
+    name = path.relative_to(ROOT)
+    texts = path.read_text(encoding="utf-8").splitlines()
+    lines = read(texts)
+    limit = FILE_LIMITS.get(folder)
+    count = code_lines(lines)
+    if limit is not None and count > limit:
+        yield f"{name}: {count} lines of code, more than {limit}; split it by job"
+    if folder == "Sources":
+        for number, length in long_bodies(lines):
+            yield (
+                f"{name}:{number}: a body of {length} lines, more than {BODY_LIMIT}; "
+                "split it into named steps"
+            )
+    for number, width, limit in wide_lines(texts, lines):
+        yield f"{name}:{number}: {width} columns, more than {limit}"
 
 
 def main():

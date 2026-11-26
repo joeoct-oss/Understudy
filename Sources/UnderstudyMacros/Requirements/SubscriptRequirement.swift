@@ -157,16 +157,16 @@ struct SubscriptRequirement: Requirement {
     /// `checkingAccessors` is false.
     init(_ declaration: SubscriptDeclSyntax, inProtocol: Bool = false, checkingAccessors: Bool = true) throws {
         self.declaration = declaration
-        let where_ = "'subscript'"
+        let subject = "'subscript'"
         let accessors = try Self.writableAccessors(
             of: declaration,
             inProtocol: inProtocol,
             checkingAccessors: checkingAccessors,
-            in: where_
+            in: subject
         )
         isSettable = accessors.contains { $0.accessorSpecifier.tokenKind == .keyword(.set) }
         parameters = try declaration.parameterClause.parameters.map { parameter in
-            try Self.index(parameter, in: where_)
+            try Self.index(parameter, in: subject)
         }
         let returnType = declaration.returnClause.type
         output = returnType.trimmedDescription
@@ -180,23 +180,23 @@ struct SubscriptRequirement: Requirement {
         of declaration: SubscriptDeclSyntax,
         inProtocol: Bool,
         checkingAccessors: Bool,
-        in where_: String
+        in subject: String
     ) throws -> AccessorDeclListSyntax {
         let keyword = declaration.subscriptKeyword
         let modifiers = declaration.modifiers.map(\.name.text)
         if modifiers.contains("static") || modifiers.contains("class") {
-            throw UnderstudyError("\(where_) is static; write its double by hand", at: keyword)
+            throw UnderstudyError("\(subject) is static; write its double by hand", at: keyword)
         }
         if declaration.genericParameterClause != nil || declaration.genericWhereClause != nil {
-            throw UnderstudyError("\(where_) is generic; write its double by hand", at: keyword)
+            throw UnderstudyError("\(subject) is generic; write its double by hand", at: keyword)
         }
         let accessors = declaration.accessorBlock?.accessors.as(AccessorDeclListSyntax.self) ?? []
         if accessors.contains(where: { $0.effectSpecifiers != nil }) {
-            throw UnderstudyError("\(where_) is async or throws; write its double by hand", at: keyword)
+            throw UnderstudyError("\(subject) is async or throws; write its double by hand", at: keyword)
         }
         if !inProtocol, checkingAccessors, accessors.isEmpty || accessors.contains(where: { !isSpied($0) }) {
             throw UnderstudyError(
-                "\(where_) has @Spied accessors, so write it as { @Spied get {} @Spied set {} }, "
+                "\(subject) has @Spied accessors, so write it as { @Spied get {} @Spied set {} }, "
                     + "or { @Spied get {} } with no set",
                 at: keyword
             )
@@ -207,17 +207,17 @@ struct SubscriptRequirement: Requirement {
     /// One index as the spy records it. Refuses an index with no name.
     private static func index(
         _ parameter: FunctionParameterSyntax,
-        in where_: String
+        in subject: String
     ) throws -> FunctionRequirement.Parameter {
         let name = (parameter.secondName ?? parameter.firstName).text
         guard name != "_" else {
-            throw UnderstudyError("\(where_) has an index with no name; name it", at: parameter)
+            throw UnderstudyError("\(subject) has an index with no name; name it", at: parameter)
         }
         // A subscript can't be generic, so no index is a generic parameter.
         let noGenerics: [String: String] = [:]
         return FunctionRequirement.Parameter(
             name: name,
-            type: try FunctionRequirement.storedType(of: parameter, generics: noGenerics, in: where_),
+            type: try FunctionRequirement.storedType(of: parameter, generics: noGenerics, in: subject),
             escapes: false
         )
     }

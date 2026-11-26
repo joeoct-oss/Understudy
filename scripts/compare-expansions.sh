@@ -68,6 +68,9 @@ case "$1" in
         record "$root" "$1"
         exit 0
         ;;
+    *)
+        # Anything else is the comparison below.
+        ;;
 esac
 
 # The ref is resolved to a commit first, so it can never be read as an option.

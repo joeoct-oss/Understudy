@@ -19,18 +19,18 @@ extension FunctionRequirement {
 
     /// Each generic parameter's name, and the type its spy records it as: `any` of its constraints,
     /// or `Any` when it has none. Refuses what a spy can't record: a `where` clause or a pack.
-    static func erasedGenerics(of declaration: FunctionDeclSyntax, in where_: String) throws -> [String: String] {
+    static func erasedGenerics(of declaration: FunctionDeclSyntax, in subject: String) throws -> [String: String] {
         guard let clause = declaration.genericParameterClause else {
             return [:]
         }
         if declaration.genericWhereClause != nil || clause.genericWhereClause != nil {
-            throw UnderstudyError("\(where_) has a where clause; write its double by hand", at: declaration.name)
+            throw UnderstudyError("\(subject) has a where clause; write its double by hand", at: declaration.name)
         }
         // `var` because the loop below adds each generic parameter.
         var generics: [String: String] = [:]
         for parameter in clause.parameters {
             if parameter.specifier != nil {
-                let message = "\(where_) takes a parameter pack; write its double by hand"
+                let message = "\(subject) takes a parameter pack; write its double by hand"
                 throw UnderstudyError(message, at: declaration.name)
             }
             generics[parameter.name.text] = parameter.inheritedType.map { "any " + $0.trimmedDescription } ?? "Any"
@@ -73,10 +73,10 @@ extension FunctionRequirement {
     }
 
     /// Refuses a type that mentions a generic parameter without being it.
-    static func refuseNested(_ type: some SyntaxProtocol, generics: [String: String], in where_: String) throws {
+    static func refuseNested(_ type: some SyntaxProtocol, generics: [String: String], in subject: String) throws {
         if let name = type.tokens(viewMode: .sourceAccurate).first(where: { generics[$0.text] != nil })?.text {
             throw UnderstudyError(
-                "\(where_) uses '\(name)' inside another type; write its double by hand",
+                "\(subject) uses '\(name)' inside another type; write its double by hand",
                 at: type
             )
         }
@@ -88,13 +88,13 @@ extension FunctionRequirement {
     static func storedType(
         of parameter: FunctionParameterSyntax,
         generics: [String: String],
-        in where_: String
+        in subject: String
     ) throws -> String {
         // `var` because an `@escaping` attribute is taken off below.
         var type = parameter.type
         if let attributed = type.as(AttributedTypeSyntax.self) {
             if attributed.specifiers.contains(where: { $0.trimmedDescription.hasPrefix("inout") }) {
-                throw UnderstudyError("\(where_) takes an inout parameter; write its double by hand", at: parameter)
+                throw UnderstudyError("\(subject) takes an inout parameter; write its double by hand", at: parameter)
             }
             let kept = attributed.attributes.filter { attribute in
                 let name = attribute.as(AttributeSyntax.self)?.attributeName.trimmedDescription
@@ -107,7 +107,7 @@ extension FunctionRequirement {
                 attribute.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "autoclosure"
             }
             if isAutoclosure {
-                throw UnderstudyError("\(where_) takes an autoclosure; write its double by hand", at: parameter)
+                throw UnderstudyError("\(subject) takes an autoclosure; write its double by hand", at: parameter)
             }
             type = TypeSyntax(attributed.with(\.attributes, kept))
         }
@@ -116,7 +116,7 @@ extension FunctionRequirement {
         if let erased = erased(type, generics: generics) {
             text = erased.type
         } else {
-            try refuseNested(type, generics: generics, in: where_)
+            try refuseNested(type, generics: generics, in: subject)
         }
         if let someOrAny = type.as(SomeOrAnyTypeSyntax.self), someOrAny.someOrAnySpecifier.text == "some" {
             text = "any " + someOrAny.constraint.trimmedDescription

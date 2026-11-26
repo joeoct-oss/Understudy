@@ -113,7 +113,7 @@ public struct VerifiesMocks: TestTrait, SuiteTrait, TestScoping {
     }
 
     /// Checks each test, and each case of a parameterized test, not a suite as a whole.
-    public func scopeProvider(for test: Test, testCase: Test.Case?) -> Self? {
+    public func scopeProvider(for _: Test, testCase: Test.Case?) -> Self? {
         testCase == nil ? nil : self
     }
 
@@ -122,7 +122,7 @@ public struct VerifiesMocks: TestTrait, SuiteTrait, TestScoping {
     /// checked even when the test throws, and its error then goes on to Swift Testing.
     public func provideScope(
         for test: Test,
-        testCase: Test.Case?,
+        testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
         let registry = MockRegistry()

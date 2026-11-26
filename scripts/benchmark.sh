@@ -58,8 +58,9 @@ touch "$table"
 # Runs the Benchmarks/ suite named `$1`, which adds its rows to the table. The package gets the
 # root package's pins, so it measures the swift-syntax the package is built and tested with.
 run_suite() {
+    local suite="$1"
     cp Package.resolved Benchmarks/
-    BENCHMARK_TABLE="$table" swift test --package-path Benchmarks --no-parallel --filter "$1" >&2
+    BENCHMARK_TABLE="$table" swift test --package-path Benchmarks --no-parallel --filter "$suite" >&2
 }
 
 # Adds the macro rows: expansion time, from the tool's median, fastest and slowest lines.
@@ -97,9 +98,9 @@ summarize() {
 
 # The seconds `swift build --build-tests` takes in the package at `$1`; fails when the build does.
 build_seconds() {
-    local start end
+    local package="$1" start end
     start=$(date +%s.%N)
-    swift build --package-path "$1" --build-tests --quiet >&2 || return 1
+    swift build --package-path "$package" --build-tests --quiet >&2 || return 1
     end=$(date +%s.%N)
     awk -v s="$start" -v e="$end" 'BEGIN { printf "%.2f\n", e - s }'
 }
