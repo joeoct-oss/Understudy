@@ -23,8 +23,10 @@ Each file holds one job, named after it, in the folder for its part of the packa
 | `Sources/UnderstudyMacros/Diagnostics/` | Errors and fix-its |
 | `Sources/UnderstudySamples/`, `Sources/UnderstudySamplesMacros/` | `@Sample` and its macro, one file per type with no folders while they stay this small |
 | `Tests/*/` | One file per feature, with shared doubles and tables under `Fixtures/` |
+| `Tools/ExpansionRecord/` | The tool that records, counts and times what the macros write, for `scripts/compare-expansions.sh` |
+| `Benchmarks/` | A package of its own: one file per area of the runtime benchmarks, and the build benchmark's generator, for `scripts/benchmark.sh` |
 
-A file in `Sources/` has at most 250 lines of code, one in `Tests/` at most 400, and a body in `Sources/` at most 40 lines; blank lines and comments don't count toward a file. Comments fit in 100 columns and code in 120. [`scripts/check-structure.py`](scripts/check-structure.py), the one home for these limits, checks them on every pull request. A file or a body that grows past them is split by job, not squeezed.
+A file in `Sources/` has at most 250 lines of code, one in `Tests/` or `Benchmarks/` at most 400, and a body in `Sources/` at most 40 lines; blank lines and comments don't count toward a file. Comments fit in 100 columns and code in 120. [`scripts/check-structure.py`](scripts/check-structure.py), the one home for these limits, checks them on every pull request. A file or a body that grows past them is split by job, not squeezed.
 
 ## Swift only
 

@@ -10,10 +10,12 @@
 """Fails on code that has grown past the package's size limits, so files stay about one thing and
 functions stay short (CODE_STYLE.md, "Where code goes"). The limits live here, their one home:
 
-- a file in Sources/ has at most 250 lines of code, and one in Tests/ at most 400; lines of code
-  leave out blank lines and comments, so a type with full doc comments isn't split to pass;
+- a file in Sources/ has at most 250 lines of code, and one in Tests/ or Benchmarks/ at most 400;
+  lines of code leave out blank lines and comments, so a type with full doc comments isn't split
+  to pass;
 - a function, initializer, subscript or accessor body in Sources/ has at most 40 lines;
-- every Swift line in Sources/, Tests/ and Tools/ fits in 120 columns, and every comment line in 100.
+- every Swift line in Sources/, Tests/, Tools/ and Benchmarks/ fits in 120 columns, and every
+  comment line in 100.
 
 It reads Swift lexically, so braces and `//` inside strings, regex literals and comments, block
 comments included, count for nothing. Comments of either kind don't count toward a file, but a
@@ -29,7 +31,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-FILE_LIMITS = {"Sources": 250, "Tests": 400}
+FILE_LIMITS = {"Sources": 250, "Tests": 400, "Benchmarks": 400}
 BODY_LIMIT = 40
 CODE_WIDTH = 120
 COMMENT_WIDTH = 100
@@ -221,7 +223,7 @@ def wide_lines(texts, lines):
 
 def problems():
     """Every problem, as one line each."""
-    for folder in ("Sources", "Tests", "Tools"):
+    for folder in ("Sources", "Tests", "Tools", "Benchmarks"):
         for path in swift_files(folder):
             name = path.relative_to(ROOT)
             texts = path.read_text(encoding="utf-8").splitlines()

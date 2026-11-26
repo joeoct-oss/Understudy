@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Added
+
+- `scripts/benchmark.sh`, for contributors: measures what Understudy costs a project that uses it, and prints one table of medians and ranges. It covers spy calls, waits, the test clock, the traits, how long the macros take to expand, how much code they write and, with `--all` or `--only build`, how long a test target with many doubles takes to build. The runtime benchmarks are in `Benchmarks/`, a package of its own that no project depending on Understudy builds. A Benchmarks workflow shows the table on every pull request, without failing on it. `scripts/compare-expansions.sh` gains `--count` and `--time`.
+
 ## 0.8.0 - 2026-11-26
 
 Nothing a test writes changes in this release, and the macros write the same code and give the same messages as in 0.7.0. It reorganises the package's own code so it is easier to read and change.
