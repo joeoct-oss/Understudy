@@ -192,10 +192,7 @@ def processes():
     if sys.platform.startswith("linux"):
         found = []
         for entry in Path("/proc").iterdir():
-            try:
-                stat = (entry / "stat").read_text() if entry.name.isdigit() else ""
-            except OSError:
-                continue  # The process ended while the list was read.
+            stat = read_stat(entry) if entry.name.isdigit() else None
             if stat:
                 # The name, in brackets, can hold spaces: the parent pid is 2 fields after it.
                 found.append((int(entry.name), int(stat[stat.rindex(")") + 2:].split()[1])))
@@ -207,6 +204,15 @@ def processes():
         raise subprocess.CalledProcessError(listing.returncode, command)
     pairs = [tuple(int(field) for field in line.split()) for line in output.splitlines()]
     return [(pid, parent) for pid, parent in pairs if pid != listing.pid]
+
+
+def read_stat(entry):
+    """A process's /proc stat line, or None when the process ended while the list was read; any
+    other read failure is raised."""
+    try:
+        return (entry / "stat").read_text(encoding="utf-8")
+    except (FileNotFoundError, ProcessLookupError):
+        return None
 
 
 def reap(pid, wait=True):
