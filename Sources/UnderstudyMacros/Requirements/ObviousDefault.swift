@@ -34,6 +34,7 @@ func obviousDefault(of type: TypeSyntax) -> String? {
 
 /// The obvious value of each type that has one and no generic arguments.
 private let obviousDefaults: [String: String] = {
+    // `var` because the loop below adds every number type.
     var defaults = ["String": #""""#, "Bool": "false"]
     let numbers = [
         "Int", "Int8", "Int16", "Int32", "Int64", "UInt", "UInt8", "UInt16", "UInt32", "UInt64",

@@ -12,37 +12,50 @@ import SwiftSyntax
 /// One property requirement a double stands in for, read from its declaration: a
 /// `@SpiedProperty var` with a type and nothing else on a class, or a `var` requirement of a
 /// protocol.
+///
+/// - `Requirement`: the macros write its spy and accessors like any other requirement's.
 struct PropertyRequirement: Requirement {
+    /// The property's name.
     let nameToken: TokenSyntax
+    /// Whether it is `static` or `class`.
     let isStatic: Bool
+    /// The property's type, which the spy keeps.
     let type: String
     /// The type as written, which ``obviousAnswer`` reads.
     let typeSyntax: TypeSyntax
+    /// Whether the type is optional, so the spy can start with `nil`.
     let isOptional: Bool
+    /// Whether the type is a closure, which the initializer takes `@escaping`.
     let isFunction: Bool
     /// The first value written at the declaration, such as `"ana"`, which the spy starts with.
     let initialValue: String?
 
+    /// None: a property has no overloads.
     var labels: [String] {
         []
     }
 
+    /// A `PropertySpy` of the property's type.
     var spyType: String {
         "\(GeneratedName.propertySpy)<\(type)>"
     }
 
+    /// A first value is needed unless the type is optional or the declaration gives one.
     var needsAnswer: Bool {
         !isOptional && initialValue == nil
     }
 
+    /// The declaration's first value, otherwise `nil`.
     var defaultAnswer: String {
         initialValue ?? "nil"
     }
 
+    /// The type, `@escaping` when it is a closure.
     var answerType: String {
         (isFunction ? "@escaping " : "") + type
     }
 
+    /// The obvious value of the type, when it has one.
     var obviousAnswer: String? {
         obviousDefault(of: typeSyntax)
     }
@@ -73,9 +86,7 @@ struct PropertyRequirement: Requirement {
         let type = annotation.type
         typeSyntax = type
         self.type = type.trimmedDescription
-        isOptional = type.is(OptionalTypeSyntax.self)
-            || type.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)
-            || self.type.hasPrefix("Optional<")
+        isOptional = FunctionRequirement.isOptional(type)
         isFunction = FunctionRequirement.isFunction(type)
     }
 

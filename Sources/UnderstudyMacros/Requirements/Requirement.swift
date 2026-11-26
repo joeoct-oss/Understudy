@@ -41,10 +41,12 @@ extension Requirement {
         nameToken.text
     }
 
+    /// No second spy: only a settable subscript has one.
     var setSpyType: String? {
         nil
     }
 
+    /// Not static, unless the requirement says so.
     var isStatic: Bool {
         false
     }

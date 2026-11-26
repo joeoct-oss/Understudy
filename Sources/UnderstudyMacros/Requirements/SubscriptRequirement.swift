@@ -11,15 +11,23 @@ import SwiftSyntax
 /// One subscript a double stands in for, read from its declaration: a subscript of a class whose
 /// `get`, and maybe `set`, are marked `@Spied` with empty bodies, or a subscript requirement of a
 /// protocol. Its gets go to one spy, and its sets, when it has any, to a second.
+///
+/// - `Requirement`: the macros write its spies and accessors like any other requirement's.
 struct SubscriptRequirement: Requirement {
+    /// The subscript as written.
     let declaration: SubscriptDeclSyntax
+    /// Its indices, as the spy records them.
     let parameters: [FunctionRequirement.Parameter]
+    /// The type the get spy answers with.
     let output: String
+    /// Whether it returns an optional, so the spy can start with `nil`.
     let returnsOptional: Bool
+    /// Whether it returns a closure, which the initializer takes `@escaping`.
     let returnsFunction: Bool
     /// Whether it has a setter, which gets a second spy.
     let isSettable: Bool
 
+    /// The `subscript` keyword, where errors point.
     var nameToken: TokenSyntax {
         declaration.subscriptKeyword
     }
@@ -37,6 +45,7 @@ struct SubscriptRequirement: Requirement {
         return "(" + parameters.map { "\($0.name): \($0.type)" }.joined(separator: ", ") + ")"
     }
 
+    /// The get spy's type.
     var spyType: String {
         "\(GeneratedName.spy)<\(input), \(output)>"
     }
@@ -50,18 +59,22 @@ struct SubscriptRequirement: Requirement {
         return "\(GeneratedName.spy)<(\(fields.joined(separator: ", "))), \(GeneratedName.void)>"
     }
 
+    /// An answer is needed unless it returns an optional.
     var needsAnswer: Bool {
         !returnsOptional
     }
 
+    /// `nil`, since only an optional subscript has no answer to ask for.
     var defaultAnswer: String {
         "nil"
     }
 
+    /// The output, `@escaping` when it is a closure.
     var answerType: String {
         (returnsFunction ? "@escaping " : "") + output
     }
 
+    /// The obvious value of the return type, when it has one.
     var obviousAnswer: String? {
         obviousDefault(of: declaration.returnClause.type)
     }
@@ -156,9 +169,7 @@ struct SubscriptRequirement: Requirement {
         }
         let returnType = declaration.returnClause.type
         output = returnType.trimmedDescription
-        returnsOptional = returnType.is(OptionalTypeSyntax.self)
-            || returnType.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)
-            || output.hasPrefix("Optional<")
+        returnsOptional = FunctionRequirement.isOptional(returnType)
         returnsFunction = FunctionRequirement.isFunction(returnType)
     }
 
@@ -201,9 +212,11 @@ struct SubscriptRequirement: Requirement {
         guard name != "_" else {
             throw UnderstudyError("\(where_) has an index with no name; name it", at: parameter)
         }
+        // A subscript can't be generic, so no index is a generic parameter.
+        let noGenerics: [String: String] = [:]
         return FunctionRequirement.Parameter(
             name: name,
-            type: try FunctionRequirement.storedType(of: parameter, generics: [:], in: where_),
+            type: try FunctionRequirement.storedType(of: parameter, generics: noGenerics, in: where_),
             escapes: false
         )
     }
