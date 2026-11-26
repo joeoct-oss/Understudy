@@ -20,11 +20,11 @@
 #   delete that file once the major version is released and becomes the new baseline.
 # - Workflow lint: actionlint and zizmor over every workflow, and the size limits on the code
 #   (scripts/check-structure.py).
-# Hardening: free GitHub-hosted Linux runners only, no Mac. Every action is pinned to a full commit
-# SHA and every image to a digest, with the version in a comment; Dependabot bumps the actions,
-# and the images are bumped by hand in the same PR. Each job reads the repo and nothing else, and
-# no checkout keeps the token. The build cache is used on pull requests only, so nothing a cache
-# holds reaches a run that gates a release.
+# Hardening: free GitHub-hosted Linux runners only; the Apple checks (apple.yml) have the macOS
+# jobs. Every action is pinned to a full commit SHA and every image to a digest, with the version in
+# a comment; Dependabot bumps the actions, and the images are bumped by hand in the same PR. Each
+# job reads the repo and nothing else, and no checkout keeps the token. The build cache is used on
+# pull requests only, so nothing a cache holds reaches a run that gates a release.
 name: Linux checks
 
 on:

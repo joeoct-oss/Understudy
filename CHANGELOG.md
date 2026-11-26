@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Changed
+
+- CI now also checks the package with Apple's toolchain, on GitHub's macOS runners (the **Apple platform checks** workflow): every test on macOS with the newest Xcode and with Xcode 16.0 and the lowest swift-syntax, and the tests built for iOS 13, tvOS 13, watchOS 6 and visionOS 1, so an API newer than a platform's lowest version fails before a release. A release waits for these checks as it does for the Linux checks. Nothing in the package changes.
+
 ## 1.0.0 - 2026-11-26
 
 The first stable release. Code that compiles against 1.0.0 keeps compiling with every 1.x version: the README's [What 1.x promises](README.md#what-1x-promises) says what each 1.x version keeps and what a minor version may change, and CI now fails any change that would break the public API of the `Understudy` library. The tests were analysed before the release and the code the macros write is now also checked in Swift 5 language mode. Nothing a test writes needs to change.

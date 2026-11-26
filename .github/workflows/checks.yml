@@ -4,16 +4,18 @@
 # - "SonarQube Cloud quality gate": scripts/sonar-scan.sh analyzes the code with the rules in
 #   sonar-project.properties and waits for the gate (bugs, security, code quality, duplication and
 #   reviewed hotspots on new code).
-# - Then, in parallel: the Linux checks (ci.yml, pull requests only; on main the release workflow
-#   runs them on the pushed commit before it publishes), the coverage report (coverage.yml), the
+# - Then, in parallel: the Linux checks (ci.yml) and the Apple platform checks (apple.yml), both
+#   on pull requests only, since on main the release workflow runs them on the pushed commit
+#   before it publishes; the coverage report (coverage.yml), the
 #   benchmarks (benchmarks.yml, pull requests only), mutation testing of the changed sources
 #   (mutation.yml, pull requests only) and the release check or publish (release.yml).
 # - The branch name check stays in its own workflow: it runs no package code and is the same file
 #   in every repo.
 # - Drafts are skipped until they are ready for review. A newer push cancels the run still going
 #   for the same PR. Runs on main are never cancelled.
-# Hardening as in ci.yml: free GitHub-hosted Linux runners only, actions pinned to a full commit
-# SHA, no checkout keeps the token, and each job gets only the permissions its workflow uses.
+# Hardening as in ci.yml: free GitHub-hosted runners only (Linux, and standard macOS for the Apple
+# checks), actions pinned to a full commit SHA, no checkout keeps the token, and each job gets only
+# the permissions its workflow uses.
 name: Checks
 
 on:
@@ -57,6 +59,14 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
+
+  apple:
+    name: Apple platform checks
+    needs: sonar
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/apple.yml # zizmor: ignore[self-repository]
 
   coverage:
     name: Coverage report
