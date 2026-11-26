@@ -131,6 +131,7 @@ struct SubscriptRequirement: Requirement {
 
     /// The subscript with accessors that call the spies, for the spy class next to a protocol.
     func implementation(spy: String, access: String) -> DeclSyntax {
+        // `var` because its trivia and access are set below.
         var written = declaration.with(\.accessorBlock, nil)
         written.leadingTrivia = []
         if !access.isEmpty {
