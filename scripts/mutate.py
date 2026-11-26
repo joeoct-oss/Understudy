@@ -20,8 +20,9 @@ every test before it is recorded as survived, so a survivor is one the whole sui
 longer than the time limit counts as killed, since a test that hangs noticed the change.
 
 Results go to mutants.tsv at the package's root, which git ignores, one line per mutant, as they
-come; a run reads it first and skips every mutant already in it, so a long run can stop and go on
-later. Only files under Sources/ are mutated, and only when git has every change to them.
+come; a run reads it first and skips every mutant already in it whose line is unchanged, so a long
+run can stop and go on later. Only files under Sources/ are mutated, and only when git has every
+change to them.
 
 Usage: scripts/mutate.py [--list] [--timeout <seconds>] [<file or folder under Sources/>...]
 """
@@ -157,7 +158,9 @@ def main():
                              capture_output=True, text=True, check=True).stdout
     if changed and not options.list:
         sys.exit(f"error: Sources/ has changes git doesn't have; commit or restore them first:\n{changed}")
-    done = {tuple(line.split("\t")[:3]) for line in out.read_text().splitlines()} if out.exists() else set()
+    # Each result keeps the line it mutated, so a result whose line has changed since is run again.
+    rows = [line.split("\t") for line in out.read_text().splitlines()] if out.exists() else []
+    done = {(*row[:3], row[4]) for row in rows if len(row) == 5}
     for path in sources(options.paths):
         relative = path.relative_to(ROOT).as_posix()
         original = path.read_text()
@@ -167,7 +170,7 @@ def main():
             if options.list:
                 print("\t".join(key))
                 continue
-            if key in done:
+            if (*key, lines[index].strip()) in done:
                 continue
             try:
                 path.write_text("\n".join(lines[:index] + [mutated] + lines[index + 1:]))
