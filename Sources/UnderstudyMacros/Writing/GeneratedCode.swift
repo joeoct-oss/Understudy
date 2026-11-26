@@ -37,6 +37,7 @@ extension FunctionRequirement {
 
     /// The requirement with a body that calls `spy`, for the spy class written next to a protocol.
     func implementation(spy: String, access: String) -> DeclSyntax {
+        // `var` because its body, trivia and access are set below.
         var function = declaration
         function.body = CodeBlockSyntax(statements: SpiedMacro.body(of: self, spy: spy))
         function.leadingTrivia = []

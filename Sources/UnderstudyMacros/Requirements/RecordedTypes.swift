@@ -26,6 +26,7 @@ extension FunctionRequirement {
         if declaration.genericWhereClause != nil || clause.genericWhereClause != nil {
             throw UnderstudyError("\(where_) has a where clause; write its double by hand", at: declaration.name)
         }
+        // `var` because the loop below adds each generic parameter.
         var generics: [String: String] = [:]
         for parameter in clause.parameters {
             if parameter.specifier != nil {
@@ -89,6 +90,7 @@ extension FunctionRequirement {
         generics: [String: String],
         in where_: String
     ) throws -> String {
+        // `var` because an `@escaping` attribute is taken off below.
         var type = parameter.type
         if let attributed = type.as(AttributedTypeSyntax.self) {
             if attributed.specifiers.contains(where: { $0.trimmedDescription.hasPrefix("inout") }) {
@@ -109,6 +111,7 @@ extension FunctionRequirement {
             }
             type = TypeSyntax(attributed.with(\.attributes, kept))
         }
+        // `var` because a generic, a `some` or a variadic parameter replaces it below.
         var text = type.trimmedDescription
         if let erased = erased(type, generics: generics) {
             text = erased.type

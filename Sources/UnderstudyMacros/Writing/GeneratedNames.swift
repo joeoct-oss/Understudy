@@ -37,6 +37,7 @@ func spyNames(for requirements: [any Requirement]) throws -> [String] {
         let labels = requirement.labels.filter { $0 != "_" }
         return requirement.baseName + labels.map(capitalized).joined() + spySuffix
     }
+    // `var` because each name is inserted as it is given, to find a repeat.
     var seen = Set<String>()
     for (requirement, name) in zip(requirements, names) where !seen.insert(name).inserted {
         throw UnderstudyError(
