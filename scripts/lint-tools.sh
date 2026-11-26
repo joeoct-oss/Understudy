@@ -26,7 +26,7 @@ SWIFT_FORMAT_VERSION="6.4"
 # Installs SWIFTLINT_VERSION into .tools/swiftlint-<version> and links .tools/bin/swiftlint. Linux
 # only: the macOS runners and a Mac use their own SwiftLint through $SWIFTLINT.
 install_swiftlint() {
-    local arch checksum install_dir zip_path
+    local arch checksum install_dir unpack_dir zip_path
     case "$(uname -m)" in
         x86_64)
             arch="amd64"
@@ -52,9 +52,14 @@ install_swiftlint() {
             echo "error: the SwiftLint download doesn't match the sha256 in scripts/lint-tools.sh." >&2
             exit 1
         fi
-        mkdir -p "$install_dir"
-        unzip -q -o "$zip_path" -d "$install_dir"
+        # Unzipped beside the final folder and moved in whole, so a cut-off install leaves nothing
+        # at the path the next run trusts.
+        mkdir -p .tools
+        unpack_dir="$(mktemp -d .tools/swiftlint-unpack.XXXXXX)"
+        unzip -q -o "$zip_path" -d "$unpack_dir"
         rm -f "$zip_path"
+        rm -rf "$install_dir"
+        mv "$unpack_dir" "$install_dir"
     fi
     mkdir -p .tools/bin
     ln -sf "../swiftlint-$SWIFTLINT_VERSION/swiftlint" .tools/bin/swiftlint
