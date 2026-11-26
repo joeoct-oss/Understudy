@@ -1,0 +1,41 @@
+<!--
+Fill in every section. The required "Pull request rules" check holds the merge while a section
+is missing, or while "What changed and why", "Merge method" or "Tests" still holds only this
+template's text. Write "not needed, because ..." instead of deleting a section or a line. The
+comments can stay; they don't show on the page.
+-->
+
+Closes <owner/repo>#<issue>
+<!-- One issue per pull request: one "Closes" line, plus a "Part of <owner/repo>#<n>" line for
+each larger issue this is a step of. A step of a larger issue may have only "Part of" lines. -->
+
+## What changed and why
+
+<!-- Each change and the reason for it, so the diff needs no guessing. Flag any public API
+change, and say whether it is breaking. -->
+
+## Merge method
+
+<!-- "Squash, because ..." for a single-purpose change or one with review-fix rounds.
+"Merge commit, because ..." when the commits record why; tidy them into meaningful steps
+first. Never rebase. -->
+
+## Tests
+
+<!-- The promise each new or changed test pins, by its display name, or why no test is
+needed. -->
+
+- [ ] Each new or changed test names the promise it pins and reaches the code only the way its user does: no `@testable`, private state, internal counts or sleeps
+- [ ] The tests were written first and failed before the change, or no test is needed (say why above)
+- [ ] Every required check passed on the head commit
+
+## Docs and CHANGELOG
+
+- [ ] `CHANGELOG.md` updated under **Unreleased** (a release PR moves those entries under its version), or no entry because ... (only when `CHANGELOG.md`, `Sources/` and `Package.swift` are all unchanged)
+- [ ] Every doc that states what this changes is updated in this pull request, or none does
+- [ ] Every new public symbol has a doc comment
+
+## Checklist
+
+- [ ] Code follows `CODE_STYLE.md`, including a reason for every protocol conformance
+- [ ] No tool or AI attribution in this body, the commits or the files
