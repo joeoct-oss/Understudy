@@ -34,6 +34,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 STRING = re.compile(r'"(?:[^"\\]|\\.)*"')
+INLINE_COMMENT = re.compile(r"/\*.*?\*/")
 SWAPS = [
     (re.compile(r"(?<=\s)==(?=\s)"), "!="),
     (re.compile(r"(?<=\s)!=(?=\s)"), "=="),
@@ -83,7 +84,10 @@ def code_lines(text):
             in_block = "*/" not in line
             continue
         code = STRING.sub(lambda match: '"' + " " * (len(match.group()) - 2) + '"', line)
-        yield index, code.split("//")[0]
+        code = INLINE_COMMENT.sub(lambda match: " " * len(match.group()), code).split("//")[0]
+        if "/*" in code:
+            code, in_block = code[:code.index("/*")], True
+        yield index, code
 
 
 def balanced(code):
@@ -115,8 +119,9 @@ def run(arguments, timeout):
 
 def outcome(relative, timeout):
     """What the tests made of the mutant now on disk: killed, survived or not built."""
-    if run(["swift", "build", "--build-tests", "--quiet"], timeout) != "pass":
-        return "not built"
+    built = run(["swift", "build", "--build-tests", "--quiet"], timeout)
+    if built != "pass":
+        return "killed" if built == "timeout" else "not built"
     feature = next(tests for prefix, tests in FEATURE_TESTS if relative.startswith(prefix))
     if run(["swift", "test", "--skip-build", *feature], timeout) != "pass":
         return "killed"

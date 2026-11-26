@@ -6,7 +6,7 @@
 #   review, and a newer push cancels the run still going. A manual run mutates all of Sources/.
 # Hardening as in ci.yml: free GitHub-hosted Linux runners only, the action pinned to a full commit
 # SHA and the image to a digest, read-only, no checkout keeps the token, and the build cache is
-# used on pull requests only.
+# restored on pull requests only and never saved, so a mutant's build never reaches another job.
 name: Mutation testing
 
 on:
@@ -41,7 +41,7 @@ jobs:
 
       - name: Restore the build cache
         if: github.event_name == 'pull_request'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build
           key: swift-6.4.3-${{ hashFiles('Package.swift', 'Package.resolved') }}
@@ -64,13 +64,14 @@ jobs:
             fi
           fi
           swift build --build-tests --quiet --force-resolved-versions
+          touch mutants.tsv
           scripts/mutate.py ${files[@]+"${files[@]}"}
           {
             echo "## Mutation testing"
             echo
             echo "| File | Line | Change | Result |"
             echo "| --- | --- | --- | --- |"
-            awk -F '\t' '$4 == "survived" { printf "| %s | %s | %s | %s |\n", $1, $2, $3, $4 }' mutants.tsv
+            awk -F '\t' '$4 == "survived" { gsub(/\|/, "\\|", $3); printf "| %s | %s | %s | %s |\n", $1, $2, $3, $4 }' mutants.tsv
             echo
             awk -F '\t' '{ count[$4]++ } END { for (r in count) printf "%s: %d  \n", r, count[r] }' mutants.tsv
           } >>"$GITHUB_STEP_SUMMARY"
