@@ -10,8 +10,9 @@
 # Runs SonarQube Cloud's analysis and waits for its quality gate: exits non-zero when the gate
 # fails, so the checks workflow runs nothing else. Settings are in sonar-project.properties.
 # - The scanner comes from Maven Central at a pinned version and is checked against its SHA-256.
-# - The version Sonar records is the latest release tag, so new code on main is everything since
-#   the last release. A pull request is always compared with main.
+# - The version Sonar records is the newest version in CHANGELOG.md (scripts/release-notes.sh), so
+#   the release commit itself starts a new version and new code on main is everything after it. A
+#   pull request is always compared with main.
 # - Needs SONAR_TOKEN. Pull requests from forks get no secrets, so they stop here.
 set -euo pipefail
 
@@ -30,9 +31,9 @@ curl --fail --silent --show-error --location --proto '=https' \
   "$maven/$scanner_version/sonar-scanner-cli-$scanner_version.jar" --output "$jar"
 echo "$scanner_sha256  $jar" | sha256sum --check --status
 
-release=$(git tag --list '[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n 1)
+version=$(scripts/release-notes.sh "$work_dir/release-notes.md")
 
 java -jar "$jar" \
-  -Dsonar.projectVersion="${release:-0.0.0}" \
+  -Dsonar.projectVersion="$version" \
   -Dsonar.qualitygate.wait=true \
   -Dsonar.qualitygate.timeout=300

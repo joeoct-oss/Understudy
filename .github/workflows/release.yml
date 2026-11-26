@@ -78,10 +78,6 @@ jobs:
     name: Publish
     needs: [check, linux-checks]
     if: github.event_name == 'push' && needs.check.outputs.tagged == 'false'
-    # Two quick merges publish one after the other, never at once.
-    concurrency:
-      group: release-main
-      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
