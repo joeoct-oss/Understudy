@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Changed
+
+- SonarQube Cloud's quality gate runs first on every pull request and push to main, and checks code quality as well as bugs and security. Until it passes, no other check runs and nothing is released (the **Checks** workflow).
+
 ## 0.9.0 - 2026-11-26
 
 Nothing a test writes changes, and the macros write the same code and give the same messages as in 0.8.0. Spy calls are cheaper, and the package can now measure what it costs a project that uses it.

@@ -1,5 +1,7 @@
 # Publishes a release when a merge to main brings a new version in CHANGELOG.md. This file is the
-# one home for how Understudy is released.
+# one home for how Understudy is released. The checks workflow (checks.yml) calls it on pull
+# requests and pushes to main once SonarQube Cloud's quality gate passed, so a failed gate
+# publishes nothing.
 # - A release PR moves the Unreleased notes under `## X.Y.Z - YYYY-MM-DD`. Its review and merge
 #   are the approval: nothing is tagged or published by hand, and no Mac or browser is needed.
 # - On a pull request (dry run): read-only. Shows the version and notes a merge would publish in
@@ -15,18 +17,9 @@
 name: Release
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_call:
 
 permissions: {}
-
-# Two quick merges publish one after the other, never at once. Pull requests get their own group.
-concurrency:
-  group: release-${{ github.event.pull_request.number || 'main' }}
-  cancel-in-progress: false
 
 jobs:
   # Runs on pull requests and on main. Read-only.
@@ -85,6 +78,10 @@ jobs:
     name: Publish
     needs: [check, linux-checks]
     if: github.event_name == 'push' && needs.check.outputs.tagged == 'false'
+    # Two quick merges publish one after the other, never at once.
+    concurrency:
+      group: release-main
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
