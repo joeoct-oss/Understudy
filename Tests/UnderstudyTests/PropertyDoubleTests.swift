@@ -14,6 +14,7 @@ import Understudy
 struct PropertyDoubleTests {
     @Test("Spied properties keep every set and answer gets")
     func propertiesKeepEverySetAndAnswerGets() {
+        // `var` because the session's `onExpire` closure sets it.
         var expired = false
         let session = SpySession(user: "ana", onExpire: { expired = true })
 
@@ -71,6 +72,9 @@ struct PropertyDoubleTests {
 }
 
 /// The signed-in session, as a feature reads and changes it.
+///
+/// Requirements:
+/// - `AnyObject`, because a session is one shared object whose token a feature changes in place.
 private protocol Session: AnyObject {
     var token: String? { get set }
     var user: String { get }
@@ -89,6 +93,9 @@ private final class SpySession: Session {
 }
 
 /// A profile a screen shows and edits.
+///
+/// Requirements:
+/// - `AnyObject`, because a screen edits the one profile in place.
 private protocol Profile: AnyObject {
     var user: String { get set }
 }
@@ -103,6 +110,9 @@ private final class SpyProfile: Profile {
 }
 
 /// Counts on its own actor.
+///
+/// Requirements:
+/// - `Actor`, so the count changes one step at a time and its double is an actor.
 private protocol Counter: Actor {
     var count: Int { get set }
 }
@@ -114,6 +124,7 @@ private protocol Counter: Actor {
 @GenerateSpies
 private actor SpyCounter: Counter {
     @SpiedProperty var count: Int = 0
+
     // Bumps the count from inside the actor, as the code under test would.
     func bump() {
         count += 1
@@ -121,6 +132,9 @@ private actor SpyCounter: Counter {
 }
 
 /// A signed-in account that any task may read.
+///
+/// Requirements:
+/// - `Sendable`, because any task may read it.
 private protocol Account: Sendable {
     var user: String { get set }
 }

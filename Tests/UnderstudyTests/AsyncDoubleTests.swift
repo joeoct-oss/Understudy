@@ -12,11 +12,11 @@ import Understudy
 /// How a generated double of an async or throwing function behaves once the compiler builds it.
 @Suite("Generated doubles of async and throwing functions")
 struct AsyncDoubleTests {
-    /// The error the tests script.
-    ///
-    /// Conformances:
-    /// - `Error`, so a generated spy can throw it.
-    /// - `Equatable`, so a test can check which error came out.
+    // The error the tests script.
+    //
+    // Conformances:
+    // - `Error`, so a generated spy can throw it.
+    // - `Equatable`, so a test can check which error came out.
     private enum LoadError: Error, Equatable {
         case offline
     }

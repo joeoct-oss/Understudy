@@ -59,7 +59,7 @@ struct IsolationDoubleTests {
         #expect(ran.callCount == 1)
     }
 
-    @Test("Doubles of every access level and isolation build and record calls")
+    @Test("Public, open, fileprivate, main-actor and Sendable-closure doubles build and record calls")
     @MainActor
     func doublesOfEveryAccessLevelAndIsolationBuildAndRecord() async {
         let gate = SpyOpenGate(isOpen: true)
@@ -86,6 +86,9 @@ struct IsolationDoubleTests {
 }
 
 /// Asks for an account before an action, on the main actor.
+///
+/// Requirements:
+/// - `AnyObject`, because a gate is one shared object the screens hold.
 @MainActor
 private protocol AccountGate: AnyObject {
     func requireAccount(for screen: Screen, then action: @escaping () -> Void)
@@ -115,6 +118,9 @@ private final class SpyGate: AccountGate {
 }
 
 /// Saves items, one at a time, on its own actor.
+///
+/// Requirements:
+/// - `Actor`, so saves run one at a time and the double must be an actor too.
 private protocol Store: Actor {
     var count: Int { get set }
     func save(_ item: String) async throws
@@ -130,6 +136,7 @@ private actor SpyStore: Store {
     @SpiedProperty var count: Int
     @Spied func save(_ item: String) async throws
     @Spied nonisolated func name() -> String
+
     // Sets the count from outside the actor, as a test needs to.
     func setCount(_ value: Int) {
         count = value
@@ -137,6 +144,9 @@ private actor SpyStore: Store {
 }
 
 /// Adds amounts to a running total, on its own actor.
+///
+/// Requirements:
+/// - `Actor`, so the total changes one amount at a time and its spy is an actor.
 @GenerateSpies
 private protocol Ledger: Actor {
     var total: Int { get }
@@ -146,6 +156,7 @@ private protocol Ledger: Actor {
 /// A gate any thread may ask whether it is open, owned by the main actor.
 @MainActor
 public protocol OpenGate {
+    /// Whether the gate is open.
     nonisolated func isOpen() -> Bool
 }
 
@@ -156,11 +167,13 @@ public protocol OpenGate {
 @GenerateSpies
 @MainActor
 open class SpyOpenGate: OpenGate {
+    /// The answer the test chose.
     @Spied nonisolated public func isOpen() -> Bool
 }
 
 /// Adds any count of numbers.
 public protocol Adder {
+    /// The total of `numbers`.
     func sum(_ numbers: Int...) -> Int
 }
 
@@ -170,6 +183,7 @@ public protocol Adder {
 /// - `Adder`, so a test can pass it where an adder is expected.
 @GenerateSpies
 public final class SpyAdder: Adder {
+    /// The total the test chose; the spy keeps each list of numbers.
     @Spied public func sum(_ numbers: Int...) -> Int
 }
 
@@ -188,9 +202,13 @@ private final class SpyScheduler: Scheduler {
 }
 
 /// Tells the time, for code in other modules too.
+///
+/// Requirements:
+/// - `AnyObject`, because one clock is shared by everything that reads it.
 @GenerateSpies
 @MainActor
 public protocol PublicClock: AnyObject {
+    /// The current time, in seconds.
     func now() -> Int
 }
 
