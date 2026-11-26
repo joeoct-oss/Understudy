@@ -29,7 +29,11 @@ fi
 root="$PWD"
 scratch=$(mktemp -d)
 trap 'rm -rf -- "${scratch:?}"' EXIT
-mapfile -t inputs < <(find "$root/Tests" -name '*.swift' | LC_ALL=C sort)
+# A read loop, not mapfile, which the Bash 3.2 that macOS ships doesn't have.
+inputs=()
+while IFS= read -r file; do
+    inputs+=("$file")
+done < <(find "$root/Tests" -name '*.swift' | LC_ALL=C sort)
 
 # The tool is built in .build, which git ignores, so swift-syntax is built once and reused.
 tool="$root/.build/expansion-record"
@@ -43,6 +47,8 @@ record() {
     cp -R "$sources/Sources/UnderstudyMacros" "$sources/Sources/UnderstudySamplesMacros" "$tool/Sources/"
     # The plugins' entry points start a compiler plugin, which a tool can't link.
     find "$tool/Sources" -name Plugin.swift -delete
+    # The tool pins swift-syntax in its own Package.resolved; the package's pin replaces it here,
+    # so the record always uses the swift-syntax the package is built with.
     cp "$root/Package.resolved" "$tool/"
     swift build --package-path "$tool" --product ExpansionRecord --quiet >&2
     "$(swift build --package-path "$tool" --show-bin-path)/ExpansionRecord" -- "${inputs[@]}" |
