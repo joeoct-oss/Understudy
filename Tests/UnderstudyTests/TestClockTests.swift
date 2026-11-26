@@ -117,6 +117,56 @@ struct TestClockTests {
     }
 
     @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
+    @Test("Sleeps with the same deadline wake in the order they started", .timeLimit(.minutes(1)))
+    func sleepsWithTheSameDeadlineWakeInTheOrderTheyStarted() async throws {
+        let clock = TestClock()
+        let log = Spy<String, Void>()
+
+        let first = Task {
+            try await nap(on: clock, for: .seconds(5), logging: "first", to: log)
+        }
+        await clock.advance()
+        let second = Task {
+            try await nap(on: clock, for: .seconds(5), logging: "second", to: log)
+        }
+        await clock.advance()
+        await clock.advance(by: .seconds(5))
+        try await first.value
+        try await second.value
+
+        let expected = ["first", "second"]
+        #expect(log.calls == expected)
+    }
+
+    @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
+    @Test("Cancelling one sleep leaves the others asleep until their deadline", .timeLimit(.minutes(1)))
+    func cancellingOneSleepLeavesTheOthersAsleep() async throws {
+        let clock = TestClock()
+        let log = Spy<String, Void>()
+
+        let cancelled = Task {
+            try await nap(on: clock, for: .seconds(5), logging: "cancelled", to: log)
+        }
+        let kept = Task {
+            try await nap(on: clock, for: .seconds(5), logging: "kept", to: log)
+        }
+        await clock.advance()
+        cancelled.cancel()
+        let keptWokeEarly = log.wasCalled
+        await clock.advance(by: .seconds(5))
+
+        let expected = ["kept"]
+        await #expect(throws: CancellationError.self) {
+            try await cancelled.value
+        }
+        await #expect(throws: Never.self) {
+            try await kept.value
+        }
+        #expect(!keptWokeEarly)
+        #expect(log.calls == expected)
+    }
+
+    @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
     @Test("Running the clock finishes every sleep, and leaves it at the last deadline", .timeLimit(.minutes(1)))
     func runFinishesEveryWaitingSleep() async throws {
         let clock = TestClock()
