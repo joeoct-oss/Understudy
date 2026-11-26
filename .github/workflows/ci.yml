@@ -15,8 +15,9 @@
 # - Swift 5 language mode: the package's tests built as a Swift 5 mode project builds them
 #   (Swift5Mode/Package.swift), since the code the macros write compiles in the user's mode.
 # - Public API kept: the Understudy library's public API against the latest released version, so
-#   a change that would break a user's code fails here. A deliberate break waits for a new major
-#   version.
+#   a change that would break a user's code fails here. A deliberate break belongs in a new major
+#   version: list each one, as the job prints it, in .github/api-breakage-allowlist.txt, and
+#   delete that file once the major version is released and becomes the new baseline.
 # - Workflow lint: actionlint and zizmor over every workflow, and the size limits on the code
 #   (scripts/check-structure.py).
 # Hardening: free GitHub-hosted Linux runners only, no Mac. Every action is pinned to a full commit
@@ -216,13 +217,25 @@ jobs:
           fetch-tags: true
 
       # Builds the latest released version and this one, and compares the public declarations of
-      # the Understudy library, the one product users import.
+      # the Understudy library, the one product users import. Only plain X.Y.Z tags count as
+      # releases, so a prerelease tag never becomes the baseline. The breaks a new major version
+      # makes on purpose are listed in the allowlist, when there is one.
       - name: Compare the public API with the latest release
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          latest=$(git tag --list '[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n 1)
+          latest=$(git tag --list | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          if [[ -z "$latest" ]]; then
+            echo "::error::No release tag to compare with."
+            exit 1
+          fi
           echo "Comparing with $latest"
-          swift package diagnose-api-breaking-changes "$latest" --products Understudy
+          allowlist=.github/api-breakage-allowlist.txt
+          if [[ -f "$allowlist" ]]; then
+            swift package diagnose-api-breaking-changes "$latest" --products Understudy \
+              --breakage-allowlist-path "$allowlist"
+          else
+            swift package diagnose-api-breaking-changes "$latest" --products Understudy
+          fi
 
   gate:
     name: Linux build and tests
