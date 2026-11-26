@@ -214,6 +214,6 @@ public protocol PublicClock: AnyObject {
 
 /// Writes lines to a file in this file only.
 @GenerateSpies
-fileprivate protocol FileLog {
+private protocol FileLog {
     func write(_ line: String)
 }

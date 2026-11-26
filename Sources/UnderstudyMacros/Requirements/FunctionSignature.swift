@@ -33,7 +33,8 @@ extension FunctionRequirement {
             }
             let thrown = throwsClause?.type
             if let thrown,
-               let name = thrown.tokens(viewMode: .sourceAccurate).first(where: { generics[$0.text] != nil }) {
+                let name = thrown.tokens(viewMode: .sourceAccurate).first(where: { generics[$0.text] != nil })
+            {
                 throw UnderstudyError(
                     "\(subject) throws its generic parameter '\(name.text)'; write its double by hand",
                     at: thrown
@@ -151,9 +152,10 @@ extension FunctionRequirement {
                 )
             )
         }
-        let escapes = parameter.type.as(AttributedTypeSyntax.self)?.attributes.contains { attribute in
-            attribute.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "escaping"
-        } ?? false
+        let escapes =
+            parameter.type.as(AttributedTypeSyntax.self)?.attributes.contains { attribute in
+                attribute.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "escaping"
+            } ?? false
         return Parameter(
             name: name,
             type: try storedType(of: parameter, generics: generics, in: subject),

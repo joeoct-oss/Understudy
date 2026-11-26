@@ -119,7 +119,9 @@ func printRecord(of all: [ExpandedSource]) {
         let expanded = expansion(of: source.text)
         print("=== \(source.place)")
         print(expanded.code)
-        expanded.diagnostics.forEach { print($0) }
+        for diagnostic in expanded.diagnostics {
+            print(diagnostic)
+        }
     }
 }
 

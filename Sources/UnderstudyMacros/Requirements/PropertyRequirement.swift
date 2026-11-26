@@ -70,7 +70,8 @@ struct PropertyRequirement: Requirement {
     /// accessors, and may have a first value; a protocol's always has accessors.
     init(_ declaration: VariableDeclSyntax, inProtocol: Bool) throws {
         guard declaration.bindings.count == 1, let binding = declaration.bindings.first,
-              let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else {
+            let pattern = binding.pattern.as(IdentifierPatternSyntax.self)
+        else {
             throw UnderstudyError("declare one property at a time", at: declaration.bindings)
         }
         nameToken = pattern.identifier

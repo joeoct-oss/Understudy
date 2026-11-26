@@ -17,7 +17,7 @@ let package = Package(
     name: "ExpansionRecord",
     platforms: [.macOS(.v10_15)],
     dependencies: [
-        .package(url: "https://github.com/swiftlang/swift-syntax", "602.0.0"..<"700.0.0"),
+        .package(url: "https://github.com/swiftlang/swift-syntax", "602.0.0"..<"700.0.0")
     ],
     targets: [
         .target(name: "UnderstudyMacros", dependencies: macroDependencies),

@@ -17,3 +17,6 @@
 xcuserdata/
 DerivedData/
 /mutants.tsv
+
+# SwiftLint, installed by scripts/lint.sh.
+/.tools

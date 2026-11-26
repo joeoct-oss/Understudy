@@ -173,7 +173,8 @@ struct FunctionRequirement: Requirement {
             return isFunction(attributed.baseType)
         }
         if let tuple = type.as(TupleTypeSyntax.self), tuple.elements.count == 1,
-           let only = tuple.elements.first, only.firstName == nil {
+            let only = tuple.elements.first, only.firstName == nil
+        {
             return isFunction(only.type)
         }
         return false
@@ -186,7 +187,8 @@ struct FunctionRequirement: Requirement {
         guard let typedError else {
             return answer(on: spy)
         }
-        let wrongType = "\(GeneratedName.fatalError)(\"@GenerateSpies: \(spy) threw "
+        let wrongType =
+            "\(GeneratedName.fatalError)(\"@GenerateSpies: \(spy) threw "
             + "\\(Swift.type(of: error)), not \\(\(typedError).self)\")"
         return """
             do {
@@ -206,9 +208,11 @@ struct FunctionRequirement: Requirement {
             return "return " + call(on: spy)
         }
         let answer = "__understudy_answer"
-        let wrongType = "\(GeneratedName.fatalError)(\"@GenerateSpies: \(spy) answered "
+        let wrongType =
+            "\(GeneratedName.fatalError)(\"@GenerateSpies: \(spy) answered "
             + "\\(Swift.type(of: \(answer))), not \\(\(generic).self)\")"
-        let fetch = returnsOptional
+        let fetch =
+            returnsOptional
             ? "guard let \(answer) = \(call(on: spy)) else {\nreturn nil\n}"
             : "let \(answer) = \(call(on: spy))"
         return """

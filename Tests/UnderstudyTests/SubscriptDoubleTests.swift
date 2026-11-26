@@ -86,7 +86,10 @@ private protocol ItemList: AnyObject {
 /// - `ItemList`, so a test can pass it where a list is expected.
 @GenerateSpies
 private final class SpyList: ItemList {
-    subscript(index: Int) -> String { @Spied get {} @Spied set {} }
+    subscript(index: Int) -> String {
+        @Spied get { }
+        @Spied set { }
+    }
 }
 
 /// A grid of numbers, read by position or by name.
@@ -101,7 +104,10 @@ private protocol Grid: AnyObject {
 /// - `Grid`, so a test can pass it where a grid is expected.
 @GenerateSpies
 private final class SpyGrid: Grid {
-    subscript(row: Int, column: Int) -> Int { @Spied get {} @Spied set {} }
-    subscript(name: String) -> Int? { @Spied get {} }
+    subscript(row: Int, column: Int) -> Int {
+        @Spied get { }
+        @Spied set { }
+    }
+    subscript(name: String) -> Int? { @Spied get { } }
 }
 #endif

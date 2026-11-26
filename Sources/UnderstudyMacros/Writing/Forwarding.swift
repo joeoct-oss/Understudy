@@ -28,7 +28,8 @@ extension ProtocolSpy {
                 }
                 """
         }
-        let message = "@GenerateSpies: '\(name)' \(why), so the spy of a protocol that inherits it can't "
+        let message =
+            "@GenerateSpies: '\(name)' \(why), so the spy of a protocol that inherits it can't "
             + "forward to its spy; use @GenerateSpies on a class or an actor that conforms to that protocol"
         return """
             /// Stands in for the forwarding protocol `\(raw: name)` can't have, so the spy of a

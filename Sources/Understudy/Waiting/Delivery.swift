@@ -66,7 +66,9 @@ final class Delivery<Value: Sendable>: @unchecked Sendable {
         let waiting = waiters
         waiters.removeAll()
         lock.unlock()
-        waiting.forEach { $0.resume(returning: value) }
+        for waiter in waiting {
+            waiter.resume(returning: value)
+        }
         return true
     }
 }

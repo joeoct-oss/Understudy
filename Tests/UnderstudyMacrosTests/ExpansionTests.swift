@@ -57,12 +57,14 @@ struct ExpansionTests {
     /// process. What the person sees is this message, so the test checks the double says it.
     @Test("A generic answer of the wrong type gets a stop message naming the spy and both types")
     func genericAnswerOfTheWrongTypeStopsWithTheSpyAndBothTypes() {
-        let (expanded, _) = expand("""
+        let (expanded, _) = expand(
+            """
             @GenerateSpies
             final class SpyCache: Cache {
                 @Spied func value<Value: Decodable>(for key: String) -> Value
             }
-            """)
+            """
+        )
 
         let message = #"@GenerateSpies: valueSpy answered \(Swift.type(of: __understudy_answer)), not \(Value.self)"#
         #expect(expanded.description.contains(message))
@@ -72,12 +74,14 @@ struct ExpansionTests {
     /// checks the double says which spy threw it, and both types.
     @Test("A typed throws error of another type gets a stop message naming the spy and both types")
     func typedThrowsWithAnotherErrorTypeStopsNamingTheSpy() {
-        let (expanded, _) = expand("""
+        let (expanded, _) = expand(
+            """
             @GenerateSpies
             final class SpyAuth: Auth {
                 @Spied func signIn(email: String) async throws(AuthError) -> String
             }
-            """)
+            """
+        )
 
         let message = #"@GenerateSpies: signInSpy threw \(Swift.type(of: error)), not \(AuthError.self)"#
         #expect(expanded.description.contains(message))
@@ -86,12 +90,14 @@ struct ExpansionTests {
     /// A get-only subscript of a protocol has no setter, so its spy class gets no set spy.
     @Test("A get-only subscript gets no set spy")
     func getOnlySubscriptHasNoSetSpy() {
-        let (expanded, diagnostics) = expand("""
+        let (expanded, diagnostics) = expand(
+            """
             @GenerateSpies
             protocol Table {
                 subscript(row: Int) -> String { get }
             }
-            """)
+            """
+        )
 
         #expect(diagnostics.isEmpty)
         #expect(expanded.description.contains("subscriptSpy"))
@@ -107,14 +113,16 @@ struct ExpansionTests {
         arguments: constrained
     )
     func associatedTypeKeepsItsConstraints(_ opening: String, _ declared: String) {
-        let (expanded, diagnostics) = expand("""
+        let (expanded, diagnostics) = expand(
+            """
             @GenerateSpies
             \(opening)
                 associatedtype Item: Equatable, Codable
                 associatedtype Key
                 func item(for key: Key) -> Item?
             }
-            """)
+            """
+        )
 
         #expect(diagnostics.isEmpty)
         #expect(expanded.description.contains("final class " + declared))
@@ -124,12 +132,14 @@ struct ExpansionTests {
     /// spy itself: its initializer asks for each one, first, with no default.
     @Test("The child's spy initializer asks for each parent's spy, with no default")
     func parentSpyArgumentIsRequired() {
-        let (expanded, _) = expand("""
+        let (expanded, _) = expand(
+            """
             @GenerateSpies
             protocol Child: Base, URLLoader {
                 func count() -> Int
             }
-            """)
+            """
+        )
 
         let initializer = "init(base: BaseSpy, urlLoader: URLLoaderSpy, count: Int = 0)"
         #expect(expanded.description.contains(initializer))
@@ -140,13 +150,15 @@ struct ExpansionTests {
     /// macro declares, which a running test in one module can't see.
     @Test("The forwarding protocol keeps the parent's access level and global actor")
     func forwardingKeepsTheParentsAccessAndActor() {
-        let (expanded, _) = expand("""
+        let (expanded, _) = expand(
+            """
             @GenerateSpies
             @MainActor
             public protocol Screen {
                 func show()
             }
-            """)
+            """
+        )
 
         let forwarding = "@MainActor\npublic protocol ScreenSpyForwarding: Screen, AnyObject"
         let extended = "@MainActor\nextension Screen where Self: ScreenSpyForwarding"
@@ -167,7 +179,8 @@ struct ExpansionTests {
         let source = (opening.hasPrefix("enum") ? "" : "@GenerateSpies\n") + opening + "\nfunc ping()\n" + closing
         let (expanded, diagnostics) = expand(source)
 
-        let message = "@GenerateSpies: \(why), so the spy of a protocol that inherits it can't forward to its "
+        let message =
+            "@GenerateSpies: \(why), so the spy of a protocol that inherits it can't forward to its "
             + "spy; use @GenerateSpies on a class or an actor that conforms to that protocol"
         #expect(diagnostics.isEmpty)
         #expect(expanded.description.contains("@available(*, unavailable, message: \"\(message)\")"))
@@ -179,7 +192,8 @@ struct ExpansionTests {
     /// the initializer the double declares.
     @Test("The initializer asks for a type with no obvious default and defaults the rest")
     func initStillAsksForATypeWithNoObviousDefault() {
-        let (expanded, _) = expand("""
+        let (expanded, _) = expand(
+            """
             @GenerateSpies
             final class SpyCatalog: Catalog {
                 @Spied func product(id: Int) -> Product
@@ -191,9 +205,11 @@ struct ExpansionTests {
                 @Spied func map() -> Dictionary<String, Int>
                 @Spied func name() -> String
             }
-            """)
+            """
+        )
 
-        let initializer = "init(product: Product, stock: Store.Int, count: Swift.Int = 0, "
+        let initializer =
+            "init(product: Product, stock: Store.Int, count: Swift.Int = 0, "
             + "handler: @escaping () -> Void, list: Array<Int> = [], tags: Swift.Set<String> = [], "
             + #"map: Dictionary<String, Int> = [:], name: String = "")"#
         #expect(expanded.description.contains(initializer))
@@ -207,7 +223,7 @@ struct ExpansionTests {
         let (_, diagnostics) = expand(double.source)
 
         let expected = [
-            "\(double.line):\(double.column): understudy.error: @GenerateSpies: \(double.message)",
+            "\(double.line):\(double.column): understudy.error: @GenerateSpies: \(double.message)"
         ]
         #expect(diagnostics == expected)
     }
@@ -303,16 +319,36 @@ struct ExpansionTests {
     ]
 
     static let fixed: [Fixed] = [
-        fixedMember("a let", "@SpiedProperty let token: String", "Replace 'let' with 'var'",
-                    "@SpiedProperty var token: String"),
-        fixedMember("a body", "@Spied func write(_ text: String) {}", "Remove the body",
-                    "@Spied func write(_ text: String)"),
-        fixedMember("a parameter with no name", "@Spied func move(_: Int)", "Add a name",
-                    "@Spied func move(_ <#name#>: Int)"),
-        fixedMember("a property with no type", "@SpiedProperty var token", "Add a type",
-                    "@SpiedProperty var token: <#Type#>"),
-        fixedMember("a property with a value and no type", "@SpiedProperty var token = 0", "Add a type",
-                    "@SpiedProperty var token: <#Type#> = 0"),
+        fixedMember(
+            "a let",
+            "@SpiedProperty let token: String",
+            "Replace 'let' with 'var'",
+            "@SpiedProperty var token: String"
+        ),
+        fixedMember(
+            "a body",
+            "@Spied func write(_ text: String) {}",
+            "Remove the body",
+            "@Spied func write(_ text: String)"
+        ),
+        fixedMember(
+            "a parameter with no name",
+            "@Spied func move(_: Int)",
+            "Add a name",
+            "@Spied func move(_ <#name#>: Int)"
+        ),
+        fixedMember(
+            "a property with no type",
+            "@SpiedProperty var token",
+            "Add a type",
+            "@SpiedProperty var token: <#Type#>"
+        ),
+        fixedMember(
+            "a property with a value and no type",
+            "@SpiedProperty var token = 0",
+            "Add a type",
+            "@SpiedProperty var token: <#Type#> = 0"
+        ),
         Fixed(
             name: "@Recorded in an actor",
             source: "@GenerateSpies\nactor SpyStore {\n    @Recorded var count = 0\n}",

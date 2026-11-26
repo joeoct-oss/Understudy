@@ -2,6 +2,8 @@
 
 This package follows Waypoint's [CODE_STYLE.md](https://github.com/joeoct-oss/Waypoint/blob/main/CODE_STYLE.md), the one home for the code style of Yousef's Swift packages: code, docs and examples. The rules aren't restated here.
 
+Its swift-format and SwiftLint setup is Waypoint's, as Waypoint's [How the tools check the rules](https://github.com/joeoct-oss/Waypoint/blob/main/CODE_STYLE.md#how-the-tools-check-the-rules) describes, with three differences: [`scripts/lint-tools.sh`](scripts/lint-tools.sh) pins the tool versions, since this package has no `.mise.toml`; `.swift-format` doesn't indent the code inside `#if` blocks, as this package never has; and the example app's rule is left out. `scripts/lint.sh` installs SwiftLint into `.tools/` when it is missing.
+
 Rules of this package's own:
 
 ## Where code goes
