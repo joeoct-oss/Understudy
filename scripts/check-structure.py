@@ -15,10 +15,11 @@ functions stay short (CODE_STYLE.md, "Where code goes"). The limits live here, t
 - a function, initializer, subscript or accessor body in Sources/ has at most 40 lines;
 - every Swift line in Sources/, Tests/ and Tools/ fits in 120 columns, and every comment line in 100.
 
-It reads Swift lexically, so braces and `//` inside strings and comments, block comments included,
-count for nothing, and comments of either kind count toward neither a file nor a body. It expects
-code that follows CODE_STYLE.md, where every body opens on its declaration's line or on the line
-that closes a wrapped signature, and closes on a line of its own. Python 3, nothing else.
+It reads Swift lexically, so braces and `//` inside strings, regex literals and comments, block
+comments included, count for nothing, and comments of either kind count toward neither a file nor a
+body. It expects code that follows CODE_STYLE.md, where every body opens on its declaration's line
+or on the line that closes a wrapped signature, and closes on a line of its own. Python 3, nothing
+else.
 
 Usage: scripts/check-structure.py
 """
@@ -36,7 +37,8 @@ COMMENT_WIDTH = 100
 DECLARATION = re.compile(
     r"^\s*(@\w+(\([^)]*\))?\s+)*"
     r"((public|private|fileprivate|internal|package|open|static|class|override|mutating|"
-    r"nonisolated|final|convenience|required|isolated)\s+)*"
+    r"nonmutating|nonisolated|final|convenience|required|isolated|prefix|postfix|infix|"
+    r"dynamic|optional|distributed)\s+)*"
     r"(func|init|deinit|subscript)\b"
 )
 # A body that opens on its own line: an accessor, or a computed or observed property.
@@ -112,6 +114,9 @@ def read(lines):
             elif rest.startswith('"'):
                 index = string_end(text, index + 1)
                 code.append('""')
+            elif regex_opens(text, index):
+                index = regex_end(text, index)
+                code.append("#//#")
             else:
                 code.append(text[index])
                 index += 1
@@ -132,6 +137,34 @@ def string_end(text, index):
     return index
 
 
+def regex_opens(text, index):
+    """Whether a regex literal starts at `index`: an extended one, `#/.../#`, anywhere, or a bare
+    `/.../` where a value starts, after `=`, `(`, `,`, `:`, `[`, `return` or at the line's start,
+    so a division is never taken for one."""
+    rest = text[index:]
+    if re.match(r"#+/", rest):
+        return True
+    if not rest.startswith("/") or rest.startswith("//") or rest.startswith("/*"):
+        return False
+    before = text[:index].rstrip()
+    return before == "" or before.endswith(("=", "(", ",", ":", "[", "return"))
+
+
+def regex_end(text, index):
+    """The index just past the regex literal that starts at `index`, or the line's end."""
+    hashes = len(text[index:]) - len(text[index:].lstrip("#"))
+    closing = "/" + "#" * hashes
+    index += hashes + 1
+    while index < len(text):
+        if text[index] == "\\":
+            index += 2
+        elif text.startswith(closing, index):
+            return index + len(closing)
+        else:
+            index += 1
+    return index
+
+
 def code_lines(lines):
     """The number of lines that hold code: not blank, and not only a comment."""
     return sum(1 for line in lines if line.code.strip())
@@ -139,11 +172,16 @@ def code_lines(lines):
 
 def body_opening(lines, start):
     """The line that opens the body declared at `start`, or None for a requirement with no body.
-    The search follows a wrapped signature and stops where no signature can run on."""
+    The search follows a wrapped signature, skips the closures of its default arguments, and stops
+    where no signature can run on."""
+    depth = 0
     for opening in range(start, len(lines)):
-        if opening > start and BOUNDARY.match(lines[opening].code):
+        code = lines[opening].code
+        if opening > start and depth == 0 and BOUNDARY.match(code):
             return None
-        if lines[opening].code.rstrip().endswith("{"):
+        depth += sum(code.count(mark) for mark in "([") - sum(code.count(mark) for mark in ")]")
+        # Inside the parameter list, a `{` opens a default argument's closure, not the body.
+        if depth <= 0 and code.rstrip().endswith("{"):
             return opening
     return None
 
