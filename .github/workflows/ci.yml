@@ -1,11 +1,13 @@
 # Builds and tests the package on Linux. The release workflow calls it on every push to main and
 # publishes only when it passes there, so it is the last check before a version goes out.
-# - The checks workflow (checks.yml) calls it on pull requests to main once SonarQube Cloud's
-#   quality gate passed; drafts are skipped until they are ready for review.
+# - The checks workflow (checks.yml) calls it on pull requests to main once its fast checks and
+#   SonarQube Cloud's quality gate passed; drafts are skipped until they are ready for review. A
+#   docs-only pull request (docs-only input) skips every job, and the gate reports a pass.
 # - "Linux build and tests" is the one required check: it passes only when every job below passed.
 # - Swift 6.4: warnings as errors, every line of Sources/ covered (scripts/check-coverage.sh), and
 #   the thread sanitizer. The macro sources must be covered by the macro tests alone, so the gate
-#   also proves the macro expansion tests ran.
+#   also proves the macro expansion tests ran. The measured lines are kept as the "coverage"
+#   artifact, which the checks workflow uploads to Codecov, so coverage is measured once per run.
 # - Swift 6.1, 6.2 and 6.3: every test, warnings as errors, with the committed Package.resolved.
 #   Only when the release workflow calls this one on a push to main, and on a manual run, never on
 #   a pull request: a pull request tests the lowest and the newest version, which almost always
@@ -18,8 +20,7 @@
 #   a change that would break a user's code fails here. A deliberate break belongs in a new major
 #   version: list each one, as the job prints it, in .github/api-breakage-allowlist.txt, and
 #   delete that file once the major version is released and becomes the new baseline.
-# - Workflow lint: actionlint and zizmor over every workflow, and the size limits on the code
-#   (scripts/check-structure.py).
+# - Workflow lint and the size limits run in the checks workflow's fast checks, before this one.
 # Hardening: free GitHub-hosted Linux runners only; the Apple checks (apple.yml) have the macOS
 # jobs. Every action is pinned to a full commit SHA and every image to a digest, with the version in
 # a comment; Dependabot bumps the actions, and the images are bumped by hand in the same PR. Each
@@ -29,6 +30,11 @@ name: Linux checks
 
 on:
   workflow_call:
+    inputs:
+      docs-only:
+        description: The change touches only docs no build reads, so every job is skipped
+        type: boolean
+        default: false
   workflow_dispatch:
 
 permissions: {}
@@ -36,7 +42,7 @@ permissions: {}
 jobs:
   coverage:
     name: Tests, coverage and thread sanitizer (Swift 6.4)
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -62,7 +68,17 @@ jobs:
       # Builds with warnings as errors, runs every test, and fails on any line of the sources that
       # no test runs.
       - name: Test, with warnings as errors and every line covered
+        env:
+          COVERAGE_LCOV: coverage.lcov
         run: scripts/check-coverage.sh -Xswiftc -warnings-as-errors
+
+      - name: Keep the coverage report
+        if: ${{ !cancelled() && hashFiles('coverage.lcov') != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: coverage.lcov
+          retention-days: 1
 
       - name: Test with the thread sanitizer
         run: swift test --sanitize=thread
@@ -74,7 +90,7 @@ jobs:
 
   swift:
     name: Tests on Swift ${{ matrix.swift }}
-    if: ${{ github.event_name != 'pull_request' }}
+    if: ${{ github.event_name != 'pull_request' && !inputs.docs-only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -102,7 +118,7 @@ jobs:
 
   lowest:
     name: Lowest versions (Swift 6.0, lowest swift-syntax)
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -132,7 +148,7 @@ jobs:
 
   swift5:
     name: Swift 5 language mode (Swift 6.4)
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -152,55 +168,10 @@ jobs:
           cp Package.resolved Swift5Mode/
           swift test --package-path Swift5Mode --force-resolved-versions -Xswiftc -warnings-as-errors
 
-  lint:
-    name: Workflow lint
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      # Checks workflow syntax, expressions and, through the runner's shellcheck, every run script.
-      # The download follows HTTPS only and is checked against its checksum.
-      - name: actionlint
-        env:
-          VERSION: 1.7.9
-          SHA256: 233b280d05e100837f4af1433c7b40a5dcb306e3aa68fb4f17f8a7f45a7df7b4
-        run: |
-          archive="$RUNNER_TEMP/actionlint.tar.gz"
-          curl -fsSL --proto '=https' --tlsv1.2 -o "$archive" \
-            "https://github.com/rhysd/actionlint/releases/download/v$VERSION/actionlint_${VERSION}_linux_amd64.tar.gz"
-          echo "$SHA256  $archive" | sha256sum --check --strict
-          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
-          "$RUNNER_TEMP/actionlint" -color
-
-      # Checks for security mistakes: unpinned actions and images, broad permissions, script
-      # injection, kept credentials and cache poisoning. Offline, so it needs no token.
-      - name: zizmor
-        env:
-          VERSION: 1.33.1
-          SHA256: 49eb92a95347e7da58c3123e4d5b297dbb6fe8ecc328e9db68df14c08e25e151
-        run: |
-          python3 -m venv "$RUNNER_TEMP/zizmor"
-          echo "zizmor==$VERSION --hash=sha256:$SHA256" > "$RUNNER_TEMP/zizmor.txt"
-          "$RUNNER_TEMP/zizmor/bin/pip" install --quiet --no-deps --require-hashes \
-            -r "$RUNNER_TEMP/zizmor.txt"
-          "$RUNNER_TEMP/zizmor/bin/zizmor" --offline --format=github .github/workflows
-
-      # Fails on a file, a body or a line past the package's size limits (CODE_STYLE.md, "Where
-      # code goes"). Python 3 is on the runner, so nothing is installed. It runs last, and even
-      # when a workflow check failed, so each failure is reported in the same run.
-      - name: Size limits
-        if: ${{ !cancelled() }}
-        run: scripts/check-structure.py
 
   api:
     name: Public API kept (Swift 6.4)
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -239,21 +210,27 @@ jobs:
 
   gate:
     name: Linux build and tests
-    needs: [coverage, swift, lowest, swift5, api, lint]
+    needs: [coverage, swift, lowest, swift5, api]
     if: ${{ always() && !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}
     steps:
       # A pull request skips the middle Swift versions on purpose, so their job isn't counted there.
+      # A docs-only change skips every job on purpose, so it passes.
       - name: Check that every job passed
         env:
           EVENT: ${{ github.event_name }}
+          DOCS_ONLY: ${{ inputs.docs-only }}
           RESULTS: ${{ join(needs.*.result, ' ') }}
           PR_RESULTS: >-
             ${{ needs.coverage.result }} ${{ needs.lowest.result }} ${{ needs.swift5.result }}
-            ${{ needs.api.result }} ${{ needs.lint.result }}
+            ${{ needs.api.result }}
         run: |
+          if [[ "$DOCS_ONLY" == "true" ]]; then
+            echo "Docs-only change: no build reads these files, so the tests were skipped."
+            exit 0
+          fi
           if [[ "$EVENT" == "pull_request" ]]; then
             RESULTS="$PR_RESULTS"
           fi

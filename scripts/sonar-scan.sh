@@ -8,7 +8,7 @@
 #
 
 # Runs SonarQube Cloud's analysis and waits for its quality gate: exits non-zero when the gate
-# fails, so the checks workflow runs nothing else. Settings are in sonar-project.properties.
+# fails, so the checks workflow runs no test after it. Settings are in sonar-project.properties.
 # - The scanner comes from Maven Central at a pinned version and is checked against its SHA-256.
 # - The version Sonar records is the newest version in CHANGELOG.md (scripts/release-notes.sh), so
 #   the release commit itself starts a new version and new code on main is everything after it. A
@@ -35,7 +35,20 @@ echo "$scanner_sha256  $jar" | sha256sum --check --status
 
 version=$(scripts/release-notes.sh "$work_dir/release-notes.md")
 
-java -jar "$jar" \
-  -Dsonar.projectVersion="$version" \
-  -Dsonar.qualitygate.wait=true \
-  -Dsonar.qualitygate.timeout=300
+# SonarQube Cloud answers 429 (too many requests) when pushes come quickly, which is no finding in
+# the code, so a 429 is retried after 30, 60 and 120 seconds. Any other failure, a failed quality
+# gate included, stops at once.
+log="$work_dir/sonar-scan.log"
+for delay in 30 60 120 0; do
+  if java -jar "$jar" \
+    -Dsonar.projectVersion="$version" \
+    -Dsonar.qualitygate.wait=true \
+    -Dsonar.qualitygate.timeout=300 2>&1 | tee "$log"; then
+    exit 0
+  fi
+  if ! grep -qE '\b429\b|Too Many Requests' "$log" || [[ "$delay" -eq 0 ]]; then
+    exit 1
+  fi
+  echo "::warning::SonarQube Cloud answered 429 (too many requests). Retrying in $delay seconds."
+  sleep "$delay"
+done

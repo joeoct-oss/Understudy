@@ -72,9 +72,11 @@ jobs:
     # The documented local form: it always runs ci.yml from this same commit.
     uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
 
-  # The Apple platform checks on the pushed commit, on every push to main, for the same reason.
+  # The Apple platform checks on the pushed commit, on every push to main, for the same reason,
+  # once the Linux checks passed, so no macOS time goes to a commit that already fails on Linux.
   apple-checks:
     name: Apple platform checks
+    needs: linux-checks
     if: github.event_name == 'push'
     permissions:
       contents: read

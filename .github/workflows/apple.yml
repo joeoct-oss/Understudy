@@ -2,18 +2,23 @@
 # are free for a public repo. The Linux checks (ci.yml) can't see Apple's availability rules or an
 # error only Xcode's compiler makes, and the code the macros write compiles in users' Apple test
 # targets, so these jobs check it there.
-# - The checks workflow (checks.yml) calls it on pull requests to main once SonarQube Cloud's
-#   quality gate passed; drafts are skipped until they are ready for review. The release workflow
-#   (release.yml) calls it on every push to main and publishes only when it passes there.
+# - The checks workflow (checks.yml) calls it on pull requests to main once the Linux checks
+#   passed, so no macOS time goes to a change that already fails on Linux; drafts are skipped until
+#   they are ready for review. A docs-only pull request (docs-only input) skips every job, and the
+#   gate reports a pass. The release workflow (release.yml) calls it on every push to main, after
+#   the Linux checks, and publishes only when it passes there.
 # - "Apple builds and tests" is its one gate: it passes only when every job below passed.
-# - Newest Xcode: every test on macOS, warnings as errors, with the committed Package.resolved.
+# - Newest Xcode: every test on macOS, warnings as errors, with the committed Package.resolved,
+#   then the package's tests (ApplePlatforms/Package.swift) run on an iOS simulator from the
+#   runner, so the behaviour is proved on iOS and not only the build.
 # - Oldest Xcode: Xcode 16.0, the first with Swift 6.0, the tools version in Package.swift, and
 #   the lowest swift-syntax Package.swift allows, as the Linux lowest versions job does.
 # - Lowest platform versions: the package's tests (ApplePlatforms/Package.swift) built for iOS 13,
 #   tvOS 13, watchOS 6 and visionOS 1 with Xcode 16.4, so an API newer than a platform's floor
 #   fails here. Xcode 16 deploys back to iOS 12, so each floor is built as declared, and 16.4 is
 #   the Xcode 16 whose platforms the macos-15 runner has installed. Built only: running them needs a
-#   simulator of that version, which the runners don't have.
+#   simulator of that version, which the runners don't have. tvOS and watchOS share one job, so a
+#   run uses 5 macOS jobs, as many as a free plan runs at once.
 # Hardening as in ci.yml: standard GitHub-hosted runners only, never a larger runner (those are
 # billed) and no self-hosted Mac. Every action is pinned to a full commit SHA with the version in a
 # comment, each job reads the repo and nothing else, and no checkout keeps the token. Runner
@@ -23,6 +28,11 @@ name: Apple platform checks
 
 on:
   workflow_call:
+    inputs:
+      docs-only:
+        description: The change touches only docs no build reads, so every job is skipped
+        type: boolean
+        default: false
   workflow_dispatch:
 
 permissions: {}
@@ -30,7 +40,7 @@ permissions: {}
 jobs:
   macos:
     name: Tests on macOS (Xcode ${{ matrix.xcode }})
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
@@ -70,9 +80,36 @@ jobs:
           swift --version
           swift test -Xswiftc -warnings-as-errors
 
+      # The first available iPhone simulator of the newest iOS the runner has. No signing: the
+      # simulator runs unsigned test bundles. Warnings as errors aren't set, for the reason given
+      # at the floor builds below.
+      - name: Test on an iOS simulator
+        if: ${{ !matrix.lowest }}
+        working-directory: ApplePlatforms
+        run: |
+          cp ../Package.resolved .
+          device=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          ios = sorted((r for r in runtimes if ".iOS-" in r), key=lambda r: [int(n) for n in r.rsplit(".iOS-", 1)[1].split("-")])
+          phones = [d for r in reversed(ios) for d in runtimes[r] if d["name"].startswith("iPhone")]
+          print(phones[0]["udid"] if phones else "")
+          ')
+          if [[ -z "$device" ]]; then
+            echo "::error::The runner has no available iPhone simulator."
+            exit 1
+          fi
+          xcrun simctl list devices | grep "$device"
+          xcodebuild test \
+            -scheme ApplePlatforms-Package \
+            -destination "id=$device" \
+            -skipMacroValidation \
+            -onlyUsePackageVersionsFromResolvedFile \
+            CODE_SIGNING_ALLOWED=NO
+
   platforms:
-    name: Builds for ${{ matrix.platform }} at its lowest version
-    if: ${{ !github.event.pull_request.draft }}
+    name: Builds for ${{ matrix.platforms }} at the lowest versions
+    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
     runs-on: macos-15
     timeout-minutes: 30
     permissions:
@@ -80,7 +117,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [iOS, tvOS, watchOS, visionOS]
+        platforms: [iOS, tvOS watchOS, visionOS]
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
@@ -106,17 +143,21 @@ jobs:
       # warnings suppressed, and the macOS jobs already fail on any warning.
       - name: Build the tests
         env:
-          PLATFORM: ${{ matrix.platform }}
+          PLATFORMS: ${{ matrix.platforms }}
         working-directory: ApplePlatforms
         run: |
           cp ../Package.resolved .
           xcodebuild -version
-          xcodebuild build-for-testing \
-            -scheme ApplePlatforms-Package \
-            -destination "generic/platform=$PLATFORM" \
-            -skipMacroValidation \
-            -onlyUsePackageVersionsFromResolvedFile \
-            CODE_SIGNING_ALLOWED=NO
+          for platform in $PLATFORMS; do
+            echo "::group::Build for $platform"
+            xcodebuild build-for-testing \
+              -scheme ApplePlatforms-Package \
+              -destination "generic/platform=$platform" \
+              -skipMacroValidation \
+              -onlyUsePackageVersionsFromResolvedFile \
+              CODE_SIGNING_ALLOWED=NO
+            echo "::endgroup::"
+          done
 
   gate:
     name: Apple builds and tests
@@ -126,10 +167,16 @@ jobs:
     timeout-minutes: 2
     permissions: {}
     steps:
+      # A docs-only change skips every job on purpose, so it passes.
       - name: Check that every job passed
         env:
+          DOCS_ONLY: ${{ inputs.docs-only }}
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
+          if [[ "$DOCS_ONLY" == "true" ]]; then
+            echo "Docs-only change: no build reads these files, so the checks were skipped."
+            exit 0
+          fi
           echo "Job results: $RESULTS"
           for result in $RESULTS; do
             if [[ "$result" != "success" ]]; then

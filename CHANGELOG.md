@@ -7,6 +7,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 ### Changed
 
 - CI now also checks the package with Apple's toolchain, on GitHub's macOS runners (the **Apple platform checks** workflow): every test on macOS with the newest Xcode and with Xcode 16.0 and the lowest swift-syntax, and the tests built for iOS 13, tvOS 13, watchOS 6 and visionOS 1, so an API newer than a platform's lowest version fails before a release. A release waits for these checks as it does for the Linux checks. Nothing in the package changes.
+- CI runs its checks in stages, each starting only when the one before passed: fast checks (workflow lint, size limits, and a review of any changed dependency for known vulnerabilities), then SonarQube Cloud's quality gate, then the Linux checks, then the Apple platform checks, benchmarks and mutation testing. A failure stops the run before the slower checks start. The Apple checks now also run the tests on an iOS simulator, coverage is measured once per run instead of twice, a pull request that changes only docs skips the tests, and the SonarQube scan retries when SonarQube Cloud is rate limited. Nothing in the package changes.
 
 ## 1.0.0 - 2026-11-26
 

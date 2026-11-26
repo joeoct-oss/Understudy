@@ -1,14 +1,21 @@
-# Runs every check on a pull request to main and on a push to main, SonarQube Cloud first
-# (Yousef, 2026-11-26). Its quality gate must pass before anything else starts: when it fails, no
-# other check runs and nothing is released.
-# - "SonarQube Cloud quality gate": scripts/sonar-scan.sh analyzes the code with the rules in
-#   sonar-project.properties and waits for the gate (bugs, security, code quality, duplication and
-#   reviewed hotspots on new code).
-# - Then, in parallel: the Linux checks (ci.yml) and the Apple platform checks (apple.yml), both
-#   on pull requests only, since on main the release workflow runs them on the pushed commit
-#   before it publishes; the coverage report (coverage.yml), the
-#   benchmarks (benchmarks.yml, pull requests only), mutation testing of the changed sources
-#   (mutation.yml, pull requests only) and the release check or publish (release.yml).
+# Runs every check on a pull request to main and on a push to main, in stages: each stage starts
+# only when the one before it passed, so a failure stops the run before it spends a SonarQube
+# analysis, macOS time or a mutation run (Yousef, 2026-11-26).
+# 1. "Fast checks", seconds long: actionlint, zizmor, the size limits, dependency review when the
+#    package's dependencies changed, and which kinds of files changed.
+# 2. "SonarQube Cloud quality gate": scripts/sonar-scan.sh analyzes the code with the rules in
+#    sonar-project.properties and waits for the gate (bugs, security, code quality, duplication
+#    and reviewed hotspots on new code). Then the release check or publish (release.yml).
+# 3. The Linux checks (ci.yml), on pull requests only, since on main the release workflow runs
+#    them on the pushed commit before it publishes. They measure the coverage once; the Codecov
+#    job below uploads it.
+# 4. Once the Linux checks passed: the Apple platform checks (apple.yml), the benchmarks
+#    (benchmarks.yml) and mutation testing of the changed sources (mutation.yml), all on pull
+#    requests only.
+# - A pull request that changes only Markdown files at the root or the LICENSE runs stages 1 and 2
+#   and skips the tests: the Linux and Apple gates still report, so it can merge.
+# - CodeRabbit and CodeQL are apps outside this workflow. CodeRabbit gates the merge itself (a
+#   required check, and every thread resolved).
 # - The branch name check stays in its own workflow: it runs no package code and is the same file
 #   in every repo.
 # - Drafts are skipped until they are ready for review. A newer push cancels the run still going
@@ -32,11 +39,105 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  sonar:
-    name: SonarQube Cloud quality gate
+  fast:
+    name: Fast checks
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      docs-only: ${{ steps.changes.outputs.docs-only }}
+    steps:
+      # The base commit is fetched too, to list the files the pull request changes.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Checks workflow syntax, expressions and, through the runner's shellcheck, every run script.
+      # The download follows HTTPS only and is checked against its checksum.
+      - name: actionlint
+        env:
+          VERSION: 1.7.9
+          SHA256: 233b280d05e100837f4af1433c7b40a5dcb306e3aa68fb4f17f8a7f45a7df7b4
+        run: |
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL --proto '=https' --tlsv1.2 -o "$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v$VERSION/actionlint_${VERSION}_linux_amd64.tar.gz"
+          echo "$SHA256  $archive" | sha256sum --check --strict
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color
+
+      # Checks for security mistakes: unpinned actions and images, broad permissions, script
+      # injection, kept credentials and cache poisoning. Offline, so it needs no token.
+      - name: zizmor
+        if: ${{ !cancelled() }}
+        env:
+          VERSION: 1.33.1
+          SHA256: 49eb92a95347e7da58c3123e4d5b297dbb6fe8ecc328e9db68df14c08e25e151
+        run: |
+          python3 -m venv "$RUNNER_TEMP/zizmor"
+          echo "zizmor==$VERSION --hash=sha256:$SHA256" > "$RUNNER_TEMP/zizmor.txt"
+          "$RUNNER_TEMP/zizmor/bin/pip" install --quiet --no-deps --require-hashes \
+            -r "$RUNNER_TEMP/zizmor.txt"
+          "$RUNNER_TEMP/zizmor/bin/zizmor" --offline --format=github .github/workflows
+
+      # Fails on a file, a body or a line past the package's size limits (CODE_STYLE.md, "Where
+      # code goes"). Python 3 is on the runner, so nothing is installed. It and the steps above run
+      # even when one of them failed, so each failure is reported in the same run.
+      - name: Size limits
+        if: ${{ !cancelled() }}
+        run: scripts/check-structure.py
+
+      # Docs-only: every file the pull request changes is a Markdown file at the root (README,
+      # CHANGELOG, CODE_STYLE and the like) or the LICENSE, which no build or test reads. A push to
+      # main is never docs-only, so a release always runs every test.
+      - name: Which files changed
+        id: changes
+        if: ${{ !cancelled() }}
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          docs_only=false
+          if [[ -n "$BASE" ]]; then
+            changed=$(git diff --name-only "$BASE" HEAD)
+            echo "Changed files:"
+            echo "$changed"
+            if [[ -n "$changed" ]] && ! grep -qvE '^([^/]+\.md|LICENSE)$' <<<"$changed"; then
+              docs_only=true
+            fi
+          fi
+          echo "Docs-only: $docs_only"
+          echo "docs-only=$docs_only" >> "$GITHUB_OUTPUT"
+
+      # Fails a pull request that adds or bumps a dependency with a known vulnerability of moderate
+      # severity or higher, from GitHub's advisory database. Only when Package.swift or
+      # Package.resolved changed, since nothing else adds a dependency to users' builds.
+      - name: Did the dependencies change
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        id: deps
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git diff --quiet "$BASE" HEAD -- Package.swift Package.resolved; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Review the changed dependencies
+        if: ${{ !cancelled() && steps.deps.outputs.changed == 'true' }}
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate
+
+  sonar:
+    name: SonarQube Cloud quality gate
+    needs: fast
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -54,40 +155,71 @@ jobs:
 
   linux:
     name: Linux checks
-    needs: sonar
+    needs: [fast, sonar]
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
     uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
+    with:
+      docs-only: ${{ needs.fast.outputs.docs-only == 'true' }}
+
+  # Uploads the coverage the Swift 6.4 Linux job measured, on a pull request (from the Linux
+  # checks above) and on main (from the release workflow's Linux checks). Codecov only reports
+  # the numbers; scripts/check-coverage.sh in that job is the gate, so this never fails a run.
+  codecov:
+    name: Coverage to Codecov
+    needs: [fast, linux, release]
+    if: ${{ !cancelled() && !github.event.pull_request.head.repo.fork && needs.fast.outputs.docs-only != 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fetch the report
+        id: report
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage
+
+      - name: Upload to Codecov
+        if: ${{ steps.report.outcome == 'success' }}
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: coverage.lcov
+          disable_search: true
+          use_oidc: true
+          fail_ci_if_error: false
 
   apple:
     name: Apple platform checks
-    needs: sonar
+    needs: [fast, linux]
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
     uses: ./.github/workflows/apple.yml # zizmor: ignore[self-repository]
-
-  coverage:
-    name: Coverage report
-    needs: sonar
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/coverage.yml # zizmor: ignore[self-repository]
+    with:
+      docs-only: ${{ needs.fast.outputs.docs-only == 'true' }}
 
   benchmarks:
     name: Benchmarks
-    needs: sonar
-    if: github.event_name == 'pull_request'
+    needs: [fast, linux]
+    if: github.event_name == 'pull_request' && needs.fast.outputs.docs-only != 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/benchmarks.yml # zizmor: ignore[self-repository]
 
   mutation:
     name: Mutation testing
-    needs: sonar
-    if: github.event_name == 'pull_request'
+    needs: [fast, linux]
+    if: github.event_name == 'pull_request' && needs.fast.outputs.docs-only != 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/mutation.yml # zizmor: ignore[self-repository]
