@@ -1,5 +1,5 @@
 //
-//  SpyNames.swift
+//  GeneratedNames.swift
 //  Understudy
 //
 //  Created by Yousef Mohamed <youseef.elserwey@gmail.com>.
@@ -7,6 +7,18 @@
 //
 
 import SwiftSyntax
+
+/// The names generated code uses for the types it reaches outside the double, each written with
+/// its module, so a type of the same name in the test's own module can't take its place.
+enum GeneratedName {
+    static let spy = "Understudy.Spy"
+    static let throwingSpy = "Understudy.ThrowingSpy"
+    static let propertySpy = "Understudy.PropertySpy"
+    static let staticSpies = "Understudy.StaticSpies"
+    static let void = "Swift.Void"
+    static let sendable = "Swift.Sendable"
+    static let fatalError = "Swift.fatalError"
+}
 
 /// The name of the spy that keeps a subscript's sets, from the name of the one that keeps its
 /// gets: `subscriptSetSpy` for `subscriptSpy`.

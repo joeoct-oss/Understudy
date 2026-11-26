@@ -32,13 +32,13 @@ struct SubscriptRequirement: Requirement {
     /// The get spy's input: the one index's type, or a labelled tuple of them all.
     var input: String {
         guard parameters.count > 1 else {
-            return parameters.first?.type ?? "Swift.Void"
+            return parameters.first?.type ?? GeneratedName.void
         }
         return "(" + parameters.map { "\($0.name): \($0.type)" }.joined(separator: ", ") + ")"
     }
 
     var spyType: String {
-        "Understudy.Spy<\(input), \(output)>"
+        "\(GeneratedName.spy)<\(input), \(output)>"
     }
 
     /// A spy that keeps each set as a labelled tuple of the indices and the new value.
@@ -47,7 +47,7 @@ struct SubscriptRequirement: Requirement {
             return nil
         }
         let fields = parameters.map { "\($0.name): \($0.type)" } + ["newValue: \(output)"]
-        return "Understudy.Spy<(\(fields.joined(separator: ", "))), Swift.Void>"
+        return "\(GeneratedName.spy)<(\(fields.joined(separator: ", "))), \(GeneratedName.void)>"
     }
 
     var needsAnswer: Bool {
@@ -144,6 +144,32 @@ struct SubscriptRequirement: Requirement {
     init(_ declaration: SubscriptDeclSyntax, inProtocol: Bool = false, checkingAccessors: Bool = true) throws {
         self.declaration = declaration
         let where_ = "'subscript'"
+        let accessors = try Self.writableAccessors(
+            of: declaration,
+            inProtocol: inProtocol,
+            checkingAccessors: checkingAccessors,
+            in: where_
+        )
+        isSettable = accessors.contains { $0.accessorSpecifier.tokenKind == .keyword(.set) }
+        parameters = try declaration.parameterClause.parameters.map { parameter in
+            try Self.index(parameter, in: where_)
+        }
+        let returnType = declaration.returnClause.type
+        output = returnType.trimmedDescription
+        returnsOptional = returnType.is(OptionalTypeSyntax.self)
+            || returnType.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)
+            || output.hasPrefix("Optional<")
+        returnsFunction = FunctionRequirement.isFunction(returnType)
+    }
+
+    /// The subscript's accessors. Refuses what a spy can't stand in for: a static or generic
+    /// subscript, async or throwing accessors, and, on a class, accessors without `@Spied`.
+    private static func writableAccessors(
+        of declaration: SubscriptDeclSyntax,
+        inProtocol: Bool,
+        checkingAccessors: Bool,
+        in where_: String
+    ) throws -> AccessorDeclListSyntax {
         let keyword = declaration.subscriptKeyword
         let modifiers = declaration.modifiers.map(\.name.text)
         if modifiers.contains("static") || modifiers.contains("class") {
@@ -156,30 +182,29 @@ struct SubscriptRequirement: Requirement {
         if accessors.contains(where: { $0.effectSpecifiers != nil }) {
             throw UnderstudyError("\(where_) is async or throws; write its double by hand", at: keyword)
         }
-        if !inProtocol, checkingAccessors, accessors.isEmpty || accessors.contains(where: { !Self.isSpied($0) }) {
+        if !inProtocol, checkingAccessors, accessors.isEmpty || accessors.contains(where: { !isSpied($0) }) {
             throw UnderstudyError(
                 "\(where_) has @Spied accessors, so write it as { @Spied get {} @Spied set {} }, "
                     + "or { @Spied get {} } with no set",
                 at: keyword
             )
         }
-        isSettable = accessors.contains { $0.accessorSpecifier.tokenKind == .keyword(.set) }
-        parameters = try declaration.parameterClause.parameters.map { parameter in
-            let name = (parameter.secondName ?? parameter.firstName).text
-            guard name != "_" else {
-                throw UnderstudyError("\(where_) has an index with no name; name it", at: parameter)
-            }
-            return FunctionRequirement.Parameter(
-                name: name,
-                type: try FunctionRequirement.storedType(of: parameter, generics: [:], in: where_),
-                escapes: false
-            )
+        return accessors
+    }
+
+    /// One index as the spy records it. Refuses an index with no name.
+    private static func index(
+        _ parameter: FunctionParameterSyntax,
+        in where_: String
+    ) throws -> FunctionRequirement.Parameter {
+        let name = (parameter.secondName ?? parameter.firstName).text
+        guard name != "_" else {
+            throw UnderstudyError("\(where_) has an index with no name; name it", at: parameter)
         }
-        let returnType = declaration.returnClause.type
-        output = returnType.trimmedDescription
-        returnsOptional = returnType.is(OptionalTypeSyntax.self)
-            || returnType.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)
-            || output.hasPrefix("Optional<")
-        returnsFunction = FunctionRequirement.isFunction(returnType)
+        return FunctionRequirement.Parameter(
+            name: name,
+            type: try FunctionRequirement.storedType(of: parameter, generics: [:], in: where_),
+            escapes: false
+        )
     }
 }

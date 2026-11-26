@@ -29,7 +29,8 @@ extension FunctionRequirement {
         var generics: [String: String] = [:]
         for parameter in clause.parameters {
             if parameter.specifier != nil {
-                throw UnderstudyError("\(where_) takes a parameter pack; write its double by hand", at: declaration.name)
+                let message = "\(where_) takes a parameter pack; write its double by hand"
+                throw UnderstudyError(message, at: declaration.name)
             }
             generics[parameter.name.text] = parameter.inheritedType.map { "any " + $0.trimmedDescription } ?? "Any"
         }
@@ -100,7 +101,10 @@ extension FunctionRequirement {
                 }
                 return name != "escaping"
             }
-            if kept.contains(where: { $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "autoclosure" }) {
+            let isAutoclosure = kept.contains { attribute in
+                attribute.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "autoclosure"
+            }
+            if isAutoclosure {
                 throw UnderstudyError("\(where_) takes an autoclosure; write its double by hand", at: parameter)
             }
             type = TypeSyntax(attributed.with(\.attributes, kept))

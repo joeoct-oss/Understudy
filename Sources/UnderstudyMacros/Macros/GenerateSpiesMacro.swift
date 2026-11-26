@@ -10,8 +10,8 @@ import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// `@GenerateSpies`: on a class, adds a spy and a private forwarder for each `@Spied` requirement; on a
-/// protocol, writes a spy class next to it.
+/// `@GenerateSpies`: on a class, adds a spy and a private forwarder for each `@Spied`
+/// requirement; on a protocol, writes a spy class next to it.
 public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
     /// The spies, the forwarders and the initializer, for a class.
     public static func expansion(
@@ -57,7 +57,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
             return []
         }
         return [
-            try ExtensionDeclSyntax("extension \(type.trimmed): Understudy.StaticSpies {}"),
+            try ExtensionDeclSyntax("extension \(type.trimmed): \(raw: GeneratedName.staticSpies) {}"),
         ]
     }
 
@@ -89,25 +89,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         }
         let requirements = try spiedRequirements(of: declaration.memberBlock)
         let recorded = recordedProperties(of: declaration.memberBlock)
-        let isSendable = declaration.inheritanceClause?.inheritedTypes.contains { inherited in
-            ["Sendable", "Swift.Sendable"].contains(inherited.type.trimmedDescription)
-        } == true
-        if let (property, attribute) = recorded.first, isActor || isSendable {
-            let why = isActor
-                ? "whose spy a test can't read on an actor without await"
-                : "which a Sendable class can't hold, because a wrapped property's storage is a var"
-            let name = TokenSyntax.identifier("SpiedProperty", trailingTrivia: attribute.attributeName.trailingTrivia)
-            let spied = attribute.with(\.attributeName, TypeSyntax(IdentifierTypeSyntax(name: name)))
-            throw UnderstudyError(
-                "'\(property.identifier.text)' is @Recorded, \(why); use @SpiedProperty",
-                at: property,
-                fixIt: .replace(
-                    message: UnderstudyFixIt("Replace '@Recorded' with '@SpiedProperty'"),
-                    oldNode: attribute,
-                    newNode: spied
-                )
-            )
-        }
+        try refuseRecorded(recorded, in: declaration, isActor: isActor)
         guard !requirements.isEmpty || !recorded.isEmpty else {
             throw UnderstudyError(
                 "mark each function to stand in for with @Spied and give it no body, each property "
@@ -122,6 +104,35 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         let access = access(of: declaration.modifiers)
         return try storage(for: requirements, in: typeName, access: access, isActor: isActor)
             + forwarders
+    }
+
+    /// Refuses `@Recorded` on an actor, whose spy a test can't read without `await`, and on a
+    /// `Sendable` class, with a fix-it that makes it `@SpiedProperty`.
+    private static func refuseRecorded(
+        _ recorded: [(IdentifierPatternSyntax, AttributeSyntax)],
+        in declaration: some DeclGroupSyntax,
+        isActor: Bool
+    ) throws {
+        let isSendable = declaration.inheritanceClause?.inheritedTypes.contains { inherited in
+            ["Sendable", "Swift.Sendable"].contains(inherited.type.trimmedDescription)
+        } == true
+        guard let (property, attribute) = recorded.first, isActor || isSendable else {
+            return
+        }
+        let why = isActor
+            ? "whose spy a test can't read on an actor without await"
+            : "which a Sendable class can't hold, because a wrapped property's storage is a var"
+        let name = TokenSyntax.identifier("SpiedProperty", trailingTrivia: attribute.attributeName.trailingTrivia)
+        let spied = attribute.with(\.attributeName, TypeSyntax(IdentifierTypeSyntax(name: name)))
+        throw UnderstudyError(
+            "'\(property.identifier.text)' is @Recorded, \(why); use @SpiedProperty",
+            at: property,
+            fixIt: .replace(
+                message: UnderstudyFixIt("Replace '@Recorded' with '@SpiedProperty'"),
+                oldNode: attribute,
+                newNode: spied
+            )
+        )
     }
 
     /// The spy class written next to a protocol, and the protocol that lets the spy of a
@@ -142,7 +153,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
             requirement.implementation(spy: name, access: spy.access)
         }
         let conformances = [spy.name] + spy.parents.map(\.forwarding)
-            + (spy.requirements.contains(where: \.isStatic) ? ["Understudy.StaticSpies"] : [])
+            + (spy.requirements.contains(where: \.isStatic) ? [GeneratedName.staticSpies] : [])
         let body = members.map { $0.trimmedDescription }.joined(separator: "\n\n")
         let header = "\(spy.prefix)\(kind) \(spy.spyName)\(spy.genericParameters): "
             + conformances.joined(separator: ", ")
@@ -209,125 +220,6 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
     private static func isAttribute(_ element: AttributeListSyntax.Element, named name: String) -> Bool {
         let written = element.as(AttributeSyntax.self)?.attributeName.trimmedDescription
         return written == name || written == "Understudy." + name
-    }
-
-    /// One stored spy per requirement, and an initializer that takes every answer with no safe
-    /// default, defaulting those with an obvious value. An actor's spies are `nonisolated`, so a
-    /// test reads them without `await`.
-    private static func storage(
-        for requirements: [any Requirement],
-        in typeName: String,
-        access: String,
-        isActor: Bool,
-        parents: [ProtocolSpy.Parent] = []
-    ) throws -> [DeclSyntax] {
-        let names = try spyNames(for: requirements)
-        let prefix = access.isEmpty ? "" : access + " "
-        let spyPrefix = prefix + (isActor ? "nonisolated " : "")
-        let statics = zip(requirements, names).filter { $0.0.isStatic }
-        var declarations = try staticStorage(for: statics, in: typeName, prefix: prefix)
-        for parent in parents {
-            declarations.append("\(raw: spyPrefix)let \(raw: parent.property): \(raw: parent.spyType)")
-        }
-        // A closure answer is taken `@escaping`, because the spy keeps it. An answer with an
-        // obvious value defaults to it, so the test passes only the answers that matter to it.
-        var answers: [(name: String, output: String, obvious: String?)] = []
-        for (requirement, name) in zip(requirements, names) where !requirement.isStatic {
-            if let setSpyType = requirement.setSpyType {
-                declarations.append("\(raw: spyPrefix)let \(raw: setSpyName(for: name)) = \(raw: setSpyType)()")
-            }
-            if requirement.needsAnswer {
-                declarations.append("\(raw: spyPrefix)let \(raw: name): \(raw: requirement.spyType)")
-                answers.append((name, requirement.answerType, requirement.obviousAnswer))
-            } else {
-                declarations.append(
-                    "\(raw: spyPrefix)let \(raw: name) = \(raw: requirement.spyType)(returning: \(raw: requirement.defaultAnswer))"
-                )
-            }
-        }
-        guard !answers.isEmpty || !parents.isEmpty else {
-            return declarations
-        }
-        // The initializer takes each parent protocol's spy first, then names each answer after its
-        // requirement: `init(now:)` fills `nowSpy`, and `init(subscript:)` fills `subscriptSpy`,
-        // with the keyword in backticks where it's a name.
-        let parameters = parents.map { "\($0.label): \($0.spyType)" } + answers.map { answer in
-            "\(label(of: answer.name)): \(answer.output)" + (answer.obvious.map { " = \($0)" } ?? "")
-        }
-        let assignments = parents.map { "self.\($0.property) = \($0.label)" } + answers.map { answer in
-            let name = label(of: answer.name)
-            return "self.\(answer.name) = .init(returning: \(name == "subscript" ? "`subscript`" : name))"
-        }
-        let what = parents.isEmpty
-            ? "the answer each requirement gives"
-            : "the spies of the protocols it inherits, and the answer each requirement gives"
-        declarations.append(
-            """
-            /// Creates the double with \(raw: what) until the test scripts another.
-            \(raw: prefix)init(\(raw: parameters.joined(separator: ", "))) {
-            \(raw: assignments.joined(separator: "\n"))
-            }
-            """
-        )
-        return declarations
-    }
-
-    /// The box of static spies, held in a task local so each test can have its own, and a static
-    /// property per spy that reads the current box. A static spy has no initializer to take its
-    /// first answer, so it starts from the obvious one; a requirement with none is refused.
-    private static func staticStorage(
-        for statics: [(any Requirement, String)],
-        in typeName: String,
-        prefix: String
-    ) throws -> [DeclSyntax] {
-        guard !statics.isEmpty else {
-            return []
-        }
-        let box = "__understudy_statics"
-        var spies: [String] = []
-        var readers: [DeclSyntax] = []
-        for (requirement, name) in statics {
-            guard let first = requirement.needsAnswer ? requirement.obviousAnswer : requirement.defaultAnswer else {
-                throw UnderstudyError(
-                    "'\(requirement.baseName)' is static, so no initializer takes its first answer, and "
-                        + "'\(requirement.answerType)' has no obvious one; make it optional, or write its "
-                        + "double by hand",
-                    at: requirement.nameToken
-                )
-            }
-            spies.append("let \(name) = \(requirement.spyType)(returning: \(first))")
-            readers.append(
-                """
-                /// The spy for `\(raw: requirement.baseName)` in this test's box: `.freshSpies(_:)`
-                /// gives each test its own.
-                \(raw: prefix)static var \(raw: name): \(raw: requirement.spyType) {
-                \(raw: box).get().\(raw: name)
-                }
-                """
-            )
-        }
-        let fresh = "@Sendable (_ test: () async throws -> Swift.Void) async throws -> Swift.Void"
-        return [
-            """
-            /// The static spies of one test, or of every test that runs without `.freshSpies(_:)`.
-            \(raw: prefix)final class __UnderstudyStatics: Swift.Sendable {
-            \(raw: spies.joined(separator: "\n"))
-            }
-            """,
-            "private static let \(raw: box) = _Concurrency.TaskLocal(wrappedValue: __UnderstudyStatics())",
-            """
-            \(raw: prefix)static let withFreshSpies: \(raw: fresh) = { test in
-            try await \(raw: typeName).\(raw: box).withValue(__UnderstudyStatics()) {
-            try await test()
-            }
-            }
-            """,
-        ] + readers
-    }
-
-    /// The initializer's label for a spy's answer: the spy's name without its suffix.
-    private static func label(of spy: String) -> String {
-        String(spy.dropLast(spySuffix.count))
     }
 
     /// The access level a generated member takes from the declaration it belongs to.

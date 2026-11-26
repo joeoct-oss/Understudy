@@ -46,7 +46,7 @@ struct FunctionRequirement: Requirement {
     var input: String {
         switch parameters.count {
         case 0:
-            return "Swift.Void"
+            return GeneratedName.void
         case 1:
             return parameters[0].type
         default:
@@ -56,7 +56,7 @@ struct FunctionRequirement: Requirement {
 
     /// The spy's type.
     var spyType: String {
-        let kind = throwsError ? "Understudy.ThrowingSpy" : "Understudy.Spy"
+        let kind = throwsError ? GeneratedName.throwingSpy : GeneratedName.spy
         return "\(kind)<\(input), \(output)>"
     }
 
@@ -87,8 +87,8 @@ struct FunctionRequirement: Requirement {
         guard let typedError else {
             return answer(on: spy)
         }
-        let wrongType =
-            "Swift.fatalError(\"@GenerateSpies: \(spy) threw \\(Swift.type(of: error)), not \\(\(typedError).self)\")"
+        let wrongType = "\(GeneratedName.fatalError)(\"@GenerateSpies: \(spy) threw "
+            + "\\(Swift.type(of: error)), not \\(\(typedError).self)\")"
         return """
             do {
             \(answer(on: spy))
@@ -107,7 +107,7 @@ struct FunctionRequirement: Requirement {
             return "return " + call(on: spy)
         }
         let answer = "__understudy_answer"
-        let wrongType = "Swift.fatalError(\"@GenerateSpies: \(spy) answered "
+        let wrongType = "\(GeneratedName.fatalError)(\"@GenerateSpies: \(spy) answered "
             + "\\(Swift.type(of: \(answer))), not \\(\(generic).self)\")"
         let fetch = returnsOptional
             ? "guard let \(answer) = \(call(on: spy)) else {\nreturn nil\n}"
@@ -132,8 +132,8 @@ struct FunctionRequirement: Requirement {
         return "\(attempt)await self.\(spy).respond(to: \(input))"
     }
 
-    /// The name of the private function `@GenerateSpies` writes for this requirement on a class. The
-    /// requirement's body calls it with its own labels, so overloads reach their own spy.
+    /// The name of the private function `@GenerateSpies` writes for this requirement on a class.
+    /// The requirement's body calls it with its own labels, so overloads reach their own spy.
     var forwarderName: String {
         "__understudy_" + baseName
     }
@@ -171,95 +171,25 @@ struct FunctionRequirement: Requirement {
         self.declaration = declaration
         let where_ = "'\(declaration.name.text)'"
         let generics = try Self.erasedGenerics(of: declaration, in: where_)
-        let modifiers = declaration.modifiers.map(\.name.text)
-        isStatic = modifiers.contains("static") || modifiers.contains("class")
-        if modifiers.contains("mutating") {
-            throw UnderstudyError(
-                "\(where_) is mutating; @GenerateSpies writes classes and actors",
-                at: declaration.name
-            )
+        isStatic = try Self.isStatic(declaration, in: where_)
+        let effects = try Effects(of: declaration, generics: generics, in: where_)
+        throwsError = effects.throwsError
+        typedError = effects.typedError
+        isAsync = effects.isAsync
+        let parameterList = declaration.signature.parameterClause.parameters
+        labels = parameterList.map(\.firstName.text)
+        parameters = try parameterList.map { parameter in
+            try Self.parameter(parameter, generics: generics, in: where_)
         }
-        let signature = declaration.signature
-        let throwsClause = signature.effectSpecifiers?.throwsClause
-        if throwsClause?.throwsSpecifier.tokenKind == .keyword(.rethrows) {
-            throw UnderstudyError("\(where_) rethrows; write its double by hand", at: declaration.name)
-        }
-        let thrown = throwsClause?.type
-        let thrownName = thrown?.trimmedDescription
-        if let thrown, let name = thrown.tokens(viewMode: .sourceAccurate).first(where: { generics[$0.text] != nil }) {
-            throw UnderstudyError(
-                "\(where_) throws its generic parameter '\(name.text)'; write its double by hand",
-                at: thrown
-            )
-        }
-        // `throws(Never)` throws nothing, and `throws(any Error)` is a plain `throws`.
-        throwsError = throwsClause != nil && thrownName != "Never"
-        if throwsError, let thrownName, !Self.untypedErrors.contains(thrownName) {
-            typedError = thrownName
-        } else {
-            typedError = nil
-        }
-        isAsync = signature.effectSpecifiers?.asyncSpecifier != nil
-        labels = signature.parameterClause.parameters.map(\.firstName.text)
-        parameters = try signature.parameterClause.parameters.map { parameter in
-            let name = (parameter.secondName ?? parameter.firstName).text
-            guard name != "_" else {
-                throw UnderstudyError(
-                    "\(where_) has a parameter with no name; name it",
-                    at: parameter,
-                    fixIt: .replace(
-                        message: UnderstudyFixIt("Add a name"),
-                        oldNode: parameter,
-                        newNode: named(parameter)
-                    )
-                )
-            }
-            let escapes = parameter.type.as(AttributedTypeSyntax.self)?.attributes.contains { attribute in
-                attribute.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "escaping"
-            } ?? false
-            return Parameter(
-                name: name,
-                type: try Self.storedType(of: parameter, generics: generics, in: where_),
-                escapes: escapes
-            )
-        }
-        let returnType = signature.returnClause?.type
-        self.returnType = returnType
-        let unwrapped = returnType?.as(OptionalTypeSyntax.self)?.wrappedType ?? returnType
-        if let returnType, let unwrapped, let erased = Self.erased(unwrapped, generics: generics) {
-            let optional = returnType.is(OptionalTypeSyntax.self)
-            output = optional ? "(\(erased.type))?" : erased.type
-            returnedGeneric = unwrapped.trimmedDescription
-            returnedParameter = erased.parameter
-            returnsNothing = false
-            returnsOptional = optional
-            returnsFunction = false
-        } else if let returnType {
-            try Self.refuseNested(returnType, generics: generics, in: where_)
-            returnedGeneric = nil
-            returnedParameter = nil
-            let text = returnType.trimmedDescription
-            if returnType.is(SomeOrAnyTypeSyntax.self), text.hasPrefix("some ") {
-                throw UnderstudyError("\(where_) returns an opaque type; write its double by hand", at: declaration.name)
-            }
-            output = text
-            returnsNothing = text == "Void" || text == "()"
-            returnsOptional = returnType.is(OptionalTypeSyntax.self)
-                || returnType.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)
-                || text.hasPrefix("Optional<")
-            returnsFunction = Self.isFunction(returnType)
-        } else {
-            returnedGeneric = nil
-            returnedParameter = nil
-            output = "Swift.Void"
-            returnsNothing = true
-            returnsOptional = false
-            returnsFunction = false
-        }
+        returnType = declaration.signature.returnClause?.type
+        let returned = try Returned(returnType, generics: generics, in: where_, at: declaration.name)
+        output = returned.output
+        returnedGeneric = returned.generic
+        returnedParameter = returned.parameter
+        returnsNothing = returned.isNothing
+        returnsOptional = returned.isOptional
+        returnsFunction = returned.isFunction
     }
-
-    /// The ways to write a typed `throws` that is a plain `throws`.
-    private static let untypedErrors = ["any Error", "Error", "any Swift.Error", "Swift.Error"]
 
     /// Whether a type is a closure, such as `() -> Void`, `@Sendable () -> Void` or `(() -> Void)`.
     static func isFunction(_ type: TypeSyntax) -> Bool {
@@ -275,5 +205,4 @@ struct FunctionRequirement: Requirement {
         }
         return false
     }
-
 }

@@ -9,9 +9,9 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// `@SpiedProperty`: writes the getter and setter of a `var` declared with a type, and maybe a first
-/// value, in a `@GenerateSpies` class. They go through the private forwarder `@GenerateSpies` wrote for the
-/// property, to its ``PropertySpy``.
+/// `@SpiedProperty`: writes the getter and setter of a `var` declared with a type, and maybe a
+/// first value, in a `@GenerateSpies` class. They go through the private forwarder
+/// `@GenerateSpies` wrote for the property, to its ``PropertySpy``.
 public struct SpiedPropertyMacro: AccessorMacro {
     public static func expansion(
         of node: AttributeSyntax,
