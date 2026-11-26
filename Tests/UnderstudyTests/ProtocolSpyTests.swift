@@ -96,11 +96,21 @@ struct ProtocolSpyTests {
         #expect(child.closeSpy.callCount == 1)
     }
 
-    /// A trait can't name a spy class written next to a protocol, because Swift doesn't look into
-    /// macro expansions from a macro's arguments, so the test asks the parent's spy for fresh
-    /// spies itself, as `.freshSpies(TickerSpy.self)` would.
-    @Test("A parent's static requirement is reached through the child's spy, fresh in each test")
+    @Test("An actor protocol with an associated type gets an actor spy that records that type")
+    func actorProtocolWithAssociatedTypeGetsAnActorSpy() async {
+        let store = StoreSpy<String>()
+
+        await store.save("receipt")
+
+        let expectedSaves = ["receipt"]
+        #expect(store.saveSpy.calls == expectedSaves)
+    }
+
+    @Test("A parent's static requirement is reached through the child's spy, in the parent's static spies")
     func parentStaticRequirementForwards() async throws {
+        // A trait can't name a spy class written next to a protocol, because Swift doesn't look
+        // into macro expansions from a macro's arguments, so the test asks the parent's spy for
+        // fresh spies itself, as `.freshSpies(TickerSpy.self)` would.
         try await TickerSpy.withFreshSpies {
             TickerSpy.nowSpy.willReturn(42)
 
@@ -127,6 +137,14 @@ private protocol Repository {
     associatedtype Item: Equatable
 
     func item(id: Int) -> Item?
+    func save(_ item: Item)
+}
+
+/// Keeps items of a type each app picks, inside an actor.
+@GenerateSpies
+private protocol Store: Actor {
+    associatedtype Item
+
     func save(_ item: Item)
 }
 

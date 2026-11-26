@@ -336,7 +336,7 @@ struct Requirement: SpiedMember {
                 throw UnderstudyError("\(where_) returns an opaque type; write its double by hand", at: declaration.name)
             }
             output = text
-            returnsNothing = ["Void", "Swift.Void", "()"].contains(text)
+            returnsNothing = text == "Void" || text == "()"
             returnsOptional = returnType.is(OptionalTypeSyntax.self)
                 || returnType.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)
                 || text.hasPrefix("Optional<")

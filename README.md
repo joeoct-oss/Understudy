@@ -372,7 +372,7 @@ let repository = RepositorySpy<Product>()
 repository.itemSpy.willReturn(.lamp)
 ```
 
-An associated type's default (`= String`) is ignored, because Swift has no default generic arguments. In a `Sendable` protocol, each generic parameter is also `Sendable`, because the spy stores values of it. An associated type with a `where` clause, and a static requirement next to an associated type, need the class form: a generic class can't keep a static spy.
+An associated type's default (`= String`) is ignored, because Swift has no default generic arguments. In a `Sendable` protocol and in an actor protocol, each generic parameter is also `Sendable`, because the spy stores values of it. A `where` clause on an associated type or on the protocol, and a static requirement next to an associated type, need the class form: a generic class can't keep a static spy.
 
 **Inherited protocols.** When the parent protocol has `@GenerateSpies` too, the child's spy stores the parent's spy and answers the parent's requirements through it. The child's initializer takes each parent's spy, first, so the parent's answers are set where its spy is made, and the test reads the parent's spies on the child's:
 
@@ -488,7 +488,7 @@ Each of these is a compile error at the line it's about, saying what to do inste
 | Two requirements that would share a spy name | Rename one, or give the overloads different labels. |
 | A protocol initializer; a generic, `static`, `async` or throwing subscript | The macro can't write them; use the class form or write it by hand. |
 | A protocol that inherits a standard library protocol, such as `Identifiable`, or a protocol written with its associated types (`Box<Int>`); an actor protocol that inherits another | There is no spy to forward to, or forwarding across the actor needs its own design; use the class form. See [Doubles next to your protocol](#doubles-next-to-your-protocol). |
-| An associated type with a `where` clause, or a static requirement next to an associated type | A generic parameter can't keep the clause, and a generic class can't keep a static spy; use the class form. |
+| A `where` clause on an associated type or on a protocol with associated types, or a static requirement next to an associated type | A generic parameter can't keep the clause, and a generic class can't keep a static spy; use the class form. |
 
 ## License
 

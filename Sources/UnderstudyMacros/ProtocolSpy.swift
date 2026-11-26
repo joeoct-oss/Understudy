@@ -50,17 +50,24 @@ struct ProtocolSpy {
         "Sequence", "Collection", "AsyncSequence", "RawRepresentable", "CaseIterable", "ObservableObject",
     ]
 
+    /// The protocol as written.
     let declaration: ProtocolDeclSyntax
     /// Whether the protocol is declared inside another type, where an extension written at the
     /// top of the file can't see the types its requirements name.
     let isNested: Bool
+    /// The protocol's access level, such as `public`; empty for the default.
     let access: String
+    /// Whether the protocol inherits `Actor`, so its spy is an actor.
     let isActor: Bool
+    /// Whether the protocol inherits `Sendable`.
     let isSendable: Bool
+    /// The protocols it inherits that have requirements, whose spies its spy stores.
     let parents: [Parent]
     /// Each associated type's name and the constraints its generic parameter keeps.
     let associatedTypes: [(name: String, constraints: [String])]
+    /// The requirements the protocol declares itself, each of which gets a spy.
     let requirements: [any SpiedMember]
+    /// The name of each requirement's spy, in the order of `requirements`.
     let spyNames: [String]
 
     /// The protocol's name.
@@ -100,6 +107,22 @@ struct ProtocolSpy {
         return "<" + parameters.joined(separator: ", ") + ">"
     }
 
+    /// This protocol as a parent: the spy that a child's spy stores for it.
+    private var own: Parent {
+        Parent(type: name, label: Self.initializerLabel(for: name))
+    }
+
+    /// Why this protocol's requirements can't be forwarded to its spy; `nil` when they can.
+    private var whyNotForwarded: String? {
+        if isActor {
+            return "is an actor protocol"
+        }
+        if isNested {
+            return "is declared inside another type"
+        }
+        return associatedTypes.isEmpty ? nil : "has associated types"
+    }
+
     /// Reads a protocol, or explains why its spy can't be written.
     init(_ declaration: ProtocolDeclSyntax, isNested: Bool) throws {
         self.declaration = declaration
@@ -110,7 +133,8 @@ struct ProtocolSpy {
         isActor = written.contains { $0 == "Actor" || $0 == "_Concurrency.Actor" }
         isSendable = written.contains { $0 == "Sendable" || $0 == "Swift.Sendable" }
         parents = try Self.parents(of: declaration, among: inherited, isActor: isActor)
-        associatedTypes = try Self.associatedTypes(of: declaration, isSendable: isSendable)
+        // An actor is Sendable, so its spy's nonisolated spies need Sendable values too.
+        associatedTypes = try Self.associatedTypes(of: declaration, isSendable: isSendable || isActor)
         requirements = try declaration.memberBlock.members.compactMap { member in
             try Self.requirement(member.decl, in: declaration)
         }
@@ -171,12 +195,22 @@ struct ProtocolSpy {
     }
 
     /// Each associated type, with the constraints its generic parameter keeps, and `Sendable`
-    /// when the protocol is, because the spy stores values of it. Refuses a `where` clause.
+    /// when the protocol is, or is an actor protocol, because the spy stores values of it.
+    /// Refuses a `where` clause, on the protocol or on an associated type.
     private static func associatedTypes(
         of declaration: ProtocolDeclSyntax,
         isSendable: Bool
     ) throws -> [(name: String, constraints: [String])] {
-        try declaration.memberBlock.members.compactMap { $0.decl.as(AssociatedTypeDeclSyntax.self) }.map { associated in
+        let declared = declaration.memberBlock.members.compactMap { $0.decl.as(AssociatedTypeDeclSyntax.self) }
+        if let clause = declaration.genericWhereClause, !declared.isEmpty {
+            throw UnderstudyError(
+                "'\(declaration.name.text)' has a where clause, which the spy's generic parameters can't "
+                    + "keep; use @GenerateSpies on a class or an actor that conforms to "
+                    + "'\(declaration.name.text)' instead",
+                at: clause
+            )
+        }
+        return try declared.map { associated in
             if associated.genericWhereClause != nil {
                 throw UnderstudyError(
                     "'\(associated.name.text)' has a where clause, which a generic parameter can't keep; "
@@ -185,6 +219,7 @@ struct ProtocolSpy {
                     at: associated.name
                 )
             }
+            // `var` because `Sendable` joins the written constraints for a `Sendable` protocol.
             var constraints = associated.inheritanceClause?.inheritedTypes.map(\.type.trimmedDescription) ?? []
             if isSendable, !constraints.contains(where: { $0 == "Sendable" || $0 == "Swift.Sendable" }) {
                 constraints.append("Swift.Sendable")
@@ -243,22 +278,6 @@ struct ProtocolSpy {
             @available(*, unavailable, message: \(literal: message))
             \(raw: prefix)protocol \(raw: forwarding) { }
             """
-    }
-
-    /// This protocol as a parent: the spy that a child's spy stores for it.
-    private var own: Parent {
-        Parent(type: name, label: Self.initializerLabel(for: name))
-    }
-
-    /// Why this protocol's requirements can't be forwarded to its spy; `nil` when they can.
-    private var whyNotForwarded: String? {
-        if isActor {
-            return "is an actor protocol"
-        }
-        if isNested {
-            return "is declared inside another type"
-        }
-        return associatedTypes.isEmpty ? nil : "has associated types"
     }
 
     /// The extension that answers this protocol's requirements, for a type that adopts its

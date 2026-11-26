@@ -135,6 +135,9 @@ struct ExpansionTests {
         #expect(expanded.description.contains(initializer))
     }
 
+    /// A child's spy may sit wherever the parent's spy does, so the forwarding protocol and its
+    /// extension keep the parent's access level and global actor; the test checks what the
+    /// macro declares, which a running test in one module can't see.
     @Test("The forwarding protocol keeps the parent's access level and global actor")
     func forwardingKeepsTheParentsAccessAndActor() {
         let (expanded, _) = expand("""
@@ -170,22 +173,6 @@ struct ExpansionTests {
         #expect(expanded.description.contains("@available(*, unavailable, message: \"\(message)\")"))
         #expect(!expanded.description.contains("where Self:"))
     }
-
-    /// How a protocol opens, and the spy class its associated types give.
-    static let constrained = [
-        ("protocol Repository {", "RepositorySpy<Item: Equatable & Codable, Key>: Repository"),
-        (
-            "protocol Repository: Sendable {",
-            "RepositorySpy<Item: Equatable & Codable & Swift.Sendable, Key: Swift.Sendable>"
-        ),
-    ]
-
-    /// How a protocol whose spy can't be forwarded to opens, and why it can't.
-    static let unforwardable = [
-        ("protocol Repository {\n    associatedtype Item", "'Repository' has associated types"),
-        ("protocol Store: Actor {", "'Store' is an actor protocol"),
-        ("enum Shop {\n@GenerateSpies\nprotocol Repository {", "'Repository' is declared inside another type"),
-    ]
 
     /// A type with no obvious value stays a required argument of the initializer, so the compiler
     /// still asks for it; the test checks the initializer the double declares.
@@ -293,6 +280,22 @@ struct ExpansionTests {
         "GenerateSpies": MacroSpec(type: GenerateSpiesMacro.self),
         "Spied": MacroSpec(type: SpiedMacro.self),
         "SpiedProperty": MacroSpec(type: SpiedPropertyMacro.self),
+    ]
+
+    /// How a protocol opens, and the spy class its associated types give.
+    static let constrained = [
+        ("protocol Repository {", "RepositorySpy<Item: Equatable & Codable, Key>: Repository"),
+        (
+            "protocol Repository: Sendable {",
+            "RepositorySpy<Item: Equatable & Codable & Swift.Sendable, Key: Swift.Sendable>"
+        ),
+    ]
+
+    /// How a protocol whose spy can't be forwarded to opens, and why it can't.
+    static let unforwardable = [
+        ("protocol Repository {\n    associatedtype Item", "'Repository' has associated types"),
+        ("protocol Store: Actor {", "'Store' is an actor protocol"),
+        ("enum Shop {\n@GenerateSpies\nprotocol Repository {", "'Repository' is declared inside another type"),
     ]
 
     static let accepted: [Accepted] = [
@@ -813,6 +816,14 @@ struct ExpansionTests {
                 + "\(classForm) 'Repository' instead",
             line: 3,
             column: 20
+        ),
+        refusedProtocol(
+            "a protocol where clause next to an associated type",
+            "protocol Repository where Item: Codable {\n    associatedtype Item",
+            "'Repository' has a where clause, which the spy's generic parameters can't keep; "
+                + "\(classForm) 'Repository' instead",
+            line: 2,
+            column: 21
         ),
         refusedProtocol(
             "a static requirement next to an associated type",
