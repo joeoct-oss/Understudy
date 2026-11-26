@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Added
+
+- `scripts/compare-expansions.sh <git ref>`, for contributors: shows how the code the macros write, and the messages they give, changed since that commit, and prints nothing when they are the same. `--record` prints the whole record. It runs the macros of each commit over every Swift file under `Tests/`, with the tool in `Tools/ExpansionRecord`, a package of its own that no project depending on Understudy builds.
+
 ## 0.7.0 - 2026-11-26
 
 ### Added
