@@ -57,6 +57,8 @@ public struct FreshSpies: TestTrait, SuiteTrait, TestScoping {
         testCase == nil ? nil : self
     }
 
+    /// Runs the test, or one case of it, inside every double's `withFreshSpies`, so each of their
+    /// static spies starts fresh and goes back to the shared one when the test ends.
     public func provideScope(
         for test: Test,
         testCase: Test.Case?,
