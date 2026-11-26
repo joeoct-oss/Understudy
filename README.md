@@ -561,6 +561,18 @@ Each of these is a compile error at the line it's about, saying what to do inste
 | A protocol that inherits a standard library protocol, such as `Identifiable`, or a protocol written with its associated types (`Box<Int>`); an actor protocol that inherits another | There is no spy to forward to, or forwarding across the actor needs its own design; use the class form. See [Doubles next to your protocol](#doubles-next-to-your-protocol). |
 | A `where` clause on an associated type or on a protocol with associated types, or a static requirement next to an associated type | A generic parameter can't keep the clause, and a generic class can't keep a static spy; use the class form. |
 
+## What 1.x promises
+
+From 1.0.0 on, versions follow [Semantic Versioning](https://semver.org/):
+
+- **Your tests keep compiling.** Every 1.x version keeps the public API of 1.0.0: nothing public is removed or renamed, no signature, argument label or default changes, and no protocol gains a requirement you'd have to write. CI compares each change with the latest release and fails one that breaks this.
+- **The code the macros write can improve in a minor version,** as long as code that uses the double still compiles: an initializer argument can gain a default, and a requirement the macros refused can become one they write. Their error messages and fix-its can be reworded.
+- **The same toolchains keep working:** Swift 6.0 or later, in Swift 5 or Swift 6 language mode, and swift-syntax 602 or later. The swift-syntax range only grows.
+- **The same platforms keep working:** the ones under [Install](#install).
+- **Bug fixes come in patch versions.** A change in behaviour your tests could notice, other than a fix, waits for a minor version and is listed in the [CHANGELOG](CHANGELOG.md).
+
+A change that would break any of this waits for 2.0.0.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
