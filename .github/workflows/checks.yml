@@ -6,8 +6,8 @@
 #   reviewed hotspots on new code).
 # - Then, in parallel: the Linux checks (ci.yml, pull requests only; on main the release workflow
 #   runs them on the pushed commit before it publishes), the coverage report (coverage.yml), the
-#   benchmarks (benchmarks.yml, pull requests only) and the release check or publish
-#   (release.yml).
+#   benchmarks (benchmarks.yml, pull requests only), mutation testing of the changed sources
+#   (mutation.yml, pull requests only) and the release check or publish (release.yml).
 # - The branch name check stays in its own workflow: it runs no package code and is the same file
 #   in every repo.
 # - Drafts are skipped until they are ready for review. A newer push cancels the run still going
@@ -73,6 +73,14 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/benchmarks.yml # zizmor: ignore[self-repository]
+
+  mutation:
+    name: Mutation testing
+    needs: sonar
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/mutation.yml # zizmor: ignore[self-repository]
 
   # Two quick merges run the release check and publish one after the other, never at once, so a
   # check always sees the tags an earlier publish made. Pull requests get their own group.
