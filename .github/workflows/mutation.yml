@@ -141,6 +141,8 @@ jobs:
           path: mutants.tsv
           if-no-files-found: error
           retention-days: 30
+          # A re-run of a failed group replaces what its first try kept.
+          overwrite: true
 
   summary:
     name: Mutation testing summary
@@ -193,3 +195,4 @@ jobs:
           path: mutants.tsv
           if-no-files-found: error
           retention-days: 90
+          overwrite: true
