@@ -397,7 +397,7 @@ Several parents work the same way, `ProfileSpy(base: BaseSpy(), named: NamedSpy(
 
 Its limits:
 
-- **The parent needs `@GenerateSpies`.** A parent from another module, or one such as `Identifiable` (which the macro refuses), needs the class form. Any other shows as the compiler's "cannot find 'BaseSpyForwarding' in scope".
+- **The parent needs `@GenerateSpies`**, in its own module. One such as `Identifiable`, which the macro refuses, needs the class form. A parent without `@GenerateSpies` shows as the compiler's "cannot find 'BaseSpyForwarding' in scope".
 - **A parent with associated types, an actor protocol, or one declared inside another type** can't be forwarded to: the child's spy fails to build with a message saying why. Use the class form for the child.
 - **An actor protocol that inherits another** needs the class form, because forwarding across the actor needs its own design.
 - **A `Sendable` child needs `Sendable` parents**, because its spy stores theirs.
