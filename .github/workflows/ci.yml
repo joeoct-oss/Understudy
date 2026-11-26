@@ -70,8 +70,11 @@ jobs:
           COVERAGE_LCOV: coverage.lcov
         run: scripts/check-coverage.sh -Xswiftc -warnings-as-errors
 
+      # Only feeds the Codecov report, so a failed upload never fails the job or skips the checks
+      # after it.
       - name: Keep the coverage report
         if: ${{ !cancelled() && hashFiles('coverage.lcov') != '' }}
+        continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
