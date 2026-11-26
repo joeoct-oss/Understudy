@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+## 1.0.0 - 2026-11-26
+
+The first stable release. Code that compiles against 1.0.0 keeps compiling with every 1.x version: the README's **What 1.x promises** says what each 1.x version keeps and what a minor version may change, and CI now fails any change that would break the public API. The tests were analysed before the release and the code the macros write is now also checked in Swift 5 language mode. Nothing a test writes needs to change.
+
 ### Added
 
 - README: **What 1.x promises**, what every 1.x version keeps: the public API, the toolchains, swift-syntax and the platforms; and what a minor version may change in the code the macros write.
