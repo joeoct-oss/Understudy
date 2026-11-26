@@ -148,8 +148,8 @@ def stop_with_descendants(process):
     script runs one command at a time, so every process below it belongs to the command, and on
     Linux that includes the ones whose parent already ended (`adopt_orphans`). The command is
     paused first, then the rest again and again until no new process appears, so nothing started
-    meanwhile is missed. The command itself is killed even when the process list can't be read, and a second interrupt
-    can't cut the kill short."""
+    meanwhile is missed. The command itself is killed even when the process list can't be read,
+    and a second interrupt can't cut the kill short."""
     paused = [process.pid]
     signal_if_running(process.pid, signal.SIGSTOP)
     try:
