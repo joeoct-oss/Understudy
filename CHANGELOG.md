@@ -6,11 +6,11 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## 1.0.0 - 2026-11-26
 
-The first stable release. Code that compiles against 1.0.0 keeps compiling with every 1.x version: the README's **What 1.x promises** says what each 1.x version keeps and what a minor version may change, and CI now fails any change that would break the public API. The tests were analysed before the release and the code the macros write is now also checked in Swift 5 language mode. Nothing a test writes needs to change.
+The first stable release. Code that compiles against 1.0.0 keeps compiling with every 1.x version: the README's [What 1.x promises](README.md#what-1x-promises) says what each 1.x version keeps and what a minor version may change, and CI now fails any change that would break the public API of the `Understudy` library. The tests were analysed before the release and the code the macros write is now also checked in Swift 5 language mode. Nothing a test writes needs to change.
 
 ### Added
 
-- README: **What 1.x promises**, what every 1.x version keeps: the public API, the toolchains, swift-syntax and the platforms; and what a minor version may change in the code the macros write.
+- README: [What 1.x promises](README.md#what-1x-promises), what every 1.x version keeps: the public API, the toolchains, swift-syntax and the platforms; and what a minor version may change in the code the macros write.
 - `ThrowingSpy()` for a requirement that returns nothing, as `Spy()` already has, so a test needn't write `ThrowingSpy(returning: ())`.
 - `scripts/mutate.py`, for contributors: mutation testing. It changes one thing at a time in `Sources/`, such as a comparison, a condition or a statement, runs the tests, and lists each change no test noticed. A Mutation testing workflow runs it on the files a pull request changes and lists what survived in the job summary, without failing.
 - The code the macros write is now tested in a Swift 5 language mode project as well: CI builds and runs the package's tests in Swift 5 mode (`Swift5Mode/`), with warnings as errors.
