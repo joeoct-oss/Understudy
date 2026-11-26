@@ -171,6 +171,18 @@ extension ExpansionTests {
             column: 5
         ),
         Refused(
+            name: "an async protocol subscript",
+            source: """
+                @GenerateSpies
+                protocol Session {
+                    subscript(key: String) -> String { get async }
+                }
+                """,
+            message: "'subscript' is async or throws; write its double by hand",
+            line: 3,
+            column: 5
+        ),
+        Refused(
             name: "a @Spied subscript outside a @GenerateSpies class",
             source: """
                 final class Lonely {

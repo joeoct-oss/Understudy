@@ -76,6 +76,23 @@ struct ThrowingSpyTests {
         #expect(spy.callCount == 4)
     }
 
+    @Test("willReturn and willThrow drop results still queued")
+    func willReturnAndWillThrowDropResultsStillQueued() throws {
+        let returning = ThrowingSpy<Void, Int>(returning: 0)
+        let throwing = ThrowingSpy<Void, Int>(returning: 0)
+        returning.willGiveNext(.success(1), then: .success(2))
+        throwing.willGiveNext(.success(1), then: .success(2))
+
+        returning.willReturn(5)
+        throwing.willThrow(LoadError.offline)
+        let answer = try returning()
+
+        #expect(answer == 5)
+        #expect(throws: LoadError.offline) {
+            try throwing()
+        }
+    }
+
     @Test("A computed answer sees the input, may throw, and can be replaced")
     func computedAnswerSeesTheInput() throws {
         let spy = ThrowingSpy<Int, Int> { input in
