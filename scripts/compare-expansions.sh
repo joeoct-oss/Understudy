@@ -29,7 +29,11 @@ fi
 root="$PWD"
 scratch=$(mktemp -d)
 trap 'rm -rf -- "${scratch:?}"' EXIT
-mapfile -t inputs < <(find "$root/Tests" -name '*.swift' | LC_ALL=C sort)
+# A read loop, not mapfile, which the Bash 3.2 that macOS ships doesn't have.
+inputs=()
+while IFS= read -r file; do
+    inputs+=("$file")
+done < <(find "$root/Tests" -name '*.swift' | LC_ALL=C sort)
 
 # The tool is built in .build, which git ignores, so swift-syntax is built once and reused.
 tool="$root/.build/expansion-record"

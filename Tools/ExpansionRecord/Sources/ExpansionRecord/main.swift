@@ -40,9 +40,9 @@ func usesMacro(_ source: String) -> Bool {
 /// What the macros write for `source`, and every diagnostic they give, one per line.
 func expansion(of source: String) -> (code: String, diagnostics: [String]) {
     let file = Parser.parse(source: source)
-    let context = BasicMacroExpansionContext(
-        sourceFiles: [file: .init(moduleName: "RecordedModule", fullFilePath: "source.swift")]
-    )
+    let known = BasicMacroExpansionContext.KnownSourceFile(moduleName: "RecordedModule", fullFilePath: "source.swift")
+    let sourceFiles = [file: known]
+    let context = BasicMacroExpansionContext(sourceFiles: sourceFiles)
     let expanded = file.expand(
         macroSpecs: macros,
         contextGenerator: { syntax in
@@ -84,6 +84,7 @@ final class LiteralFinder: SyntaxVisitor {
     /// The literals found so far. `var` because each visit adds one.
     var literals: [StringLiteralExprSyntax] = []
 
+    /// Keeps the literal, and skips what is inside it: a literal holds no other.
     override func visit(_ node: StringLiteralExprSyntax) -> SyntaxVisitorContinueKind {
         literals.append(node)
         return .skipChildren
