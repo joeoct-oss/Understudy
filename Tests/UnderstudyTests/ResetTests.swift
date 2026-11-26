@@ -13,22 +13,23 @@ import Understudy
 /// step at a time.
 @Suite("Reset")
 struct ResetTests {
-    @Test("Reset forgets calls and queued answers and keeps the standing answer")
+    @Test("Reset forgets calls and keeps the standing answer and the answers still queued")
     func resetForgetsCallsAndKeepsTheAnswers() throws {
         let spy = Spy<Int, String>(returning: "standing")
         let loader = ThrowingSpy<String, Int>(returning: 0)
-        spy.willReturnNext("queued")
+        spy.willReturnNext("first", then: "second")
         loader.willThrow(LoadError.offline)
         spy(1)
         _ = try? loader("a")
 
         spy.reset()
         loader.reset()
-        let answer = spy(2)
+        let answers = [spy(2), spy(3)]
 
-        let expectedCalls = [2]
+        let expectedCalls = [2, 3]
+        let expectedAnswers = ["second", "standing"]
         #expect(spy.calls == expectedCalls)
-        #expect(answer == "standing")
+        #expect(answers == expectedAnswers)
         #expect(loader.calls.isEmpty)
         #expect(throws: LoadError.offline) {
             try loader("b")

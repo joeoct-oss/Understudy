@@ -46,7 +46,7 @@ struct ProtocolSpyTests {
         #expect(child.pongSpy.calls == expectedPongs)
     }
 
-    @Test("A child of two parents reaches each parent's requirements and spies")
+    @Test("A child of two parents answers with the parent spies its initializer was given, and records in them")
     func childSpyForwardsToEveryParent() {
         let child = ProfileSpy(base: BaseSpy(ping: 1), named: NamedSpy(title: "Dr"))
 
@@ -58,13 +58,6 @@ struct ProtocolSpyTests {
         #expect(title == "Dr")
         #expect(child.titleSpy.callCount == 1)
         #expect(child.subscriptSetSpy.lastCall?.newValue == "row")
-    }
-
-    @Test("A parent's answers are set where its spy is made, in the child's initializer")
-    func parentSpyIsSetInTheChildsInit() {
-        let child = ChildSpy(base: BaseSpy(ping: 3))
-
-        #expect(child.ping() == 3)
     }
 
     @Test("A grandchild's spy reaches its grandparent's requirements through its parent's spy")
