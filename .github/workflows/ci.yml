@@ -138,11 +138,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # Fails on a file, a body or a line past the package's size limits (CODE_STYLE.md, "Where
-      # code goes"). Python 3 is on the runner, so nothing is installed.
-      - name: Size limits
-        run: scripts/check-structure.py
-
       # Checks workflow syntax, expressions and, through the runner's shellcheck, every run script.
       # The download follows HTTPS only and is checked against its checksum.
       - name: actionlint
@@ -169,6 +164,13 @@ jobs:
           "$RUNNER_TEMP/zizmor/bin/pip" install --quiet --no-deps --require-hashes \
             -r "$RUNNER_TEMP/zizmor.txt"
           "$RUNNER_TEMP/zizmor/bin/zizmor" --offline --format=github .github/workflows
+
+      # Fails on a file, a body or a line past the package's size limits (CODE_STYLE.md, "Where
+      # code goes"). Python 3 is on the runner, so nothing is installed. It runs last, and even
+      # when a workflow check failed, so each failure is reported in the same run.
+      - name: Size limits
+        if: ${{ !cancelled() }}
+        run: scripts/check-structure.py
 
   gate:
     name: Linux build and tests
