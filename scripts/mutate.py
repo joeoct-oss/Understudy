@@ -137,7 +137,11 @@ def sources(paths):
         if root != allowed and allowed not in root.parents:
             sys.exit(f"error: {root} is not under Sources/")
     files = [file for root in roots for file in ([root] if root.is_file() else sorted(root.rglob("*.swift")))]
-    return [file for file in files if file.name != "Plugin.swift"]
+    resolved = [file.resolve() for file in files]
+    for file in resolved:
+        if allowed not in file.parents:
+            sys.exit(f"error: {file} is not under Sources/")
+    return [file for file in resolved if file.name != "Plugin.swift"]
 
 
 def main():
