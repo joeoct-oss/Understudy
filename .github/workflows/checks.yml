@@ -138,7 +138,7 @@ jobs:
     name: SonarQube Cloud quality gate
     needs: fast
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -148,6 +148,15 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      # The scanner jar, checked against its checksum before use, so most runs download nothing.
+      # Pull requests only, as with every cache here.
+      - name: Restore the scanner
+        if: github.event_name == 'pull_request'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/sonar-scanner
+          key: sonar-scanner-${{ hashFiles('scripts/sonar-scan.sh') }}
 
       - name: Analyze and wait for the quality gate
         env:
