@@ -296,7 +296,7 @@ def shard(files, part):
 def selected(paths, part):
     """The files to mutate: every one under `paths`, or one group of them when `part` is set."""
     files = sources(paths)
-    return shard(files, part) if part else files
+    return files if part is None else shard(files, part)
 
 
 def main():

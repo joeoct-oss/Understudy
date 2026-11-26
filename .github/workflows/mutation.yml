@@ -161,6 +161,8 @@ jobs:
       # so the files are found at any depth. No result at all fails the job.
       - name: Join the results
         shell: bash
+        env:
+          GROUPS_RESULT: ${{ needs.shard.result }}
         run: |
           mapfile -t found < <(find results -name mutants.tsv -type f | sort)
           if [[ ${#found[@]} -eq 0 ]]; then
@@ -169,7 +171,13 @@ jobs:
           fi
           cat "${found[@]}" | sort -t $'\t' -k1,1 -k2,2n >mutants.tsv
           {
-            echo "## Mutation testing, every source"
+            if [[ "$GROUPS_RESULT" == success ]]; then
+              echo "## Mutation testing, every source"
+            else
+              echo "## Mutation testing, incomplete"
+              echo
+              echo "At least one group failed or stopped early, so some mutants are missing below."
+            fi
             echo
             echo "| File | Line | Change | Result |"
             echo "| --- | --- | --- | --- |"
