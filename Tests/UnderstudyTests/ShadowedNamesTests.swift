@@ -16,31 +16,35 @@ import Understudy
 struct ShadowedNamesTests {
     @Test("A generated double builds and works next to types of its own named Spy, Void or TaskLocal")
     func doubleWorksWhenTheTestTargetShadowsTheNamesItUses() async throws {
-        let inventory = Shadowed.InventorySpy(subscript: "shelf", count: 3, load: "lamp")
-        let shelf = Shadowed.SpyShelf(label: "top")
-        Shadowed.InventorySpy.regionSpy.willReturn("north")
-        inventory.pickSpy.willReturn(5)
-        let choices = [4, 5]
+        try await Shadowed.InventorySpy.withFreshSpies {
+            try await Shadowed.SpyShelf.withFreshSpies {
+                let inventory = Shadowed.InventorySpy(subscript: "shelf", count: 3, load: "lamp")
+                let shelf = Shadowed.SpyShelf(label: "top")
+                Shadowed.InventorySpy.regionSpy.willReturn("north")
+                inventory.pickSpy.willReturn(5)
+                let choices = [4, 5]
 
-        inventory.owner = "ana"
-        try inventory.restock("lamp")
-        let loaded = try await inventory.load(id: 7)
-        inventory[2] = "bin"
-        shelf.height = 4
-        let picked = inventory.pick(choices)
+                inventory.owner = "ana"
+                try inventory.restock("lamp")
+                let loaded = try await inventory.load(id: 7)
+                inventory[2] = "bin"
+                shelf.height = 4
+                let picked = inventory.pick(choices)
 
-        let restocked = ["lamp"]
-        #expect(inventory.count(of: "lamp") == 3)
-        #expect(inventory.restockSpy.calls == restocked)
-        #expect(loaded == "lamp")
-        #expect(picked == 5)
-        #expect(inventory.owner == "ana")
-        #expect(inventory[2] == "shelf")
-        #expect(inventory.subscriptSetSpy.callCount == 1)
-        #expect(Shadowed.InventorySpy.region() == "north")
-        #expect(shelf.label() == "top")
-        #expect(shelf.height == 4)
-        #expect(Shadowed.SpyShelf.size() == 0)
+                let restocked = ["lamp"]
+                #expect(inventory.count(of: "lamp") == 3)
+                #expect(inventory.restockSpy.calls == restocked)
+                #expect(loaded == "lamp")
+                #expect(picked == 5)
+                #expect(inventory.owner == "ana")
+                #expect(inventory[2] == "shelf")
+                #expect(inventory.subscriptSetSpy.callCount == 1)
+                #expect(Shadowed.InventorySpy.region() == "north")
+                #expect(shelf.label() == "top")
+                #expect(shelf.height == 4)
+                #expect(Shadowed.SpyShelf.size() == 0)
+            }
+        }
     }
 }
 

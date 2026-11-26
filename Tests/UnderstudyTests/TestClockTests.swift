@@ -273,6 +273,7 @@ struct TestClockTests {
 
         #expect(clock.minimumResolution == .zero)
         #expect(start.duration(to: clock.now) == .nanoseconds(1))
+        #expect(start.advanced(by: .nanoseconds(1)) == clock.now)
     }
 }
 

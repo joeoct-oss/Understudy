@@ -48,15 +48,28 @@ struct FunctionDoubleTests {
         #expect(codes == noCodes)
     }
 
-    @Test("The initializer still takes every answer a test passes")
-    func initStillTakesEveryAnswerItTookBefore() {
+    @Test("The initializer takes every answer a test passes")
+    func initTakesEveryAnswerATestPasses() {
         let expectedTags = ["new"]
-        let shop = SpyShop(isOpen: true, name: "Corner", stock: 9, tags: expectedTags)
+        let expectedPrices = ["tea": 2.5]
+        let expectedCodes: Set = [7]
+        let shop = SpyShop(
+            isOpen: true,
+            name: "Corner",
+            stock: 9,
+            price: 4.5,
+            tags: expectedTags,
+            prices: expectedPrices,
+            codes: expectedCodes
+        )
 
+        #expect(shop.isOpen)
         #expect(shop.name() == "Corner")
         #expect(shop.stock() == 9)
-        #expect(shop.isOpen)
+        #expect(shop.price() == 4.5)
         #expect(shop.tags() == expectedTags)
+        #expect(shop.prices() == expectedPrices)
+        #expect(shop.codes() == expectedCodes)
     }
 
     @Test("Optional and Void answers need nothing at creation and still record calls")
