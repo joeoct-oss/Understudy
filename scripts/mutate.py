@@ -197,7 +197,7 @@ def processes():
             except OSError:
                 continue  # The process ended while the list was read.
             if stat:
-                # The name, in brackets, can hold spaces: the parent pid is the second field after it.
+                # The name, in brackets, can hold spaces: the parent pid is 2 fields after it.
                 found.append((int(entry.name), int(stat[stat.rindex(")") + 2:].split()[1])))
         return found
     command = [shutil.which("ps") or "/bin/ps", "-A", "-o", "pid=,ppid="]
