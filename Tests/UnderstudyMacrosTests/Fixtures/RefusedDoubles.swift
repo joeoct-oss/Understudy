@@ -9,8 +9,12 @@
 /// Every shape of double the macros must refuse, with the message and the place it points to.
 extension ExpansionTests {
     static let refused: [Refused] = [
-        refusedRequirement("a generic with a where clause", "func load<Value>(_ key: String) -> Value where Value: Codable",
-                           "'load' has a where clause; write its double by hand", column: 17),
+        refusedRequirement(
+            "a generic with a where clause",
+            "func load<Value>(_ key: String) -> Value where Value: Codable",
+            "'load' has a where clause; write its double by hand",
+            column: 17
+        ),
         refusedRequirement("a generic parameter pack", "func load<each Value>(_ keys: repeat each Value)",
                            "'load' takes a parameter pack; write its double by hand", column: 17),
         refusedRequirement("a generic inside a closure", "func save<Value>(_ handler: (Value) -> Void)",
@@ -19,8 +23,12 @@ extension ExpansionTests {
                            "'pair' uses 'Value' inside another type; write its double by hand", column: 37),
         refusedRequirement("a generic dictionary key", "func index<Key: Hashable>(_ map: [Key: Int])",
                            "'index' uses 'Key' inside another type; write its double by hand", column: 45),
-        refusedRequirement("a generic inside another generic type", "func load<Value>(_ key: String) -> Result<Value, Error>",
-                           "'load' uses 'Value' inside another type; write its double by hand", column: 47),
+        refusedRequirement(
+            "a generic inside another generic type",
+            "func load<Value>(_ key: String) -> Result<Value, Error>",
+            "'load' uses 'Value' inside another type; write its double by hand",
+            column: 47
+        ),
         refusedRequirement("a static requirement with no obvious answer", "static func now() -> Date",
                            "'now' is static, so no initializer takes its first answer, and 'Date' has no "
                                + "obvious one; make it optional, or write its double by hand", column: 24),
