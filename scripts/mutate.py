@@ -14,10 +14,11 @@ let through. Python 3, nothing else.
 Each mutant is one of these changes on one line of code (comments and string literals are left
 alone): `==` and `!=` swapped, `<` and `<=` or `>` and `>=` swapped, `&&` and `||` swapped,
 `true` and `false` swapped, `+ 1` and `- 1` swapped, a `!` removed, or a statement removed. The
-package is built with the tests; a mutant that doesn't build counts as neither killed nor
-survived. The tests of the feature the file belongs to run first; a mutant they miss runs against
-every test before it is recorded as survived, so a survivor is one the whole suite misses. A run
-longer than the time limit counts as killed, since a test that hangs noticed the change.
+package is built with the tests, and every test must pass before the first change; a mutant that
+doesn't build counts as neither killed nor survived. The tests of the feature the file belongs to
+run first; a mutant they miss runs against every test before it is recorded as survived, so a
+survivor is one the whole suite misses. A run longer than the time limit counts as killed, since a
+test that hangs noticed the change.
 
 Results go to mutants.tsv at the package's root, which git ignores, one line per mutant, as they
 come; a run reads it first and skips every mutant already in it whose line is unchanged, so a long
@@ -158,6 +159,12 @@ def main():
     changed = subprocess.run(status, cwd=ROOT, capture_output=True, text=True, check=True).stdout
     if changed and not options.list:
         sys.exit(f"error: Sources/ has changes git doesn't have; commit or restore them first:\n{changed}")
+    # A test that already fails would count every mutant as killed, so the run starts only when the
+    # package builds and every test passes as it is.
+    build = ["swift", "build", "--build-tests", "--quiet"]
+    if not options.list and (run(build, options.timeout) != "pass"
+                             or run(["swift", "test", "--skip-build"], options.timeout) != "pass"):
+        sys.exit("error: the package doesn't build or a test fails before any change; fix that first")
     # Each result keeps the line it mutated, so a result whose line has changed since is run again.
     rows = [line.split("\t", 4) for line in out.read_text().splitlines()] if out.exists() else []
     done = {(*row[:3], row[4]) for row in rows if len(row) == 5}
