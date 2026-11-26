@@ -29,6 +29,21 @@ struct CallOrderTests {
         #expect(order.names == expected)
     }
 
+    @Test("Two CallOrders watching the same spy each see its calls")
+    func twoCallOrdersWatchingTheSameSpyEachSeeItsCalls() {
+        let send = Spy<String, Void>()
+        let first = CallOrder()
+        let second = CallOrder()
+        first.watch(send, as: "send")
+        second.watch(send, as: "send")
+
+        send("saved")
+
+        let expected = ["send"]
+        #expect(first.names == expected)
+        #expect(second.names == expected)
+    }
+
     @Test("A CallOrder block watches every spy listed in it")
     func callOrderBuilderWatchesEverySpyInIt() throws {
         let save = ThrowingSpy<String, Void>(returning: ())
