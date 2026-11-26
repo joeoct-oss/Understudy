@@ -165,12 +165,15 @@ jobs:
       docs-only: ${{ needs.fast.outputs.docs-only == 'true' }}
 
   # Uploads the coverage the Swift 6.4 Linux job measured, on a pull request (from the Linux
-  # checks above) and on main (from the release workflow's Linux checks). Codecov only reports
-  # the numbers; scripts/check-coverage.sh in that job is the gate, so this never fails a run.
+  # checks above) and on main (from the release workflow's Linux checks), once SonarQube passed, so
+  # a draft or a run stopped early starts no upload. Codecov only reports the numbers;
+  # scripts/check-coverage.sh in that job is the gate, so this never fails a run.
   codecov:
     name: Coverage to Codecov
-    needs: [fast, linux, release]
-    if: ${{ !cancelled() && !github.event.pull_request.head.repo.fork && needs.fast.outputs.docs-only != 'true' }}
+    needs: [fast, sonar, linux, release]
+    if: >-
+      ${{ !cancelled() && needs.sonar.result == 'success' && needs.fast.outputs.docs-only != 'true'
+      && !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     continue-on-error: true
