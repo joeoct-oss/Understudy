@@ -9,7 +9,7 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-extension Requirement {
+extension FunctionRequirement {
     /// The private function a `@Spied` function's body calls on a class: it takes the function's
     /// labels, keeps its isolation and its effects, and calls `spy`.
     func forwarder(spy: String) -> DeclSyntax {
@@ -25,7 +25,7 @@ extension Requirement {
         let generics = declaration.genericParameterClause?.parameters
             .first { $0.name.text == returnedParameter }
             .map { "<" + $0.with(\.trailingComma, nil).trimmedDescription + ">" } ?? ""
-        let returned = declaration.signature.returnClause?.type.trimmedDescription ?? "Swift.Void"
+        let returned = declaration.signature.returnClause?.type.trimmedDescription ?? GeneratedName.void
         let signature = "\(forwarderName)\(generics)(\(forwarderParameters))\(effects)"
         let kind = isStatic ? "static func" : "func"
         return """
@@ -37,6 +37,7 @@ extension Requirement {
 
     /// The requirement with a body that calls `spy`, for the spy class written next to a protocol.
     func implementation(spy: String, access: String) -> DeclSyntax {
+        // `var` because its body, trivia and access are set below.
         var function = declaration
         function.body = CodeBlockSyntax(statements: SpiedMacro.body(of: self, spy: spy))
         function.leadingTrivia = []
@@ -47,7 +48,7 @@ extension Requirement {
     }
 }
 
-extension Property {
+extension PropertyRequirement {
     /// The private property a `@SpiedProperty` property's accessors go through on a class.
     func forwarder(spy: String) -> DeclSyntax {
         "private \(raw: isStatic ? "static " : "")var \(raw: forwarderName): \(raw: spyType) { self.\(raw: spy) }"
