@@ -41,6 +41,8 @@ record() {
     rm -rf "$tool/Sources"
     cp -R "$root/Tools/ExpansionRecord/." "$tool/"
     cp -R "$sources/Sources/UnderstudyMacros" "$sources/Sources/UnderstudySamplesMacros" "$tool/Sources/"
+    # The plugins' entry points start a compiler plugin, which a tool can't link.
+    find "$tool/Sources" -name Plugin.swift -delete
     cp "$root/Package.resolved" "$tool/"
     swift build --package-path "$tool" --product ExpansionRecord --quiet >&2
     "$(swift build --package-path "$tool" --show-bin-path)/ExpansionRecord" "${inputs[@]}" |

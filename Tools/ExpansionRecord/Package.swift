@@ -11,8 +11,8 @@ import PackageDescription
 
 // Prints what Understudy's macros write. A package of its own, so no project that depends on
 // Understudy builds it. `scripts/compare-expansions.sh` copies it to a scratch folder, adds the
-// macro sources of the commit it records under `Sources/`, and builds them as plain libraries,
-// because a macro target can't be linked into a tool.
+// macro sources of the commit it records under `Sources/`, without the compiler plugins' entry
+// points, and builds them as plain libraries, because a macro target can't be linked into a tool.
 let package = Package(
     name: "ExpansionRecord",
     platforms: [.macOS(.v10_15)],
@@ -20,16 +20,8 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-syntax", "602.0.0"..<"700.0.0"),
     ],
     targets: [
-        .target(
-            name: "UnderstudyMacros",
-            dependencies: macroDependencies,
-            exclude: ["Plugin.swift"]
-        ),
-        .target(
-            name: "UnderstudySamplesMacros",
-            dependencies: macroDependencies,
-            exclude: ["Plugin.swift"]
-        ),
+        .target(name: "UnderstudyMacros", dependencies: macroDependencies),
+        .target(name: "UnderstudySamplesMacros", dependencies: macroDependencies),
         .executableTarget(
             name: "ExpansionRecord",
             dependencies: [
