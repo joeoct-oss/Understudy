@@ -1,0 +1,46 @@
+# Posts new code scanning and secret scanning alerts to Slack #security, because GitHub's Slack app
+# doesn't send them and they no longer come by email. scripts/post-security-alerts.sh does the work
+# and is the one home for what gets posted; this file only schedules it and hands it its tokens.
+# - Every 2 hours, and by hand from the Actions tab. It reads the window from its own runs, so a
+#   late or failed run loses nothing.
+# - The repository secrets it needs: SLACK_SECURITY_WEBHOOK_URL, the #security incoming webhook of
+#   the OSS Alerts Slack app, and SECRET_SCANNING_TOKEN, a fine-grained token that can only read
+#   this repository's secret scanning alerts (the workflow token can't read them).
+# - A failed run means alerts weren't checked, and shows in Slack #ci like any other failed run.
+# Hardening as in ci.yml: a free GitHub-hosted Linux runner, actions pinned to a full commit SHA,
+# the checkout keeps no token, and the job gets only the read permissions it uses.
+name: Security alerts
+
+on:
+  schedule:
+    - cron: "23 */2 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+# Runs never overlap, so two runs never post the same window.
+concurrency:
+  group: security-alerts
+  cancel-in-progress: false
+
+jobs:
+  post:
+    name: Post new alerts to Slack
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+      security-events: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Post new alerts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SECRET_SCANNING_TOKEN: ${{ secrets.SECRET_SCANNING_TOKEN }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_SECURITY_WEBHOOK_URL }}
+        run: scripts/post-security-alerts.sh
