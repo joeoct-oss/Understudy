@@ -188,10 +188,11 @@ jobs:
             awk -F '\t' '{ count[$4]++ } END { for (r in count) printf "%s: %d  \n", r, count[r] }' mutants.tsv
           } >>"$GITHUB_STEP_SUMMARY"
 
+      # Named "mutants-incomplete" when a group failed, so the file on its own says so too.
       - name: Keep the joined results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: mutants
+          name: ${{ needs.shard.result == 'success' && 'mutants' || 'mutants-incomplete' }}
           path: mutants.tsv
           if-no-files-found: error
           retention-days: 90
