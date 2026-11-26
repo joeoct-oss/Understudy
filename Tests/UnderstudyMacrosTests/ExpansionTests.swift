@@ -221,7 +221,8 @@ struct ExpansionTests {
     /// initializer doesn't ask for them.
     @Test("A requirement returning an optional or nothing, however written, needs no first answer")
     func optionalOrNothingNeedsNoFirstAnswer() {
-        let (expanded, _) = expand("""
+        let (expanded, _) = expand(
+            """
             @GenerateSpies
             final class SpyCatalog: Catalog {
                 @Spied func nickname() -> Optional<String>
@@ -230,7 +231,8 @@ struct ExpansionTests {
                 @Spied func clear() -> ()
                 @Spied func name() -> String
             }
-            """)
+            """
+        )
 
         #expect(expanded.description.contains(#"init(name: String = "")"#))
     }
@@ -238,12 +240,14 @@ struct ExpansionTests {
     /// A public protocol's spy is public, subscripts too, so a test in another module can use it.
     @Test("A public protocol's subscript is public on its spy")
     func publicSubscriptIsPublicOnTheSpy() {
-        let (expanded, _) = expand("""
+        let (expanded, _) = expand(
+            """
             @GenerateSpies
             public protocol Table {
                 subscript(row: Int) -> String { get }
             }
-            """)
+            """
+        )
 
         #expect(expanded.description.contains("public subscript(row: Int) -> String"))
     }
@@ -251,12 +255,14 @@ struct ExpansionTests {
     /// A refused property is left as written, so the person sees the refusal and nothing else.
     @Test("A refused property gets no setter, so the refusal is the only error")
     func refusedPropertyGetsNoSetter() {
-        let (expanded, diagnostics) = expand("""
+        let (expanded, diagnostics) = expand(
+            """
             @GenerateSpies
             final class SpyStore: Store {
                 @SpiedProperty var token: String { get }
             }
-            """)
+            """
+        )
 
         #expect(diagnostics.count == 1)
         #expect(!expanded.description.contains("set {"))

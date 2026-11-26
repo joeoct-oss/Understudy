@@ -96,12 +96,14 @@ struct SampleExpansionTests {
     /// as a property wrapper's, is not one.
     @Test("Only @SampleDefault picks a sample value, not another attribute's argument")
     func onlySampleDefaultPicksTheValue() throws {
-        let (expanded, _) = expand("""
+        let (expanded, _) = expand(
+            """
             @Sample
             struct Seller {
                 @Clamped(9) var rating: Int
             }
-            """)
+            """
+        )
 
         let function = try #require(sampleFunction(in: expanded))
         #expect(function.signature.trimmedDescription.contains("rating: Int = 0"))
