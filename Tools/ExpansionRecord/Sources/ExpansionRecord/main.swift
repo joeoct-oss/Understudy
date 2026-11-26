@@ -21,7 +21,7 @@ import UnderstudySamplesMacros
 //   diagnostic: its place, message and fix-its.
 // Files are read in the order given. A review aid, not a test: two records are compared with diff.
 //
-// Usage: ExpansionRecord <file.swift>...
+// Usage: ExpansionRecord [--] <file.swift>...
 
 /// Every macro the package declares, by the name a source writes it with.
 let macros: [String: MacroSpec] = [
@@ -109,6 +109,6 @@ func record(_ path: String) throws {
     }
 }
 
-for path in CommandLine.arguments.dropFirst() {
+for path in CommandLine.arguments.dropFirst() where path != "--" {
     try record(path)
 }

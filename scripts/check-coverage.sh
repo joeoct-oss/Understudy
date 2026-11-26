@@ -29,7 +29,11 @@ if [[ "$codecov" != */codecov ]]; then
     exit 1
 fi
 rm -rf "$codecov"
-swift test --enable-code-coverage "$@"
+# Swift Testing runs tests in parallel, and the coverage counters aren't atomic by default, so two
+# threads that run the same code at once can lose a count. A line's count can be worked out as one
+# counter minus another, so a lost count can show a line that ran as never run. Atomic counters
+# keep every count.
+swift test --enable-code-coverage -Xswiftc -Xllvm -Xswiftc -instrprof-atomic-counter-update-all "$@"
 
 build=$(swift build --show-bin-path)
 profile="$(dirname "$(swift test --show-codecov-path)")/default.profdata"
