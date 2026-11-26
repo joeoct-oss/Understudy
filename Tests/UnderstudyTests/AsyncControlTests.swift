@@ -25,6 +25,9 @@ struct AsyncControlTests {
     /// How long a test waits for something that must not happen.
     private static let shortWait = 0.05
 
+    /// How many times a test that races waits against calls runs.
+    private static let raceRuns = 200
+
     @Test("A held call waits until the test resumes it, then returns what the test gave")
     func heldCallWaitsUntilTheTestResumesIt() async {
         let spy = Spy<Int, String>(returning: "scripted")
@@ -217,10 +220,8 @@ struct AsyncControlTests {
             }
             let inputs: Set = await [first, second]
 
-            #expect(inputs == [1, 2])
+            let expected: Set<Int?> = [1, 2]
+            #expect(inputs == expected)
         }
     }
-
-    /// How many times a test that races waits against calls runs.
-    private static let raceRuns = 200
 }

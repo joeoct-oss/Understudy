@@ -116,6 +116,7 @@ struct StrictSpyTests {
         loader.expect(times: 2) { !$0.force }
 
         _ = try loader((path: "b", force: false))
+        // `var` because `withKnownIssue`'s body sets it.
         var problems: [String] = []
         withKnownIssue {
             problems = loader.verify()
