@@ -31,6 +31,21 @@ struct ThrowingSpyTests {
         #expect(answer == "ok")
     }
 
+    @Test("A throwing spy for a requirement that returns nothing needs no answer until it throws")
+    func needsNoAnswerForARequirementThatReturnsNothing() {
+        let spy = ThrowingSpy<Int, Void>()
+
+        #expect(throws: Never.self) {
+            try spy(1)
+        }
+        spy.willThrow(LoadError.offline)
+        #expect(throws: LoadError.offline) {
+            try spy(2)
+        }
+        let expected = [1, 2]
+        #expect(spy.calls == expected)
+    }
+
     @Test("A throwing spy throws its error and still keeps the call")
     func throwsItsErrorAndStillKeepsTheCall() {
         let spy = ThrowingSpy<Int, String>(throwing: LoadError.offline)
