@@ -15,8 +15,8 @@
 #    requests only.
 # - A pull request that changes only Markdown files at the root or the LICENSE runs stages 1 and 2
 #   and skips the tests: the Linux and Apple gates still report, so it can merge.
-# - CodeRabbit and CodeQL are apps outside this workflow. CodeRabbit gates the merge itself (a
-#   required check, and every thread resolved).
+# - CodeRabbit and CodeQL are apps outside this workflow. CodeRabbit gates the merge itself: a
+#   required check, its approval as the required review, and every thread resolved.
 # - The branch name check stays in its own workflow: it runs no package code and is the same file
 #   in every repo.
 # - Drafts are skipped until they are ready for review. A newer push cancels the run still going

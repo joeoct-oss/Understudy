@@ -17,6 +17,7 @@
 xcuserdata/
 DerivedData/
 /mutants.tsv
+__pycache__/
 
 # SwiftLint, installed by scripts/lint.sh.
 /.tools
