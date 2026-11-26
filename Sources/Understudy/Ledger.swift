@@ -16,12 +16,30 @@ import Foundation
 /// - `@unchecked Sendable` when `Input` and `Output` are, because every stored value is read and
 ///   written only under `lock`.
 final class Ledger<Input, Output> {
+    /// A held call: runs in the caller's isolation, takes the call's input and the answer the spy
+    /// would have given, and gives the answer the call returns.
+    typealias Hold = (isolated (any Actor)?, Input, Output) async -> Output
+
     /// How the ledger answers a call.
     enum Answer {
         /// The same value for every call.
         case value(Output)
         /// A value worked out from each call's input.
         case computed(@Sendable (Input) -> Output)
+    }
+
+    /// One expectation: the calls it matches, how many it wants, how a report names them, and
+    /// where the test set it.
+    struct Expectation {
+        /// Whether a call matches. A test's own closure comes in `@Sendable`; the equality check
+        /// captures only the expected input, which is `Sendable` whenever the spy is.
+        let matches: (Input) -> Bool
+        /// How many matching calls it wants.
+        let times: Int
+        /// How a report names the calls it matches.
+        let description: String
+        /// The `expect` call, where `.verifiesMocks` reports it when it isn't met.
+        let site: ExpectationSite?
     }
 
     /// Guards every stored value below.
@@ -58,31 +76,14 @@ final class Ledger<Input, Output> {
     /// What the test expects, in the order it said so. `var` because each expectation adds one.
     private var expectations: [Expectation] = []
 
-    /// Whether the spy is strict: set once the test expects anything, even no calls at all.
+    /// Whether the spy is strict: set once the test expects anything, even no calls at all. `var`
+    /// because ``expect(_:)`` and ``expectNoCalls()`` set it, and ``reset()`` clears it.
     private var isStrict = false
 
     /// The identity of each problem ``verify(sourceLocation:)`` has reported, so
     /// `.verifiesMocks` reports only the rest. `var` because each report adds its problems; only
     /// ``reportProblems()`` adds, and ``reset()`` clears.
     private var reported: Set<VerificationProblem.ID> = []
-
-    /// A held call: runs in the caller's isolation, takes the call's input and the answer the spy
-    /// would have given, and gives the answer the call returns.
-    typealias Hold = (isolated (any Actor)?, Input, Output) async -> Output
-
-    /// One expectation: the calls it matches, how many it wants, how a report names them, and
-    /// where the test set it.
-    struct Expectation {
-        /// Whether a call matches. A test's own closure comes in `@Sendable`; the equality check
-        /// captures only the expected input, which is `Sendable` whenever the spy is.
-        let matches: (Input) -> Bool
-        /// How many matching calls it wants.
-        let times: Int
-        /// How a report names the calls it matches.
-        let description: String
-        /// The `expect` call, where `.verifiesMocks` reports it when it isn't met.
-        let site: ExpectationSite?
-    }
 
     /// Every input, oldest first.
     var calls: [Input] {
