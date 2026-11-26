@@ -52,7 +52,9 @@ jobs:
             Benchmarks/.build
           key: benchmarks-swift-6.4.3-${{ hashFiles('Package.swift', 'Package.resolved', 'Benchmarks/Package.swift') }}
 
+      # Bash, which the container's default `sh` isn't, for the script's own conventions.
       - name: Run the benchmarks
+        shell: bash
         env:
           BUILD: ${{ inputs.build }}
         run: |

@@ -55,7 +55,7 @@ record() {
     # so the record always uses the swift-syntax the package is built with.
     cp "$root/Package.resolved" "$tool/"
     swift build --package-path "$tool" --product ExpansionRecord --quiet >&2
-    "$(swift build --package-path "$tool" --show-bin-path)/ExpansionRecord" "${mode[@]}" -- "${inputs[@]}" |
+    "$(swift build --package-path "$tool" --show-bin-path)/ExpansionRecord" ${mode[@]+"${mode[@]}"} -- "${inputs[@]}" |
         sed "s|$root/||"
 }
 

@@ -15,6 +15,8 @@ struct WaitingBenchmarks {
     /// The round trips each run makes.
     private static let trips = 1_000
 
+    /// Times a round trip: another task calls the spy while the test waits in `nextCall(within:)`
+    /// for it.
     @Test("Waiting for a call another task makes")
     func waitingForACall() async {
         await Measure.time("Waiting", "`nextCall(within:)` for another task's call", count: Self.trips, unit: "µs") {
@@ -29,6 +31,7 @@ struct WaitingBenchmarks {
         }
     }
 
+    /// Times a round trip: the test holds the next call, waits for it to arrive, and resumes it.
     @Test("Holding a call and resuming it")
     func holdingACall() async {
         await Measure.time("Waiting", "`holdNextCall()`, `arrived()`, `resume`", count: Self.trips, unit: "µs") {

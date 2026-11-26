@@ -25,6 +25,7 @@ struct SpyBenchmarks {
     /// The tasks that call one spy at once.
     private static let tasks = 8
 
+    /// Times a call on a `Spy`, one task making every call.
     @Test("A call on Spy")
     func spyCall() async {
         await Measure.time("Spies", "A call on `Spy`", count: Self.calls, unit: "ns") {
@@ -35,6 +36,7 @@ struct SpyBenchmarks {
         }
     }
 
+    /// Times a call on a `ThrowingSpy` that returns.
     @Test("A call on ThrowingSpy")
     func throwingSpyCall() async throws {
         try await Measure.time("Spies", "A call on `ThrowingSpy`", count: Self.calls, unit: "ns") {
@@ -45,6 +47,7 @@ struct SpyBenchmarks {
         }
     }
 
+    /// Times a get followed by a set on a `PropertySpy`.
     @Test("A get and a set on PropertySpy")
     func propertySpyGetAndSet() async {
         await Measure.time("Spies", "A get and a set on `PropertySpy`", count: Self.calls, unit: "ns") {
@@ -55,6 +58,7 @@ struct SpyBenchmarks {
         }
     }
 
+    /// Times a call on one `Spy` that 8 tasks call at once, so they wait on its lock.
     @Test("A call on Spy from 8 tasks at once")
     func spyCallFromManyTasks() async {
         await Measure.time("Spies", "A call on `Spy`, from 8 tasks at once", count: Self.calls, unit: "ns") {
@@ -71,6 +75,7 @@ struct SpyBenchmarks {
         }
     }
 
+    /// Times each read a test makes of a spy's record, on a record of 10,000 calls.
     @Test("Reading calls, callCount and verify() on a spy with 10,000 calls")
     func readingALongRecord() async {
         let spy = Spy<Int, Int>(returning: 0)
@@ -96,6 +101,7 @@ struct SpyBenchmarks {
 
     // Ten answers, not the 1,000 the plan first named: `willReturnNext` takes its answers one by
     // one, so a test writes each out, and ten is already more than most tests queue.
+    /// Times queuing ten answers and taking each with a call, per call.
     @Test("Taking ten queued answers one by one")
     func takingQueuedAnswers() async {
         let spy = Spy<Int, Int>(returning: 0)

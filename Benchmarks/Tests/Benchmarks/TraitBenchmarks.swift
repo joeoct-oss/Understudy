@@ -22,6 +22,11 @@ struct TraitBenchmarks {
     /// The empty tests each run scopes.
     private static let scopes = 1_000
 
+    /// A test body that does nothing.
+    @Sendable
+    private static func empty() async throws { }
+
+    /// Times an empty test body run alone, inside `.freshSpies` and inside `.verifiesMocks`.
     @Test("An empty test with no trait, with .freshSpies and with .verifiesMocks")
     func traitScopes() async throws {
         let test = try #require(Test.current)
@@ -44,8 +49,4 @@ struct TraitBenchmarks {
             }
         }
     }
-
-    /// A test body that does nothing.
-    @Sendable
-    private static func empty() async throws { }
 }

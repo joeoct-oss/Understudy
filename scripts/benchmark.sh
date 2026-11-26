@@ -95,11 +95,11 @@ summarize() {
     }'
 }
 
-# The seconds `swift build --build-tests` takes in the package at `$1`.
+# The seconds `swift build --build-tests` takes in the package at `$1`; fails when the build does.
 build_seconds() {
     local start end
     start=$(date +%s.%N)
-    swift build --package-path "$1" --build-tests --quiet >&2
+    swift build --package-path "$1" --build-tests --quiet >&2 || return 1
     end=$(date +%s.%N)
     awk -v s="$start" -v e="$end" 'BEGIN { printf "%.2f\n", e - s }'
 }
@@ -112,10 +112,10 @@ build_row() {
     local times=() run
     for run in $(seq 12); do
         touch "$@"
+        local seconds
+        seconds=$(build_seconds "$package") || exit 1
         if [[ $run -gt 2 ]]; then
-            times+=("$(build_seconds "$package")")
-        else
-            build_seconds "$package" >/dev/null
+            times+=("$seconds")
         fi
     done
     local summary

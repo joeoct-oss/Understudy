@@ -9,16 +9,18 @@
 import Testing
 import Understudy
 
-/// What `TestClock.advance` costs for the sleeps it wakes: tasks that end once woken, tasks that
-/// sleep again, and work that hops across actors between sleeps.
+/// What moving a `TestClock` costs for the sleeps it wakes: tasks that end once woken, tasks that
+/// sleep again, and work that hops across actors between sleeps. Each benchmark moves the clock
+/// with `run()` last, which also wakes a task that reached its sleep late, so none can hang.
 @Suite("Test clock", .serialized)
 struct ClockBenchmarks {
     /// The numbers of sleeping tasks each advance wakes.
     private static let sleepers = [1, 10, 100]
 
-    @Test("Advancing past sleeps whose tasks end once woken", arguments: sleepers)
+    /// Times `run()` over `count` tasks that each sleep once and end when woken.
+    @Test("Running the clock past sleeps whose tasks end once woken", arguments: sleepers)
     func wakingTasksThatEnd(_ count: Int) async throws {
-        try await Measure.time("Test clock", "`advance` waking tasks that then end, ×\(count)", count: 1, unit: "ms") {
+        try await Measure.time("Test clock", "`run` waking tasks that then end, ×\(count)", count: 1, unit: "ms") {
             let clock = TestClock()
             try await withThrowingTaskGroup(of: Void.self) { group in
                 for _ in 0..<count {
@@ -26,12 +28,14 @@ struct ClockBenchmarks {
                         try await clock.sleep(for: .seconds(1))
                     }
                 }
-                await clock.advance(by: .seconds(1))
+                await clock.run()
                 try await group.waitForAll()
             }
         }
     }
 
+    /// Times `advance(by:)` to the first sleeps, then `run()` through the second, over `count`
+    /// tasks that each sleep twice.
     @Test("Advancing past sleeps whose tasks sleep again, then running the clock out", arguments: sleepers)
     func wakingTasksThatSleepAgain(_ count: Int) async throws {
         let name = "`advance`, then `run`, over tasks that sleep twice, ×\(count)"
@@ -51,12 +55,14 @@ struct ClockBenchmarks {
         }
     }
 
-    @Test("Advancing past work that hops across actors between sleeps")
+    /// Times `run()` over a task that sleeps three times and hops to an actor and to the main
+    /// actor after each, as the clock's actor-hop test does.
+    @Test("Running the clock past work that hops across actors between sleeps")
     func wakingWorkThatHops() async throws {
-        try await Measure.time("Test clock", "`advance` past 3 sleeps with actor hops between", count: 1, unit: "ms") {
+        try await Measure.time("Test clock", "`run` past 3 sleeps with actor hops between", count: 1, unit: "ms") {
             let clock = TestClock()
             async let hopped: Void = napAndHop(on: clock, times: 3)
-            await clock.advance(by: .seconds(3))
+            await clock.run()
             try await hopped
         }
     }
