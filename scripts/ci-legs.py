@@ -70,6 +70,9 @@ LEG_RULES = [
     # The generated code budget (Linux) and the benchmarks both build these.
     (r"Benchmarks/.*|Tools/.*|scripts/compare-expansions\.sh", {LINUX, BENCHMARKS}),
 ]
+# Stands for a release tagged on the base, which the Linux leg's public API check compares with.
+NEW_RELEASE = "<new release tag>"
+LEG_RULES.append((re.escape(NEW_RELEASE), {LINUX}))
 COMPILED_RULES = [(re.compile(pattern), frozenset(legs)) for pattern, legs in LEG_RULES]
 
 # Each leg's check run, as GitHub names a job of a called workflow: "<caller> / <job>".
@@ -117,7 +120,14 @@ def base_changes(sha, base):
                           text=True).stdout.strip()
     out = subprocess.run(["git", "log", "--no-renames", "--format=", "--name-only",
                           f"{fork}..{base}"], check=True, capture_output=True, text=True).stdout
-    return sorted({line for line in out.splitlines() if line})
+    paths = {line for line in out.splitlines() if line}
+    # A release tagged on the base since the fork changes what the public API check compares
+    # with, though no file changed.
+    tags = subprocess.run(["git", "tag", "--merged", base, "--no-merged", fork],
+                          check=True, capture_output=True, text=True).stdout
+    if tags.split():
+        paths.add(NEW_RELEASE)
+    return sorted(paths)
 
 
 def earlier_commits(head, base):
@@ -226,6 +236,7 @@ def self_check():
         (["scripts/mutate.py"], {MUTATION}),
         (["Benchmarks/generated-code-budget.txt"], {LINUX, BENCHMARKS}),
         (["Sources/a.md/x.swift"], ALL),
+        ([NEW_RELEASE, "CHANGELOG.md"], {LINUX}),
     ]
     failures = [(paths, legs_for(paths), want) for paths, want in cases if legs_for(paths) != want]
 
