@@ -17,6 +17,7 @@
 
 set -euo pipefail
 
+# shellcheck disable=SC2034 # Read by scripts/lint.sh and scripts/format.sh, which source this file.
 LINT_PATHS=(Sources Tests Tools Benchmarks ApplePlatforms Swift5Mode Package.swift)
 SWIFTLINT_VERSION="0.65.1"
 SWIFTLINT_LINUX_AMD64_SHA256="caeed6f4a679c35539ffaf124f6c4ab4a8416917f7d8796279dc52b74026059d"

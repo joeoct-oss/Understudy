@@ -1,9 +1,9 @@
 # Runs every check on a pull request to main and on a push to main, in stages: each stage starts
 # only when the one before it passed, so a failure stops the run before it spends a SonarQube
 # analysis, macOS time or a mutation run (Yousef, 2026-11-26).
-# 1. "Fast checks", seconds long: actionlint, zizmor, the size limits, lint (swift-format and
-#    SwiftLint, through scripts/lint.sh), dependency review when the package's dependencies
-#    changed, and which of the later legs the change needs.
+# 1. "Fast checks", seconds long: actionlint, zizmor, ShellCheck, the size limits, lint
+#    (swift-format and SwiftLint, through scripts/lint.sh), dependency review when the package's
+#    dependencies changed, and which of the later legs the change needs.
 # 2. "SonarQube Cloud quality gate": scripts/sonar-scan.sh analyzes the code with the rules in
 #    sonar-project.properties and waits for the gate (bugs, security, code quality, duplication
 #    and reviewed hotspots on new code). Then the release check or publish (release.yml).
@@ -95,6 +95,13 @@ jobs:
           "$RUNNER_TEMP/zizmor/bin/pip" install --quiet --no-deps --require-hashes \
             -r "$RUNNER_TEMP/zizmor.txt"
           "$RUNNER_TEMP/zizmor/bin/zizmor" --offline --format=github .github/workflows
+
+      # Checks the shell scripts in scripts/ with the runner's ShellCheck, the same one actionlint
+      # uses for the workflows' run scripts. It follows `source`, so a script is checked with what
+      # the file it sources defines.
+      - name: ShellCheck
+        if: ${{ !cancelled() }}
+        run: shellcheck --external-sources scripts/*.sh
 
       # Fails on a file, a body or a line past the package's size limits (CODE_STYLE.md, "Where
       # code goes"). Python 3 is on the runner, so nothing is installed. It and the steps above run
