@@ -18,13 +18,13 @@ A leg is skipped in two cases:
   only other legs read.
 - It already passed on an earlier commit of this pull request, and nothing it reads changed
   since, on the pull request or on the base (base_changes), and, for the Linux leg, no release
-  was published since that pass started, as its public API check compares with the latest
-  release (latest_release, checked against the check run's start, so a release tagged on a
-  commit the pull request already has counts too). This is
-  what a merge from main that brings only docs or config gets: the tests that passed before the
-  merge stay valid. The earlier commits are the pull request's own, followed by first parent from
-  the head, newest first, up to MAX_COMMITS; the result is the leg's check run on that commit,
-  made by GitHub Actions and read with the run's GITHUB_TOKEN.
+  was published since the workflow run of that pass began, as its public API check compares
+  with the latest release (latest_release and check_passed; a release tagged on a commit the
+  pull request already has counts too). This is what a merge from main that brings only docs or
+  config gets: the tests that passed before the merge stay valid. The earlier commits are the
+  pull request's own, followed by first parent from the head, newest first, up to MAX_COMMITS;
+  the result is the leg's check run on that commit, made by GitHub Actions and read with the
+  run's GITHUB_TOKEN.
 A file that no rule names reads as every leg's, so a new kind of file runs everything until it is
 given a rule. A push to main, or any failure to read the diff, runs every leg.
 
@@ -189,19 +189,29 @@ def latest_release(repo, token):
 
 
 def check_passed(repo, token, sha, leg, since=""):
-    """Whether the leg's latest check run on the commit, made by GitHub Actions, passed, having
-    started at or after `since` (an API timestamp; these compare as text)."""
+    """Whether the leg's latest check run on the commit, made by GitHub Actions, passed in a
+    workflow run that began at or after `since` (an API timestamp; these compare as text). The
+    gate's own check run starts only after its leg's jobs, so the time that counts is when its
+    check suite, the whole workflow run, was created: before the run checked out the tags its
+    public API check compares with, and before it decided whether to skip."""
     query = urllib.parse.urlencode({"check_name": CHECK_NAMES[leg], "filter": "latest",
                                     "app_id": ACTIONS_APP_ID})
     runs = api_get(token, f"/repos/{repo}/commits/{sha}/check-runs?{query}").get("check_runs")
     if not isinstance(runs, list) or not all(isinstance(run, dict) for run in runs):
         raise ValueError(f"The check runs for {sha[:7]} aren't a list of objects")
-    return any_passed(runs, since)
+    if not since:
+        return any_passed(runs)
+
+    def began(run):
+        suite = api_get(token, f"/repos/{repo}/check-suites/{run['check_suite']['id']}")
+        return suite.get("created_at") or ""
+
+    return any_passed(runs, since, began)
 
 
-def any_passed(runs, since=""):
-    """Whether one of the check runs passed, having started at or after `since`."""
-    return any(run.get("conclusion") == "success" and (run.get("started_at") or "") >= since
+def any_passed(runs, since="", began=lambda run: ""):
+    """Whether one of the check runs passed in a workflow run that `began` at or after `since`."""
+    return any(run.get("conclusion") == "success" and (not since or began(run) >= since)
                for run in runs)
 
 
@@ -373,12 +383,17 @@ def flow_failures():
 
 
 def release_failures():
-    """A pass that started before the latest release doesn't count for the Linux leg."""
-    runs = [{"conclusion": "success", "started_at": "2026-11-27T10:00:00Z"}]
+    """A pass from a workflow run that began before the latest release doesn't count for the
+    Linux leg, even when its gate's check run started after the release."""
+    runs = [{"conclusion": "success", "started_at": "2026-11-27T12:00:00Z", "suite": "10:00"}]
+
+    def began(run):
+        return f"2026-11-27T{run['suite']}:00Z"
+
     cases = [(runs, "", True), (runs, "2026-11-27T09:00:00Z", True),
              (runs, "2026-11-27T11:00:00Z", False), ([{"conclusion": "failure"}], "", False)]
     return [("release", since, want) for runs, since, want in cases
-            if any_passed(runs, since) != want]
+            if any_passed(runs, since, began) != want]
 
 
 def self_check():
