@@ -10,6 +10,11 @@ a release, so a change reaches package users at once.
 - Look hardest at what the linters and SonarQube Cloud can't see: logic and behaviour bugs,
   changes to the code the macros generate or to their diagnostics, locking and waiting code,
   breaking public API changes, and tests that would pass with the bug.
-- Code style, including docs and examples:
+- Code style, including docs and examples. `CODE_STYLE.md` holds this package's own rules and
+  links to the shared rules in Waypoint's `CODE_STYLE.md`, which Gitar can't read from here. The
+  shared rules a diff can show are restated in the `path_instructions` of `.coderabbit.yaml`:
+  apply those too, and ignore its CodeRabbit-only settings.
 
 @CODE_STYLE.md
+
+@.coderabbit.yaml

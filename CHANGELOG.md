@@ -6,7 +6,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Added
 
-- For contributors: Gitar reviews every pull request that is ready for review, beside CodeRabbit, on a trial. It follows `CODE_STYLE.md` through `.gitar/review/review.md` and gives advice only: it doesn't approve, block a merge, write commits or edit the description. Nothing in the package changes.
+- For contributors: Gitar reviews every pull request that is ready for review, beside CodeRabbit, on a trial. It follows `CODE_STYLE.md` and the shared style rules restated in `.coderabbit.yaml` through `.gitar/review/review.md` and gives advice only: it doesn't approve, block a merge, write commits or edit the description. Nothing in the package changes.
 
 ## 1.0.1 - 2026-11-27
 
