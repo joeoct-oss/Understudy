@@ -232,8 +232,10 @@ jobs:
     concurrency:
       group: apple-pull-requests
       cancel-in-progress: false
+    # The iOS simulator job signs in to Tuist with GitHub's OIDC token (apple.yml).
     permissions:
       contents: read
+      id-token: write
       security-events: write
     uses: ./.github/workflows/apple.yml # zizmor: ignore[self-repository]
     with:
@@ -263,7 +265,9 @@ jobs:
     concurrency:
       group: release-${{ github.event.pull_request.number || 'main' }}
       cancel-in-progress: false
+    # id-token only because apple.yml asks for it; on main its jobs don't use it.
     permissions:
       contents: write
+      id-token: write
       security-events: write
     uses: ./.github/workflows/release.yml # zizmor: ignore[self-repository]

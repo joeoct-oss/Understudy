@@ -18,3 +18,7 @@ xcuserdata/
 DerivedData/
 /mutants.tsv
 __pycache__/
+# What Tuist generates from ApplePlatforms/Package.swift (.github/workflows/apple.yml).
+/ApplePlatforms/*.xcodeproj
+/ApplePlatforms/*.xcworkspace
+/ApplePlatforms/Derived

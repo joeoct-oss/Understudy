@@ -13,7 +13,17 @@
 # - iOS simulator: the package's tests (ApplePlatforms/Package.swift) run on an iOS simulator from
 #   the runner with the newest Xcode, so the behaviour is proved on iOS and not only the build. Its
 #   own job beside the macOS one, since the two builds in one job, one after the other, were the
-#   longest job of the run (Yousef, 2026-11-27).
+#   longest job of the run (Yousef, 2026-11-27). On a pull request it runs through Tuist
+#   (tuist.dev/joeoct91/understudy, set up in ApplePlatforms/Tuist.swift): Tuist generates an
+#   Xcode project from ApplePlatforms/Package.swift and `tuist test` runs it. Selective testing
+#   skips a test target whose inputs already passed, and the module cache gives swift-syntax and
+#   the macros prebuilt, from the binaries the Build cache workflow (cache.yml) makes on main. A
+#   full run, every target from its sources, when the change touches a file the hashes can't see:
+#   this workflow, the checks workflow, ApplePlatforms/Tuist.swift or scripts/install-tuist.sh.
+#   Tuist signs in with GitHub's OIDC token, so no secret; a pull request from a fork gets no
+#   token and runs the plain build. On main, the plain xcodebuild from source, so nothing a cache
+#   holds reaches a run that gates a release. Tuist's caches don't exist for `swift test`, so the
+#   other jobs stay plain.
 # - Oldest Xcode: Xcode 16.0, the first with Swift 6.0, the tools version in Package.swift, and
 #   the lowest swift-syntax Package.swift allows, as the Linux lowest versions job does.
 # - CodeQL's Swift scan runs in the oldest Xcode job, after its tests, so it takes no macOS job of
@@ -37,7 +47,8 @@
 # billed) and no self-hosted Mac. Every action is pinned to a full commit SHA with the version in a
 # comment, each job reads the repo and nothing else (the oldest Xcode job also uploads its CodeQL
 # results), and no checkout keeps the token. Runner labels and Xcode versions are pinned and
-# bumped by hand. No build cache, so nothing a cache holds reaches a run that gates a release.
+# bumped by hand, and Tuist with its checksum (scripts/install-tuist.sh). The iOS simulator job
+# also gets an OIDC token, only to sign in to Tuist. No cache on a run that gates a release.
 name: Apple platform checks
 
 on:
@@ -134,6 +145,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      id-token: write
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
     steps:
@@ -142,11 +154,47 @@ jobs:
         with:
           persist-credentials: false
 
+      # Tuist on a pull request that can get an OIDC token, and a full Tuist run when the change
+      # touches a file the hashes can't see. Fetching the base needs no token: the repo is public.
+      - name: Choose how to build
+        id: mode
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "$EVENT" != "pull_request" || -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]]; then
+            echo "Plain xcodebuild from source."
+            echo "tuist=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "tuist=true" >> "$GITHUB_OUTPUT"
+          git fetch --quiet --no-tags --depth=1 origin "$BASE_SHA"
+          unseen=$(git diff --name-only "$BASE_SHA" HEAD -- .github/workflows/apple.yml \
+            .github/workflows/checks.yml ApplePlatforms/Tuist.swift scripts/install-tuist.sh)
+          if [[ -n "$unseen" ]]; then
+            echo "Full run: the change touches files the hashes can't see:"
+            echo "$unseen"
+            echo "selective=--no-selective-testing --no-binary-cache" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Tuist
+        if: ${{ steps.mode.outputs.tuist == 'true' }}
+        run: scripts/install-tuist.sh
+
+      # The local proxy Xcode's compilation cache talks to, signed in to Tuist.
+      - name: Set up Tuist's cache
+        if: ${{ steps.mode.outputs.tuist == 'true' }}
+        working-directory: ApplePlatforms
+        run: tuist setup cache
+
       # The first available iPhone simulator of the newest iOS the runner has. No signing: the
       # simulator runs unsigned test bundles. Warnings as errors aren't set, for the reason given
       # at the floor builds below.
       - name: Test on an iOS simulator
         working-directory: ApplePlatforms
+        env:
+          TUIST: ${{ steps.mode.outputs.tuist }}
+          SELECTIVE: ${{ steps.mode.outputs.selective }}
         run: |
           cp ../Package.resolved .
           device=$(xcrun simctl list devices available --json | python3 -c '
@@ -161,12 +209,21 @@ jobs:
             exit 1
           fi
           xcrun simctl list devices | grep "$device"
-          xcodebuild test \
-            -scheme ApplePlatforms-Package \
-            -destination "id=$device" \
-            -skipMacroValidation \
-            -onlyUsePackageVersionsFromResolvedFile \
-            CODE_SIGNING_ALLOWED=NO
+          if [[ "$TUIST" == "true" ]]; then
+            tuist install
+            # shellcheck disable=SC2086 # SELECTIVE is zero or more flags.
+            tuist test $SELECTIVE --destination simulator --platform iOS -- \
+              -destination "id=$device" \
+              -skipMacroValidation \
+              CODE_SIGNING_ALLOWED=NO
+          else
+            xcodebuild test \
+              -scheme ApplePlatforms-Package \
+              -destination "id=$device" \
+              -skipMacroValidation \
+              -onlyUsePackageVersionsFromResolvedFile \
+              CODE_SIGNING_ALLOWED=NO
+          fi
 
   platforms:
     name: Builds for ${{ matrix.platforms }} at the lowest versions

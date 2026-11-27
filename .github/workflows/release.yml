@@ -78,8 +78,11 @@ jobs:
     name: Apple platform checks
     needs: linux-checks
     if: github.event_name == 'push'
+    # apple.yml's iOS simulator job asks for an OIDC token to sign in to Tuist on pull requests.
+    # On main it builds from source and never requests one.
     permissions:
       contents: read
+      id-token: write
       security-events: write
     uses: ./.github/workflows/apple.yml # zizmor: ignore[self-repository]
 
