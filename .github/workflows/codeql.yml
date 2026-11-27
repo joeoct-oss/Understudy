@@ -1,0 +1,77 @@
+# Scans the code with CodeQL: the Swift in Sources/, the workflows and the Python scripts, with
+# the security-extended queries (Yousef, 2026-11-27). The main ruleset's code scanning rule reads
+# the results, so a pull request with a new security alert of high severity or higher, or any
+# CodeQL error, can't merge. Copilot Autofix suggests fixes on the alerts.
+# - Replaces GitHub's managed default setup, which can't be given a build command: it built
+#   Tools/ExpansionRecord instead of the package and scanned 3 of 76 Swift files.
+# - Swift: CodeQL reads only the code it sees compiled, and only on macOS, so the job builds the
+#   package's own targets with `swift build`, not its tests. Xcode 16.4 (Swift 6.1), inside the
+#   Swift versions CodeQL supports (5.4 to 6.3). Tools/ and Swift5Mode/ are separate packages and
+#   aren't built.
+# - Actions and Python need no build, so they run on Linux with build-mode none.
+# - Runs on pull requests to main (drafts too, so the gate has results by the time one is ready),
+#   on pushes to main, and weekly for queries added since the last push.
+# Hardening as in ci.yml: free GitHub-hosted runners, actions pinned to a full commit SHA, the
+# checkout keeps no token, and each job gets only the permissions it uses.
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+# A newer push to a pull request cancels the scan still running for it.
+concurrency:
+  group: codeql-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: swift
+            runner: macos-15
+            build-mode: manual
+          - language: actions
+            runner: ubuntu-24.04
+            build-mode: none
+          - language: python
+            runner: ubuntu-24.04
+            build-mode: none
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up CodeQL
+        uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+
+      - name: Build the package
+        if: ${{ matrix.build-mode == 'manual' }}
+        env:
+          DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+        run: swift build
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          category: /language:${{ matrix.language }}
