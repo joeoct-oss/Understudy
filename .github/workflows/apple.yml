@@ -13,15 +13,16 @@
 #   the runner with the newest Xcode, so the behaviour is proved on iOS and not only the build. Its
 #   own job beside the macOS one, since the two builds in one job, one after the other, were the
 #   longest job of the run (Yousef, 2026-11-27). On a pull request it runs through Tuist
-#   (tuist.dev/joeoct91/understudy, Tuist.swift): Tuist generates an Xcode project from
-#   ApplePlatforms/Package.swift and `tuist test` runs it. Selective testing skips a test target
-#   whose inputs already passed, and the module cache gives swift-syntax and the macros prebuilt,
-#   from the binaries the Build cache workflow (cache.yml) makes on main. A full run, every target
-#   from its sources, when the change touches a file the hashes can't see: this workflow, the
-#   checks workflow, Tuist.swift or scripts/install-tuist.sh. Tuist signs in with GitHub's OIDC
-#   token, so no secret; a pull request from a fork gets no token and runs the plain build. On
-#   main, the plain xcodebuild from source, so nothing a cache holds reaches a run that gates a
-#   release. Tuist's caches don't exist for `swift test`, so the other jobs stay plain.
+#   (tuist.dev/joeoct91/understudy, set up in ApplePlatforms/Tuist.swift): Tuist generates an
+#   Xcode project from ApplePlatforms/Package.swift and `tuist test` runs it. Selective testing
+#   skips a test target whose inputs already passed, and the module cache gives swift-syntax and
+#   the macros prebuilt, from the binaries the Build cache workflow (cache.yml) makes on main. A
+#   full run, every target from its sources, when the change touches a file the hashes can't see:
+#   this workflow, the checks workflow, ApplePlatforms/Tuist.swift or scripts/install-tuist.sh.
+#   Tuist signs in with GitHub's OIDC token, so no secret; a pull request from a fork gets no
+#   token and runs the plain build. On main, the plain xcodebuild from source, so nothing a cache
+#   holds reaches a run that gates a release. Tuist's caches don't exist for `swift test`, so the
+#   other jobs stay plain.
 # - Oldest Xcode: Xcode 16.0, the first with Swift 6.0, the tools version in Package.swift, and
 #   the lowest swift-syntax Package.swift allows, as the Linux lowest versions job does.
 # - Lowest platform versions: the package's tests (ApplePlatforms/Package.swift) built for iOS 13,
@@ -124,7 +125,7 @@ jobs:
           echo "tuist=true" >> "$GITHUB_OUTPUT"
           git fetch --quiet --no-tags --depth=1 origin "$BASE_SHA"
           unseen=$(git diff --name-only "$BASE_SHA" HEAD -- .github/workflows/apple.yml \
-            .github/workflows/checks.yml Tuist.swift scripts/install-tuist.sh)
+            .github/workflows/checks.yml ApplePlatforms/Tuist.swift scripts/install-tuist.sh)
           if [[ -n "$unseen" ]]; then
             echo "Full run: the change touches files the hashes can't see:"
             echo "$unseen"
