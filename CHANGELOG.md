@@ -4,9 +4,15 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Added
+
+- For contributors: Gitar reviews every pull request that is ready for review, beside CodeRabbit, on a trial. It follows `CODE_STYLE.md` and the shared style rules restated in `.coderabbit.yaml` through `.gitar/review/review.md` and gives advice only: it doesn't approve, block a merge, write commits or edit the description. Nothing in the package changes.
+
 ### Changed
 
 - swift-format and SwiftLint now enforce the code style. `scripts/lint.sh` runs both and fails on any finding: run it while working, and CI's **Fast checks** run it again on every pull request. `scripts/format.sh` fixes what the tools can fix. `.swift-format` and `.swiftlint.yml` hold the same rules as Waypoint's, and `CODE_STYLE.md` says where. The code is reformatted to match, with no behaviour change, and the SwiftLint findings already in the code are listed in `.swiftlint-baseline.json` until they are fixed.
+- For contributors: CodeQL now scans the Swift in `Sources/` too, beside the workflows and the Python scripts, with the security-extended queries, from a workflow in the repository (`.github/workflows/codeql.yml`) that builds the package on macOS. GitHub's managed setup scanned only 3 of the 76 Swift files. Nothing in the package changes.
+- For contributors: a pull request's author can no longer approve it by commenting `@coderabbitai approve`. Another member of the organization still can. Only members of the organization can chat with CodeRabbit. Nothing in the package changes.
 
 ## 1.0.1 - 2026-11-27
 
