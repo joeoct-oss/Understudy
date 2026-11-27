@@ -18,7 +18,9 @@ A leg is skipped in two cases:
   only other legs read.
 - It already passed on an earlier commit of this pull request, and nothing it reads changed
   since, on the pull request or on the base (base_changes), and, for the Linux leg, no release
-  was tagged on the base since, as its public API check compares with the latest one. This is
+  was published since that pass started, as its public API check compares with the latest
+  release (latest_release, checked against the check run's start, so a release tagged on a
+  commit the pull request already has counts too). This is
   what a merge from main that brings only docs or config gets: the tests that passed before the
   merge stay valid. The earlier commits are the pull request's own, followed by first parent from
   the head, newest first, up to MAX_COMMITS; the result is the leg's check run on that commit,
@@ -45,6 +47,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -113,11 +116,17 @@ def legs_for(paths):
     return needed
 
 
+def git(*args, check=True):
+    """Runs git with an argument list and no shell. git comes from the runner's PATH, and the
+    arguments are fixed flags and commit SHAs from the event or from git itself."""
+    return subprocess.run(["git", *args], check=check, capture_output=True,  # noqa: S603, S607
+                          text=True)
+
+
 def changed_files(old, new):
     """The paths that differ between two commits. A rename counts as a deletion and an addition,
     so moving a file out of a leg's reach still runs that leg."""
-    out = subprocess.run(["git", "diff", "--no-renames", "--name-only", old, new],
-                         check=True, capture_output=True, text=True).stdout
+    out = git("diff", "--no-renames", "--name-only", old, new).stdout
     return [line for line in out.splitlines() if line]
 
 
@@ -126,17 +135,14 @@ def base_changes(sha, base):
     the commit merged with the base of its time, which this can't see, so every base change since
     the fork counts, even one undone later: a pass is reused only when no base it could have been
     merged with changed what a leg reads."""
-    fork = subprocess.run(["git", "merge-base", sha, base], check=True, capture_output=True,
-                          text=True).stdout.strip()
+    fork = git("merge-base", sha, base).stdout.strip()
     # A merge's own changes count too: by default git log lists no files for a merge.
-    out = subprocess.run(["git", "log", "--no-renames", "--diff-merges=first-parent", "--format=",
-                          "--name-only", f"{fork}..{base}"], check=True, capture_output=True,
-                         text=True).stdout
+    out = git("log", "--no-renames", "--diff-merges=first-parent", "--format=", "--name-only",
+              f"{fork}..{base}").stdout
     paths = {line for line in out.splitlines() if line}
     # A release tagged on the base since the fork changes what the public API check compares
     # with, though no file changed.
-    tags = subprocess.run(["git", "tag", "--merged", base, "--no-merged", fork],
-                          check=True, capture_output=True, text=True).stdout
+    tags = git("tag", "--merged", base, "--no-merged", fork).stdout
     if tags.split():
         paths.add(NEW_RELEASE)
     return sorted(paths)
@@ -145,29 +151,52 @@ def base_changes(sha, base):
 def earlier_commits(head, base):
     """The pull request's own earlier commits, newest first, following first parents from the
     head and stopping at the first one main already has."""
-    out = subprocess.run(["git", "rev-list", "--first-parent", f"--max-count={MAX_COMMITS + 1}",
-                          head], check=True, capture_output=True, text=True).stdout
+    out = git("rev-list", "--first-parent", f"--max-count={MAX_COMMITS + 1}", head).stdout
     commits = []
     for sha in out.split()[1:]:
-        on_main = subprocess.run(["git", "merge-base", "--is-ancestor", sha, base],
-                                 check=False).returncode == 0
+        on_main = git("merge-base", "--is-ancestor", sha, base, check=False).returncode == 0
         if on_main:
             break
         commits.append(sha)
     return commits
 
 
-def check_passed(repo, token, sha, leg):
-    """Whether the leg's latest check run on the commit, made by GitHub Actions, passed."""
+def api_get(token, path):
+    """GETs a path of the GitHub API as JSON. The API's address must be HTTPS, so no other scheme
+    reaches urlopen."""
     api = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+    if not api.startswith("https://"):
+        raise ValueError(f"GITHUB_API_URL isn't HTTPS: {api}")
+    request = urllib.request.Request(  # noqa: S310 - the scheme is checked above
+        f"{api}{path}",
+        headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 - checked above
+        return json.load(response)
+
+
+def latest_release(repo, token):
+    """When the latest release was published, as the API writes it ("" with no release yet)."""
+    try:
+        return api_get(token, f"/repos/{repo}/releases/latest")["published_at"] or ""
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return ""
+        raise
+
+
+def check_passed(repo, token, sha, leg, since=""):
+    """Whether the leg's latest check run on the commit, made by GitHub Actions, passed, having
+    started at or after `since` (an API timestamp; these compare as text)."""
     query = urllib.parse.urlencode({"check_name": CHECK_NAMES[leg], "filter": "latest",
                                     "app_id": ACTIONS_APP_ID})
-    request = urllib.request.Request(
-        f"{api}/repos/{repo}/commits/{sha}/check-runs?{query}",
-        headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(request, timeout=10) as response:
-        runs = json.load(response)["check_runs"]
-    return any(run.get("conclusion") == "success" for run in runs)
+    return any_passed(api_get(token, f"/repos/{repo}/commits/{sha}/check-runs?{query}")
+                      ["check_runs"], since)
+
+
+def any_passed(runs, since=""):
+    """Whether one of the check runs passed, having started at or after `since`."""
+    return any(run.get("conclusion") == "success" and (run.get("started_at") or "") >= since
+               for run in runs)
 
 
 def decide(changed, earlier, passed, delta):
@@ -200,7 +229,7 @@ def run():
 
     # One failed lookup, or the lookups running past LOOKUP_BUDGET, stops the rest, so a slow or
     # broken API can't hold the job past its timeout: every leg not yet shown to have passed runs.
-    lookups = {"failed": False, "deadline": time.monotonic() + LOOKUP_BUDGET}
+    lookups = {"failed": False, "deadline": time.monotonic() + LOOKUP_BUDGET, "release": None}
 
     def passed(sha, leg):
         if lookups["failed"] or not token:
@@ -211,7 +240,12 @@ def run():
                   "passed.", file=sys.stderr)
             return False
         try:
-            return check_passed(repo, token, sha, leg)
+            # A Linux pass counts only if it started after the latest release was published,
+            # since its public API check compares with that release.
+            if leg == LINUX and lookups["release"] is None:
+                lookups["release"] = latest_release(repo, token)
+            since = lookups["release"] if leg == LINUX else ""
+            return check_passed(repo, token, sha, leg, since)
         except (OSError, ValueError, KeyError) as error:
             lookups["failed"] = True
             print(f"Couldn't read {leg} on {sha[:7]}, so it and every later lookup count as not "
@@ -241,38 +275,37 @@ def merge_change_counts():
     """Builds a small repository where one merge on the base changes a source file and a later
     merge undoes it, and checks that base_changes still lists the file."""
     with tempfile.TemporaryDirectory() as repo:
-        def git(*args):
-            return subprocess.run(["git", "-C", repo, "-c", "user.name=Check",
-                                   "-c", "user.email=check@example.invalid",
-                                   "-c", "commit.gpgsign=false", *args],
-                                  check=True, capture_output=True, text=True).stdout.strip()
+        def run_git(*args):
+            return git("-C", repo, "-c", "user.name=Check",
+                       "-c", "user.email=check@example.invalid",
+                       "-c", "commit.gpgsign=false", *args).stdout.strip()
 
         def write(path, text):
             target = pathlib.Path(repo, path)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(text, encoding="utf-8")
 
-        git("init", "-q", "-b", "main")
+        run_git("init", "-q", "-b", "main")
         write("Sources/a.swift", "one\n")
-        git("add", ".")
-        git("commit", "-qm", "fork")
-        git("checkout", "-qb", "feature")
+        run_git("add", ".")
+        run_git("commit", "-qm", "fork")
+        run_git("checkout", "-qb", "feature")
         write("README.md", "feature\n")
-        git("add", ".")
-        git("commit", "-qm", "feature")
-        sha = git("rev-parse", "HEAD")
+        run_git("add", ".")
+        run_git("commit", "-qm", "feature")
+        sha = run_git("rev-parse", "HEAD")
         for step, text in (("1", "changed\n"), ("2", "one\n")):
-            git("checkout", "-q", "main")
-            git("checkout", "-qb", f"side{step}")
+            run_git("checkout", "-q", "main")
+            run_git("checkout", "-qb", f"side{step}")
             write(f"side{step}.md", step)
-            git("add", ".")
-            git("commit", "-qm", f"side {step}")
-            git("checkout", "-q", "main")
-            git("merge", "-q", "--no-ff", "--no-commit", f"side{step}")
+            run_git("add", ".")
+            run_git("commit", "-qm", f"side {step}")
+            run_git("checkout", "-q", "main")
+            run_git("merge", "-q", "--no-ff", "--no-commit", f"side{step}")
             write("Sources/a.swift", text)
-            git("add", ".")
-            git("commit", "-qm", f"merge {step}")
-        base = git("rev-parse", "main")
+            run_git("add", ".")
+            run_git("commit", "-qm", f"merge {step}")
+        base = run_git("rev-parse", "main")
         here = os.getcwd()
         os.chdir(repo)  # base_changes runs git in the working directory.
         try:
@@ -281,52 +314,74 @@ def merge_change_counts():
             os.chdir(here)
 
 
-def self_check():
-    cases = [
-        (["CHANGELOG.md", ".gitignore"], set()),
-        (["README.md", "LICENSE", ".gitar/review/rules.md", ".coderabbit.yaml"], set()),
-        ([".swiftlint.yml", ".swift-format", "scripts/lint.sh"], set()),
-        (["docs/guide.md"], ALL),
-        (["Sources/Understudy/Spy.swift"], ALL),
-        (["Tests/UnderstudyTests/SpyTests.swift"], ALL),
-        (["Package.resolved"], ALL),
-        ([".github/workflows/checks.yml"], ALL),
-        (["scripts/ci-legs.py"], ALL),
-        ([".github/workflows/apple.yml"], {APPLE}),
-        (["ApplePlatforms/Tuist.swift"], {APPLE}),
-        ([".github/workflows/ci.yml", "Swift5Mode/Package.swift"], {LINUX}),
-        ([".github/workflows/codeql.yml", "scripts/sonar-scan.sh"], set()),
-        (["scripts/mutate.py"], {MUTATION}),
-        (["Benchmarks/generated-code-budget.txt"], {LINUX, BENCHMARKS}),
-        (["Sources/a.md/x.swift"], ALL),
-        ([NEW_RELEASE, "CHANGELOG.md"], {LINUX}),
-    ]
-    failures = [(paths, legs_for(paths), want) for paths, want in cases if legs_for(paths) != want]
+# Paths and the legs that read them, for the self-check.
+CLASSIFY_CASES = [
+    (["CHANGELOG.md", ".gitignore"], set()),
+    (["README.md", "LICENSE", ".gitar/review/rules.md", ".coderabbit.yaml"], set()),
+    ([".swiftlint.yml", ".swift-format", "scripts/lint.sh"], set()),
+    (["docs/guide.md"], ALL),
+    (["Sources/Understudy/Spy.swift"], ALL),
+    (["Tests/UnderstudyTests/SpyTests.swift"], ALL),
+    (["Package.resolved"], ALL),
+    ([".github/workflows/checks.yml"], ALL),
+    (["scripts/ci-legs.py"], ALL),
+    ([".github/workflows/apple.yml"], {APPLE}),
+    (["ApplePlatforms/Tuist.swift"], {APPLE}),
+    ([".github/workflows/ci.yml", "Swift5Mode/Package.swift"], {LINUX}),
+    ([".github/workflows/codeql.yml", "scripts/sonar-scan.sh"], set()),
+    (["scripts/mutate.py"], {MUTATION}),
+    (["Benchmarks/generated-code-budget.txt"], {LINUX, BENCHMARKS}),
+    (["Sources/a.md/x.swift"], ALL),
+    ([NEW_RELEASE, "CHANGELOG.md"], {LINUX}),
+]
 
-    passed_on = {"c1": {LINUX, APPLE}}
-    deltas = {"c1": [".gitignore", "CHANGELOG.md"], "c2": ["Sources/a.swift"]}
-    code = ["Sources/a.swift"]
-    flows = [
-        # A merge from main that brings only docs reuses what passed on the commit before it.
-        (code, ["c1"], {LINUX: False, APPLE: False, BENCHMARKS: True, MUTATION: True}),
-        # A newer commit that changed code runs again, even if an older one passed.
-        (code, ["c2", "c1"], {LINUX: True, APPLE: True, BENCHMARKS: True, MUTATION: True}),
-        # The first push of a docs-only pull request runs no leg.
-        (["README.md"], [], {LINUX: False, APPLE: False, BENCHMARKS: False, MUTATION: False}),
-    ]
-    passed_on["c2"] = {LINUX, APPLE}
-    for changed, earlier, want in flows:
-        got = decide(changed, earlier, lambda sha, leg: leg in passed_on.get(sha, set()),
-                     lambda sha: deltas[sha])
+# The pull request's changed files, its earlier commits and which legs run, for the self-check.
+# c1 and c2 passed the Linux and Apple legs; c1 is followed only by docs, c2 by code.
+CODE = ["Sources/a.swift"]
+FLOW_CASES = [
+    # A merge from main that brings only docs reuses what passed on the commit before it.
+    (CODE, ["c1"], {LINUX: False, APPLE: False, BENCHMARKS: True, MUTATION: True}),
+    # A newer commit that changed code runs again, even if an older one passed.
+    (CODE, ["c2", "c1"], {LINUX: True, APPLE: True, BENCHMARKS: True, MUTATION: True}),
+    # The first push of a docs-only pull request runs no leg.
+    (["README.md"], [], {LINUX: False, APPLE: False, BENCHMARKS: False, MUTATION: False}),
+]
+FLOW_PASSES = {"c1": {LINUX, APPLE}, "c2": {LINUX, APPLE}}
+FLOW_DELTAS = {"c1": [".gitignore", "CHANGELOG.md"], "c2": ["Sources/a.swift"]}
+
+
+def classification_failures():
+    return [(paths, legs_for(paths), want) for paths, want in CLASSIFY_CASES
+            if legs_for(paths) != want]
+
+
+def flow_failures():
+    failures = []
+    for changed, earlier, want in FLOW_CASES:
+        got = decide(changed, earlier, lambda sha, leg: leg in FLOW_PASSES.get(sha, set()),
+                     lambda sha: FLOW_DELTAS[sha])
         runs = {leg: decision[0] for leg, decision in got.items()}
         if runs != want:
             failures.append((changed, earlier, runs, want))
-    merge_case = merge_change_counts()
-    if not merge_case:
+    return failures
+
+
+def release_failures():
+    """A pass that started before the latest release doesn't count for the Linux leg."""
+    runs = [{"conclusion": "success", "started_at": "2026-11-27T10:00:00Z"}]
+    cases = [(runs, "", True), (runs, "2026-11-27T09:00:00Z", True),
+             (runs, "2026-11-27T11:00:00Z", False), ([{"conclusion": "failure"}], "", False)]
+    return [("release", since, want) for runs, since, want in cases
+            if any_passed(runs, since) != want]
+
+
+def self_check():
+    failures = classification_failures() + flow_failures() + release_failures()
+    if not merge_change_counts():
         failures.append(("a base merge that changes a file and a later one that undoes it",))
     for failure in failures:
         print("Self-check failed:", *failure, file=sys.stderr)
-    total = len(cases) + len(flows) + 1
+    total = len(CLASSIFY_CASES) + len(FLOW_CASES) + 4 + 1
     print(f"{total - len(failures)} of {total} cases passed.")
     return 1 if failures else 0
 
