@@ -10,6 +10,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Changed
 
+- For contributors: CodeQL now scans the Swift in `Sources/` too, beside the workflows and the Python scripts, with the security-extended queries, from a workflow in the repository (`.github/workflows/codeql.yml`) that builds the package on macOS. GitHub's managed setup scanned only 3 of the 76 Swift files. Nothing in the package changes.
 - For contributors: a pull request's author can no longer approve it by commenting `@coderabbitai approve`. Another member of the organization still can. Only members of the organization can chat with CodeRabbit. Nothing in the package changes.
 - For contributors: the Codecov upload pins the uploader version (v11.3.2) instead of downloading the newest one on each run and stops when the uploader fails its signature or checksum check, and `codecov.yml` drops `removed_code_behavior: off`, which came with a project coverage status that Codecov never posted. The coverage gate (`scripts/check-coverage.sh`) is unchanged. Nothing in the package changes.
 
