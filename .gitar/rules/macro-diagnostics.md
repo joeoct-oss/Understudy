@@ -14,12 +14,15 @@ with no message. `CODE_STYLE.md` ("Macros write what a person would") is the hom
 The check is met when every changed macro file keeps all of these:
 
 - No `fatalError`, `preconditionFailure`, `try!`, `as!` or force-unwrap on syntax that came
-  from the user. A shape the macro can't write throws or emits a `Diagnostic` from
-  `Sources/UnderstudyMacros/Diagnostics/` whose message says what to write instead, pointing at
-  the requirement rather than the attribute whenever there is one. A fix-it is added when the
-  correction is mechanical.
-- An attached macro's `names:` list in `Sources/Understudy/Macros.swift` names every member the
-  macro now generates. A new generated name with no matching `names:` entry fails.
+  from the user. A shape the macro can't write throws or emits that module's diagnostic
+  (`Sources/UnderstudyMacros/Diagnostics/` for the spy macros, `SampleError` in
+  `Sources/UnderstudySamplesMacros/` for `@Sample`) whose message says what to write instead,
+  pointing at the requirement rather than the attribute whenever there is one. A fix-it is added
+  when the correction is mechanical.
+- An attached macro's `names:` list (`Sources/Understudy/Macros.swift`, or
+  `Sources/UnderstudySamples/Sample.swift` for `@Sample`) covers every member the macro now
+  generates. `names: arbitrary` covers any name; otherwise a new generated name with no matching
+  `names:` entry fails.
 - Generated code names the package's and the standard library's types with their module
   (`Understudy.Spy`, `Swift.Int`), so a user type with the same name can't shadow them.
 - No swift-syntax API newer than the lowest version `Package.swift` allows, unless it is behind
