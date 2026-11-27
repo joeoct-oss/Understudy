@@ -42,6 +42,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.parse
 import urllib.request
@@ -61,8 +62,8 @@ LEG_RULES = [
     (r"\.github/(dependabot\.yml|pull_request_template\.md|assets/.*)", set()),
     (r"\.github/workflows/(branch-name|pr-rules|codeql|security-alerts|stress|release|cache)\.yml",
      set()),
-    (r"scripts/(check-pr-rules\.py|check-structure\.py|post-security-alerts\.sh|release-notes\.sh"
-     r"|sonar-scan\.sh)", set()),
+    ((r"scripts/(check-pr-rules\.py|check-structure\.py|post-security-alerts\.sh|release-notes\.sh"
+      r"|sonar-scan\.sh)"), set()),
     # One leg each.
     (r"\.github/workflows/ci\.yml|\.github/api-breakage-allowlist\.txt|Swift5Mode/.*", {LINUX}),
     (r"scripts/(check-coverage|check-generated-code)\.sh", {LINUX}),
@@ -123,8 +124,10 @@ def base_changes(sha, base):
     merged with changed what a leg reads."""
     fork = subprocess.run(["git", "merge-base", sha, base], check=True, capture_output=True,
                           text=True).stdout.strip()
-    out = subprocess.run(["git", "log", "--no-renames", "--format=", "--name-only",
-                          f"{fork}..{base}"], check=True, capture_output=True, text=True).stdout
+    # A merge's own changes count too: by default git log lists no files for a merge.
+    out = subprocess.run(["git", "log", "--no-renames", "--diff-merges=first-parent", "--format=",
+                          "--name-only", f"{fork}..{base}"], check=True, capture_output=True,
+                         text=True).stdout
     paths = {line for line in out.splitlines() if line}
     # A release tagged on the base since the fork changes what the public API check compares
     # with, though no file changed.
@@ -142,7 +145,8 @@ def earlier_commits(head, base):
                           head], check=True, capture_output=True, text=True).stdout
     commits = []
     for sha in out.split()[1:]:
-        on_main = subprocess.run(["git", "merge-base", "--is-ancestor", sha, base]).returncode == 0
+        on_main = subprocess.run(["git", "merge-base", "--is-ancestor", sha, base],
+                                 check=False).returncode == 0
         if on_main:
             break
         commits.append(sha)
@@ -176,8 +180,8 @@ def decide(changed, earlier, passed, delta):
         for sha in earlier:
             if passed(sha, leg):
                 if leg not in legs_for(delta(sha)):
-                    decisions[leg] = (False, f"passed on {sha[:7]}, and nothing it reads changed "
-                                             "since")
+                    decisions[leg] = (False, (f"passed on {sha[:7]}, and nothing it reads "
+                                              "changed since"))
                 break
     return decisions
 
@@ -229,6 +233,50 @@ def report(decisions):
                 out.write("\n".join(text) + "\n")
 
 
+def merge_change_counts():
+    """Builds a small repository where one merge on the base changes a source file and a later
+    merge undoes it, and checks that base_changes still lists the file."""
+    with tempfile.TemporaryDirectory() as repo:
+        def git(*args):
+            return subprocess.run(["git", "-C", repo, "-c", "user.name=Check",
+                                   "-c", "user.email=check@example.invalid",
+                                   "-c", "commit.gpgsign=false", *args],
+                                  check=True, capture_output=True, text=True).stdout.strip()
+
+        def write(path, text):
+            os.makedirs(os.path.dirname(os.path.join(repo, path)), exist_ok=True)
+            with open(os.path.join(repo, path), "w", encoding="utf-8") as file:
+                file.write(text)
+
+        git("init", "-q", "-b", "main")
+        write("Sources/a.swift", "one\n")
+        git("add", ".")
+        git("commit", "-qm", "fork")
+        git("checkout", "-qb", "feature")
+        write("README.md", "feature\n")
+        git("add", ".")
+        git("commit", "-qm", "feature")
+        sha = git("rev-parse", "HEAD")
+        for step, text in (("1", "changed\n"), ("2", "one\n")):
+            git("checkout", "-q", "main")
+            git("checkout", "-qb", f"side{step}")
+            write(f"side{step}.md", step)
+            git("add", ".")
+            git("commit", "-qm", f"side {step}")
+            git("checkout", "-q", "main")
+            git("merge", "-q", "--no-ff", "--no-commit", f"side{step}")
+            write("Sources/a.swift", text)
+            git("add", ".")
+            git("commit", "-qm", f"merge {step}")
+        base = git("rev-parse", "main")
+        here = os.getcwd()
+        os.chdir(repo)  # base_changes runs git in the working directory.
+        try:
+            return "Sources/a.swift" in base_changes(sha, base)
+        finally:
+            os.chdir(here)
+
+
 def self_check():
     cases = [
         (["CHANGELOG.md", ".gitignore"], set()),
@@ -268,9 +316,13 @@ def self_check():
         runs = {leg: decision[0] for leg, decision in got.items()}
         if runs != want:
             failures.append((changed, earlier, runs, want))
+    merge_case = merge_change_counts()
+    if not merge_case:
+        failures.append(("a base merge that changes a file and a later one that undoes it",))
     for failure in failures:
         print("Self-check failed:", *failure, file=sys.stderr)
-    print(f"{len(cases) + len(flows) - len(failures)} of {len(cases) + len(flows)} cases passed.")
+    total = len(cases) + len(flows) + 1
+    print(f"{total - len(failures)} of {total} cases passed.")
     return 1 if failures else 0
 
 
