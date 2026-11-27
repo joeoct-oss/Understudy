@@ -18,8 +18,8 @@
 #   (Yousef, 2026-11-27). CodeRabbit: a required check, its approval as the required review, and
 #   every thread resolved. CodeQL: the ruleset's code scanning rule fails a PR with a new security
 #   alert of high severity or higher, or any error, from codeql.yml (workflows, Python) or the
-#   Swift scan in the oldest Xcode Apple job (apple.yml). Gitar: the required "Gitar" check, and changes
-#   requested on any finding of important severity or higher.
+#   Swift scan in the oldest Xcode Apple job (apple.yml). Gitar: the required "Gitar" check, and
+#   changes requested on any finding of important severity or higher.
 # - The branch name check stays in its own workflow: it runs no package code and is the same file
 #   in every repo.
 # - Drafts are skipped until they are ready for review. A newer push cancels the run still going
