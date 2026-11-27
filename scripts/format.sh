@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 # shellcheck source=scripts/lint-tools.sh
 source scripts/lint-tools.sh
 
