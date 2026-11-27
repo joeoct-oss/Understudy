@@ -162,7 +162,8 @@ def run():
         try:
             return bool(token) and check_passed(repo, token, sha, leg)
         except (OSError, ValueError, KeyError) as error:
-            print(f"Couldn't read {leg} on {sha[:7]}, so it counts as not passed: {error}")
+            print(f"Couldn't read {leg} on {sha[:7]}, so it counts as not passed: {error}",
+                  file=sys.stderr)
             return False
 
     def delta(sha):
@@ -223,17 +224,22 @@ def self_check():
         if runs != want:
             failures.append((changed, earlier, runs, want))
     for failure in failures:
-        print("Self-check failed:", *failure)
+        print("Self-check failed:", *failure, file=sys.stderr)
     print(f"{len(cases) + len(flows) - len(failures)} of {len(cases) + len(flows)} cases passed.")
     return 1 if failures else 0
 
 
-if __name__ == "__main__":
+def main():
     if sys.argv[1:] == ["--self-check"]:
-        sys.exit(self_check())
+        return self_check()
     try:
         decisions = run()
     except (subprocess.CalledProcessError, OSError) as error:
         print(f"::warning::Couldn't work out the changed files, so every check runs: {error}")
         decisions = {leg: (True, "changed files unknown") for leg in LEGS}
     report(decisions)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
