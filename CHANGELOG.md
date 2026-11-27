@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+## 1.0.1 - 2026-11-27
+
+The test hardening moved from 1.0.0: the full mutation run over `Sources/`, with a new test for every change the tests could catch, 100 runs of the whole suite under the thread sanitizer, and a fix for the one hang the new macOS checks found in the test clock. No public API changes, and nothing a test writes needs to change.
+
 ### Fixed
 
 - `TestClock`: a task started just before `advance(by:)`, `advance(to:)`, `advance()` or `run()` could miss its first sleep on a busy machine, because the clock let work run for only 10 ms before its first wake. The task's sleep then counted from the time the clock had already moved to, and never woke. Before its first wake the clock now also waits up to 100 ms of real time while no sleep waits on it, and stops waiting as soon as one does. An advance when nothing is asleep on the clock now takes up to 100 ms instead of 10 ms. Seen about once in 3,000 runs of the clock hop test on GitHub's macOS runners.
@@ -19,6 +23,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 - CI now also checks the package with Apple's toolchain, on GitHub's macOS runners (the **Apple platform checks** workflow): every test on macOS with the newest Xcode and with Xcode 16.0 and the lowest swift-syntax, and the tests built for iOS 13, tvOS 13, watchOS 6 and visionOS 1, so an API newer than a platform's lowest version fails before a release. A release waits for these checks as it does for the Linux checks. Nothing in the package changes.
 - CI runs its checks in stages, each starting only when the one before passed: fast checks (workflow lint, size limits, swift-format and SwiftLint, and a review of any changed dependency for known vulnerabilities), then SonarQube Cloud's quality gate, then the Linux checks, then the Apple platform checks, benchmarks and mutation testing. A failure stops the run before the slower checks start. The Apple checks now also run the tests on an iOS simulator, coverage is measured once per run instead of twice, the thread sanitizer runs in its own job beside the coverage job, a pull request that changes only docs skips the tests, and the SonarQube scanner now downloads from SonarSource's own site, cached on pull requests, since Maven Central refused shared runners with HTTP 429. Nothing in the package changes.
 - For maintainers: a **Stress** workflow ([`stress.yml`](.github/workflows/stress.yml)), run by hand, runs the whole test suite under the thread sanitizer many times over parallel jobs, and names every failed run and test in its summary. Each suite run also runs the clock hop test 1,000 times. Nothing in the package changes.
+- Tests: the full mutation run over `Sources/` made 413 changes, and the tests caught all but 45. New tests now catch 23 of those, in spies, waiting for calls, the end-of-test checks, the macros and the test clock; the other 22 change nothing a test can see, such as a lock call or a default no caller uses. Nothing in the package changes.
 - For contributors: a manual run of the **Mutation testing** workflow now mutates all of `Sources/` in parallel jobs, 12 by default, since one job would pass GitHub's 6 hour limit, and a last job lists every survivor in one summary. `scripts/mutate.py --shard K/N` runs one of N groups of files that hold about the same number of mutants. Nothing in the package changes.
 
 ## 1.0.0 - 2026-11-26
