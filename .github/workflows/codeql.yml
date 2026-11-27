@@ -6,11 +6,11 @@
 #   Tools/ExpansionRecord instead of the package and scanned 3 of 76 Swift files.
 # - Swift: CodeQL reads only the code it sees compiled, and only on macOS, so the job builds the
 #   package's own targets with `swift build`, not its tests, pinned to the committed
-#   Package.resolved. SwiftPM uses a prebuilt swift-syntax when one matches the toolchain
-#   (--enable-experimental-prebuilts), so only the package's own code is compiled under CodeQL;
-#   when none matches, it builds swift-syntax from source, as before. Compiling swift-syntax took
-#   most of the 18 minutes, and Xcode 16.4 (Swift 6.1) got no prebuilt, so the scan uses Xcode
-#   26.4.1 (Swift 6.3) on macos-26: the newest Swift CodeQL supports (5.4 to 6.3).
+#   Package.resolved, on Xcode 16.4 (Swift 6.1), inside the Swift versions CodeQL supports (5.4
+#   to 6.3). The whole package is built once before CodeQL starts, so swift-syntax compiles at
+#   normal speed and outside the scan. Then the package's own Swift files are touched and rebuilt
+#   under CodeQL, so it traces only Sources/. Compiling swift-syntax under CodeQL took most of
+#   the 18 minutes, and SwiftPM's prebuilt swift-syntax didn't apply to this package.
 #   Tools/ and Swift5Mode/ are separate packages and aren't built.
 # - Actions and Python need no build, so they run on Linux with build-mode none.
 # - Runs on pull requests to main (drafts too, so the gate has results by the time one is ready),
@@ -48,7 +48,7 @@ jobs:
       matrix:
         include:
           - language: swift
-            runner: macos-26
+            runner: macos-15
             build-mode: manual
           - language: actions
             runner: ubuntu-24.04
@@ -62,6 +62,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Build the dependencies before CodeQL starts
+        if: ${{ matrix.build-mode == 'manual' }}
+        env:
+          DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+        run: swift build --force-resolved-versions
+
       - name: Set up CodeQL
         uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         with:
@@ -69,11 +75,13 @@ jobs:
           build-mode: ${{ matrix.build-mode }}
           queries: security-extended
 
-      - name: Build the package
+      - name: Rebuild the package's own code under CodeQL
         if: ${{ matrix.build-mode == 'manual' }}
         env:
-          DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
-        run: swift build --force-resolved-versions --enable-experimental-prebuilts
+          DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+        run: |
+          find Sources -name '*.swift' -exec touch {} +
+          swift build --force-resolved-versions
 
       - name: Analyze
         uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
