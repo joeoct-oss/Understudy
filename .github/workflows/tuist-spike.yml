@@ -9,7 +9,7 @@ permissions: {}
 
 jobs:
   generated:
-    name: Generated project (${{ matrix.case }})
+    name: tuist test on iOS (${{ matrix.case }})
     runs-on: macos-26
     timeout-minutes: 40
     permissions:
@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        case: [root, applePlatforms]
+        case: [unchanged, libraryEdit, macroEdit]
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       GH_TOKEN: ${{ github.token }}
@@ -45,49 +45,26 @@ jobs:
           ls -la "$RUNNER_TEMP/tuist"
           echo "$RUNNER_TEMP/tuist" >> "$GITHUB_PATH"
 
-      - run: tuist version && xcodebuild -version
-
       - name: Setup cache
-        continue-on-error: true
         run: time tuist setup cache
 
-      - name: Generate
+      - name: Edit a source
         env:
           CASE: ${{ matrix.case }}
         run: |
-          if [[ "$CASE" == "applePlatforms" ]]; then
-            cp Tuist.swift ApplePlatforms/ && cp Package.resolved ApplePlatforms/
-            cd ApplePlatforms
-          fi
-          time tuist install
-          time tuist generate --no-open
-          ls
-          ws=$(ls -d *.xcworkspace | head -1)
-          xcodebuild -list -workspace "$ws" | head -60
+          case "$CASE" in
+            libraryEdit) echo "// spike $GITHUB_RUN_ID" >> Sources/Understudy/Macros.swift ;;
+            macroEdit) f=$(ls Sources/UnderstudyMacros/*.swift | head -1); echo "// spike $GITHUB_RUN_ID" >> "$f" ;;
+          esac
+          git status --short
 
       - name: tuist test, iOS simulator
-        continue-on-error: true
-        env:
-          CASE: ${{ matrix.case }}
+        working-directory: ApplePlatforms
         run: |
-          [[ "$CASE" == "applePlatforms" ]] && cd ApplePlatforms
-          time tuist test --destination simulator --platform iOS -- -skipMacroValidation CODE_SIGNING_ALLOWED=NO
-
-      - name: tuist test, macOS
-        continue-on-error: true
-        env:
-          CASE: ${{ matrix.case }}
-        run: |
-          [[ "$CASE" == "applePlatforms" ]] && cd ApplePlatforms
-          time tuist test --platform macOS -- -skipMacroValidation
-
-      - name: tuist cache (warm)
-        continue-on-error: true
-        env:
-          CASE: ${{ matrix.case }}
-        run: |
-          [[ "$CASE" == "applePlatforms" ]] && cd ApplePlatforms
-          time tuist cache
+          cp ../Tuist.swift ../Package.resolved .
+          time tuist install
+          time tuist test --destination simulator --platform iOS -- -skipMacroValidation CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/test.log" | grep -v -E "^note:|✔"
+          echo "remarks: hits=$(grep -c 'cache hit' "$RUNNER_TEMP/test.log") misses=$(grep -c 'cache miss' "$RUNNER_TEMP/test.log")"
 
   xcodecache:
     name: Plain xcodebuild with the Xcode cache, iOS simulator
