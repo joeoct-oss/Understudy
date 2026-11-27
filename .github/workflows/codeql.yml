@@ -4,17 +4,20 @@
 # CodeQL error, can't merge. Copilot Autofix suggests fixes on the alerts.
 # - Replaces GitHub's managed default setup, which can't be given a build command: it built
 #   Tools/ExpansionRecord instead of the package and scanned 3 of 76 Swift files.
-# - Swift: CodeQL reads only the code it sees compiled, and only on macOS, so the job builds the
+# - Actions and Python need no build, so they run on Linux with build-mode none, on every pull
+#   request to main (drafts too, so the gate has results by the time one is ready), on pushes to
+#   main, and weekly for queries added since the last push.
+# - Swift runs on pushes to main, weekly and by hand, not on pull requests (Yousef, 2026-11-27).
+#   CodeQL reads only the code it sees compiled, and only on macOS, so the job builds the
 #   package's own targets with `swift build`, not its tests, pinned to the committed
 #   Package.resolved, on Xcode 16.4 (Swift 6.1), inside the Swift versions CodeQL supports (5.4
-#   to 6.3). The whole package is built once before CodeQL starts, so swift-syntax compiles at
-#   normal speed and outside the scan. Then the package's own Swift files are touched and rebuilt
-#   under CodeQL, so it traces only Sources/. Compiling swift-syntax under CodeQL took most of
-#   the 18 minutes, and SwiftPM's prebuilt swift-syntax didn't apply to this package.
-#   Tools/ and Swift5Mode/ are separate packages and aren't built.
-# - Actions and Python need no build, so they run on Linux with build-mode none.
-# - Runs on pull requests to main (drafts too, so the gate has results by the time one is ready),
-#   on pushes to main, and weekly for queries added since the last push.
+#   to 6.3). Tools/ and Swift5Mode/ are separate packages and aren't built. The scan takes about
+#   18 minutes: around 8 for CodeQL's build tracer to start on macOS and the rest to compile
+#   swift-syntax under it, which neither SwiftPM's prebuilt swift-syntax nor building it before
+#   CodeQL starts avoided (PR #97). On every pull request it held one of the 5 macOS jobs a free
+#   plan runs at once for that long, and the Swift checks it runs target app APIs (network,
+#   files, databases, crypto) that this macro package doesn't use at runtime. Sonar, CodeRabbit
+#   and Gitar still review the Swift on every pull request.
 # Hardening as in ci.yml: free GitHub-hosted runners, actions pinned to a full commit SHA, the
 # checkout keeps no token, and each job gets only the permissions it uses.
 name: CodeQL
@@ -38,52 +41,60 @@ concurrency:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
       security-events: write
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - language: swift
-            runner: macos-15
-            build-mode: manual
-          - language: actions
-            runner: ubuntu-24.04
-            build-mode: none
-          - language: python
-            runner: ubuntu-24.04
-            build-mode: none
+        language: [actions, python]
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Build the dependencies before CodeQL starts
-        if: ${{ matrix.build-mode == 'manual' }}
-        env:
-          DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
-        run: swift build --force-resolved-versions
-
       - name: Set up CodeQL
         uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         with:
           languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
+          build-mode: none
           queries: security-extended
-
-      - name: Rebuild the package's own code under CodeQL
-        if: ${{ matrix.build-mode == 'manual' }}
-        env:
-          DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
-        run: |
-          find Sources -name '*.swift' -exec touch {} +
-          swift build --force-resolved-versions
 
       - name: Analyze
         uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         with:
           category: /language:${{ matrix.language }}
+
+  analyze-swift:
+    name: Analyze (swift)
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up CodeQL
+        uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          languages: swift
+          build-mode: manual
+          queries: security-extended
+
+      - name: Build the package
+        run: swift build --force-resolved-versions
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          category: /language:swift

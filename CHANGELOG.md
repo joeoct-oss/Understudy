@@ -10,7 +10,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Changed
 
-- For contributors: CodeQL now scans the Swift in `Sources/` too, beside the workflows and the Python scripts, with the security-extended queries, from a workflow in the repository (`.github/workflows/codeql.yml`) that builds the package on macOS. GitHub's managed setup scanned only 3 of the 76 Swift files. Nothing in the package changes.
+- For contributors: CodeQL now scans the Swift in `Sources/` too, beside the workflows and the Python scripts, with the security-extended queries, from a workflow in the repository (`.github/workflows/codeql.yml`) that builds the package on macOS. GitHub's managed setup scanned only 3 of the 76 Swift files. The Swift scan runs on pushes to main and weekly, not on pull requests, because it takes about 18 minutes of a macOS runner; the workflows and the Python scripts are still scanned on every pull request. Nothing in the package changes.
 - For contributors: a pull request's author can no longer approve it by commenting `@coderabbitai approve`. Another member of the organization still can. Only members of the organization can chat with CodeRabbit. Nothing in the package changes.
 
 ## 1.0.1 - 2026-11-27
