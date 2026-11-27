@@ -83,6 +83,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      security-events: write
     uses: ./.github/workflows/apple.yml # zizmor: ignore[self-repository]
 
   # Runs only on main, only when the check found an untagged version, and only after the Linux
