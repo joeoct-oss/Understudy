@@ -8,6 +8,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 - For contributors: Gitar reviews every pull request that is ready for review, beside CodeRabbit, on a trial. It follows `CODE_STYLE.md` and the shared style rules restated in `.coderabbit.yaml` through `.gitar/review/review.md` and gives advice only: it doesn't approve, block a merge, write commits or edit the description. Nothing in the package changes.
 
+### Changed
+
+- For contributors: a pull request's author can no longer approve it by commenting `@coderabbitai approve`. Another member of the organization still can. Only members of the organization can chat with CodeRabbit. Nothing in the package changes.
+
 ## 1.0.1 - 2026-11-27
 
 The test hardening moved from 1.0.0: the full mutation run over `Sources/`, with a new test for every change the tests could catch, 100 runs of the whole suite under the thread sanitizer, and a fix for the one hang the new macOS checks found in the test clock. No public API changes, and nothing a test writes needs to change.
