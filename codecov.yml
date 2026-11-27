@@ -2,10 +2,8 @@
 # - Statuses only, no pull request comment or line annotations: the AI reviews (CodeRabbit,
 #   and Gitar on trial) are the only comments on a PR.
 # - Coverage never drops: the project status fails on any drop from the base commit, and the
-#   patch status asks every changed line of Sources/ to be covered, as the gate does. The project
-#   status keeps Codecov's default handling of removed lines: with every line covered, removing
-#   lines can't lower the coverage, and `removed_code_behavior: off` (read as `false`) came with a
-#   project status that Codecov never posted.
+#   patch status asks every changed line of Sources/ to be covered, as the gate does. The base
+#   isn't adjusted for removed lines, so any drop fails.
 # - Neither status is a required check; they show the numbers next to the gate.
 comment: false
 github_checks:
@@ -16,6 +14,7 @@ coverage:
       default:
         target: auto
         threshold: 0%
+        removed_code_behavior: off
     patch:
       default:
         target: 100%
