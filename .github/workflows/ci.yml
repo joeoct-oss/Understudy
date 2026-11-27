@@ -10,6 +10,9 @@
 #   macro tests alone, so the gate also proves the macro expansion tests ran. The measured lines
 #   are kept as the "coverage" artifact, which the checks workflow uploads to Codecov, so coverage
 #   is measured once per run.
+# - Generated code budget: the size of the code the macros write, in its own job beside the
+#   coverage job, since it builds a tool of its own and was the longest step after the tests on
+#   the path every later check waits for (Yousef, 2026-11-27).
 # - Swift 6.1, 6.2 and 6.3: every test, warnings as errors, with the committed Package.resolved.
 #   Only when the release workflow calls this one on a push to main, and on a manual run, never on
 #   a pull request: a pull request tests the lowest and the newest version, which almost always
@@ -27,7 +30,8 @@
 # jobs. Every action is pinned to a full commit SHA and every image to a digest, with the version in
 # a comment; Dependabot bumps the actions, and the images are bumped by hand in the same PR. Each
 # job reads the repo and nothing else, and no checkout keeps the token. The build cache is used on
-# pull requests only, so nothing a cache holds reaches a run that gates a release.
+# pull requests only, so nothing a cache holds reaches a run that gates a release. The build cache
+# workflow (cache.yml) fills it from main, so a new pull request's first run starts warm.
 name: Linux checks
 
 on:
@@ -81,6 +85,30 @@ jobs:
           name: coverage
           path: coverage.lcov
           retention-days: 1
+
+  budget:
+    name: Generated code budget (Swift 6.4)
+    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    container:
+      image: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Only the tool the check builds (scripts/compare-expansions.sh), which shares nothing with
+      # the package's own build.
+      - name: Restore the build cache
+        if: github.event_name == 'pull_request'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build/expansion-record
+          key: swift-6.4.3-expansion-${{ hashFiles('Package.resolved', 'Tools/ExpansionRecord/Package.swift') }}
 
       # The code the macros write never varies from run to run, so its size is enforced: a change
       # updates Benchmarks/generated-code-budget.txt in the same pull request.
@@ -240,7 +268,7 @@ jobs:
 
   gate:
     name: Linux build and tests
-    needs: [coverage, tsan, swift, lowest, swift5, api]
+    needs: [coverage, budget, tsan, swift, lowest, swift5, api]
     if: ${{ always() && !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -254,7 +282,8 @@ jobs:
           DOCS_ONLY: ${{ inputs.docs-only }}
           RESULTS: ${{ join(needs.*.result, ' ') }}
           PR_RESULTS: >-
-            ${{ needs.coverage.result }} ${{ needs.tsan.result }} ${{ needs.lowest.result }}
+            ${{ needs.coverage.result }} ${{ needs.budget.result }} ${{ needs.tsan.result }}
+            ${{ needs.lowest.result }}
             ${{ needs.swift5.result }} ${{ needs.api.result }}
         run: |
           if [[ "$DOCS_ONLY" == "true" ]]; then

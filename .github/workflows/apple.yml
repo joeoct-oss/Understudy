@@ -8,17 +8,19 @@
 #   gate reports a pass. The release workflow (release.yml) calls it on every push to main, after
 #   the Linux checks, and publishes only when it passes there.
 # - "Apple builds and tests" is its one gate: it passes only when every job below passed.
-# - Newest Xcode: every test on macOS, warnings as errors, with the committed Package.resolved,
-#   then the package's tests (ApplePlatforms/Package.swift) run on an iOS simulator from the
-#   runner, so the behaviour is proved on iOS and not only the build.
+# - Newest Xcode: every test on macOS, warnings as errors, with the committed Package.resolved.
+# - iOS simulator: the package's tests (ApplePlatforms/Package.swift) run on an iOS simulator from
+#   the runner with the newest Xcode, so the behaviour is proved on iOS and not only the build. Its
+#   own job beside the macOS one, since the two builds in one job, one after the other, were the
+#   longest job of the run (Yousef, 2026-11-27).
 # - Oldest Xcode: Xcode 16.0, the first with Swift 6.0, the tools version in Package.swift, and
 #   the lowest swift-syntax Package.swift allows, as the Linux lowest versions job does.
 # - Lowest platform versions: the package's tests (ApplePlatforms/Package.swift) built for iOS 13,
 #   tvOS 13, watchOS 6 and visionOS 1 with Xcode 16.4, so an API newer than a platform's floor
 #   fails here. Xcode 16 deploys back to iOS 12, so each floor is built as declared, and 16.4 is
 #   the Xcode 16 whose platforms the macos-15 runner has installed. Built only: running them needs a
-#   simulator of that version, which the runners don't have. tvOS and watchOS share one job, so a
-#   run uses 5 macOS jobs, as many as a free plan runs at once.
+#   simulator of that version, which the runners don't have. iOS and visionOS share one job, and
+#   tvOS and watchOS another, so a run uses 5 macOS jobs, as many as a free plan runs at once.
 # Hardening as in ci.yml: standard GitHub-hosted runners only, never a larger runner (those are
 # billed) and no self-hosted Mac. Every action is pinned to a full commit SHA with the version in a
 # comment, each job reads the repo and nothing else, and no checkout keeps the token. Runner
@@ -80,11 +82,25 @@ jobs:
           swift --version
           swift test -Xswiftc -warnings-as-errors
 
+  ios:
+    name: Tests on an iOS simulator (Xcode 26.6)
+    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       # The first available iPhone simulator of the newest iOS the runner has. No signing: the
       # simulator runs unsigned test bundles. Warnings as errors aren't set, for the reason given
       # at the floor builds below.
       - name: Test on an iOS simulator
-        if: ${{ !matrix.lowest }}
         working-directory: ApplePlatforms
         run: |
           cp ../Package.resolved .
@@ -117,7 +133,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platforms: [iOS, tvOS watchOS, visionOS]
+        platforms: [iOS visionOS, tvOS watchOS]
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
@@ -161,7 +177,7 @@ jobs:
 
   gate:
     name: Apple builds and tests
-    needs: [macos, platforms]
+    needs: [macos, ios, platforms]
     if: ${{ always() && !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 2

@@ -1,0 +1,103 @@
+# Fills the Linux build caches from main, so a new pull request's first run starts warm. GitHub
+# lets a pull request read the caches of its base branch, but the checks only save caches on pull
+# requests, which no other branch can read, so every new pull request started cold (Yousef,
+# 2026-11-27).
+# - On every push to main, and by hand. Each job first looks up its key; when main already has it,
+#   the job stops before building. A key changes with Package.swift or Package.resolved, so a
+#   build runs about once per dependency change.
+# - Each job builds exactly as the Linux checks job that restores the cache does (ci.yml), in the
+#   same image, so the cached build matches: coverage, the thread sanitizer and the generated code
+#   budget's tool. The mutation testing job restores the coverage job's cache too.
+# - It gates nothing, and nothing waits on it. The checks restore a cache on pull requests only,
+#   so nothing a cache holds reaches a run that gates a release, as before.
+# Hardening as in ci.yml: free GitHub-hosted Linux runners only, actions pinned to a full commit SHA
+# and the image to a digest, read-only, and no checkout keeps the token.
+name: Build cache
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+# A newer push to main has the same keys unless the dependencies changed, so an older run can stop.
+concurrency:
+  group: build-cache
+  cancel-in-progress: true
+
+jobs:
+  warm:
+    name: Warm the ${{ matrix.name }} cache (Swift 6.4)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: coverage
+            key-prefix: swift-6.4.3-
+            path: .build
+            options: ""
+          - name: thread sanitizer
+            key-prefix: swift-6.4.3-tsan-
+            path: .build
+            # The sanitizer turns off address randomisation, which Docker's default seccomp
+            # profile blocks, as in ci.yml.
+            options: --security-opt seccomp=unconfined
+          - name: generated code budget
+            key-prefix: swift-6.4.3-expansion-
+            path: .build/expansion-record
+            options: ""
+    container:
+      image: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
+      options: ${{ matrix.options }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The same key ci.yml restores. The budget's tool has its own pins, so its key reads them too.
+      - name: Work out the key
+        id: key
+        env:
+          PREFIX: ${{ matrix.key-prefix }}
+          PACKAGE_HASH: ${{ hashFiles('Package.swift', 'Package.resolved') }}
+          EXPANSION_HASH: ${{ hashFiles('Package.resolved', 'Tools/ExpansionRecord/Package.swift') }}
+        run: |
+          if [[ "$PREFIX" == *-expansion- ]]; then
+            echo "key=$PREFIX$EXPANSION_HASH" >> "$GITHUB_OUTPUT"
+          else
+            echo "key=$PREFIX$PACKAGE_HASH" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Is the cache already there
+        id: lookup
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ matrix.path }}
+          key: ${{ steps.key.outputs.key }}
+          lookup-only: true
+
+      # The commands the Linux checks run, so the build products are the ones they reuse.
+      - name: Build
+        if: steps.lookup.outputs.cache-hit != 'true'
+        shell: bash
+        env:
+          NAME: ${{ matrix.name }}
+        run: |
+          case "$NAME" in
+            coverage) scripts/check-coverage.sh -Xswiftc -warnings-as-errors ;;
+            "thread sanitizer") swift test --sanitize=thread ;;
+            "generated code budget") scripts/check-generated-code.sh ;;
+          esac
+
+      - name: Save the cache
+        if: steps.lookup.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ matrix.path }}
+          key: ${{ steps.key.outputs.key }}
