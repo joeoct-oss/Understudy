@@ -2,7 +2,7 @@
 # only when the one before it passed, so a failure stops the run before it spends a SonarQube
 # analysis, macOS time or a mutation run (Yousef, 2026-11-26).
 # 1. "Fast checks", seconds long: actionlint, zizmor, the size limits, dependency review when the
-#    package's dependencies changed, and which kinds of files changed.
+#    package's dependencies changed, and which of the later legs the change needs.
 # 2. "SonarQube Cloud quality gate": scripts/sonar-scan.sh analyzes the code with the rules in
 #    sonar-project.properties and waits for the gate (bugs, security, code quality, duplication
 #    and reviewed hotspots on new code). Then the release check or publish (release.yml).
@@ -12,9 +12,12 @@
 # 4. Once the Linux checks passed: the Apple platform checks (apple.yml), the benchmarks
 #    (benchmarks.yml) and mutation testing of the changed sources (mutation.yml), all on pull
 #    requests only.
-# - A pull request that changes only Markdown files at the root or the LICENSE runs stages 1 and 2
-#   and skips the tests: the Linux and Apple gates still report, so it can merge. The CodeQL Swift
-#   scan still runs on it (apple.yml), since the code scanning rule waits for a Swift result.
+# - Each leg of stages 3 and 4 runs only when the change touches a file it reads, or when it hasn't
+#   passed yet on the pull request since the last such change (scripts/ci-legs.py, where the rules
+#   live; Yousef, 2026-11-27). A docs-only pull request, or a merge from main that brings only docs
+#   or config, runs stages 1 and 2 and skips the tests. A skipped Linux or Apple leg still reports
+#   its gate as a pass, so it can merge, and the CodeQL Swift scan still runs (apple.yml), since
+#   the code scanning rule waits for a Swift result on every commit.
 # - CodeRabbit, CodeQL and Gitar are apps outside this workflow, and each gates the merge itself
 #   (Yousef, 2026-11-27). CodeRabbit: a required check, its approval as the required review, and
 #   every thread resolved. CodeQL: the ruleset's code scanning rule fails a PR with a new security
@@ -51,8 +54,12 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+      checks: read
     outputs:
-      docs-only: ${{ steps.changes.outputs.docs-only }}
+      linux: ${{ steps.changes.outputs.linux }}
+      apple: ${{ steps.changes.outputs.apple }}
+      benchmarks: ${{ steps.changes.outputs.benchmarks }}
+      mutation: ${{ steps.changes.outputs.mutation }}
     steps:
       # The base commit is fetched too, to list the files the pull request changes.
       - name: Check out
@@ -96,27 +103,23 @@ jobs:
         if: ${{ !cancelled() }}
         run: scripts/check-structure.py
 
-      # Docs-only: every file the pull request changes is a Markdown file at the root (README,
-      # CHANGELOG, CODE_STYLE and the like) or the LICENSE, which no build or test reads. A rename
-      # counts as a deletion and an addition, so a source file moved to Markdown isn't docs-only. A
-      # push to main is never docs-only, so a release always runs every test.
-      - name: Which files changed
+      # Which legs the run needs (scripts/ci-legs.py, where the rules live): a leg runs only when
+      # a file it reads changed, and is skipped when nothing it reads changed in the pull request,
+      # or when it already passed on an earlier commit of the pull request and nothing it reads
+      # changed since, as after a merge from main that brings only docs or config. Its check runs
+      # are read with the token, hence checks: read. A push to main always runs every leg.
+      - name: Check the leg rules
+        if: ${{ !cancelled() }}
+        run: python3 -I scripts/ci-legs.py --self-check
+
+      - name: Which checks the change needs
         id: changes
         if: ${{ !cancelled() }}
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          docs_only=false
-          if [[ -n "$BASE" ]]; then
-            changed=$(git diff --no-renames --name-only "$BASE" HEAD)
-            echo "Changed files:"
-            echo "$changed"
-            if [[ -n "$changed" ]] && ! grep -qvE '^([^/]+\.md|LICENSE)$' <<<"$changed"; then
-              docs_only=true
-            fi
-          fi
-          echo "Docs-only: $docs_only"
-          echo "docs-only=$docs_only" >> "$GITHUB_OUTPUT"
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 -I scripts/ci-legs.py
 
       # Fails a pull request that adds or bumps a dependency with a known vulnerability of moderate
       # severity or higher, from GitHub's advisory database. Only when Package.swift or
@@ -176,7 +179,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
     with:
-      docs-only: ${{ needs.fast.outputs.docs-only == 'true' }}
+      skip-tests: ${{ needs.fast.outputs.linux == 'false' }}
 
   # Uploads the coverage the Swift 6.4 Linux job measured, on a pull request (from the Linux
   # checks above) and on main (from the release workflow's Linux checks), once SonarQube passed, so
@@ -186,7 +189,7 @@ jobs:
     name: Coverage to Codecov
     needs: [fast, sonar, linux, release]
     if: >-
-      ${{ !cancelled() && needs.sonar.result == 'success' && needs.fast.outputs.docs-only != 'true'
+      ${{ !cancelled() && needs.sonar.result == 'success' && needs.fast.outputs.linux != 'false'
       && !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -239,12 +242,12 @@ jobs:
       security-events: write
     uses: ./.github/workflows/apple.yml # zizmor: ignore[self-repository]
     with:
-      docs-only: ${{ needs.fast.outputs.docs-only == 'true' }}
+      skip-tests: ${{ needs.fast.outputs.apple == 'false' }}
 
   benchmarks:
     name: Benchmarks
     needs: [fast, linux]
-    if: github.event_name == 'pull_request' && needs.fast.outputs.docs-only != 'true'
+    if: github.event_name == 'pull_request' && needs.fast.outputs.benchmarks != 'false'
     permissions:
       contents: read
     uses: ./.github/workflows/benchmarks.yml # zizmor: ignore[self-repository]
@@ -252,7 +255,7 @@ jobs:
   mutation:
     name: Mutation testing
     needs: [fast, linux]
-    if: github.event_name == 'pull_request' && needs.fast.outputs.docs-only != 'true'
+    if: github.event_name == 'pull_request' && needs.fast.outputs.mutation != 'false'
     permissions:
       contents: read
     uses: ./.github/workflows/mutation.yml # zizmor: ignore[self-repository]
