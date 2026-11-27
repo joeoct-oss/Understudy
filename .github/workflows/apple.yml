@@ -103,7 +103,7 @@ jobs:
 
       - name: Build the package for CodeQL
         if: ${{ matrix.lowest }}
-        run: swift build --scratch-path .build-codeql
+        run: swift build --force-resolved-versions --scratch-path .build-codeql
 
       - name: Analyze with CodeQL
         if: ${{ matrix.lowest }}
