@@ -6,9 +6,11 @@
 #   Tools/ExpansionRecord instead of the package and scanned 3 of 76 Swift files.
 # - Swift: CodeQL reads only the code it sees compiled, and only on macOS, so the job builds the
 #   package's own targets with `swift build`, not its tests, pinned to the committed
-#   Package.resolved. swift-syntax comes prebuilt (--enable-experimental-prebuilts), so only the
-#   package's own code is compiled under CodeQL: compiling swift-syntax took most of the 18
-#   minutes. Xcode 16.4 (Swift 6.1), inside the Swift versions CodeQL supports (5.4 to 6.3).
+#   Package.resolved. SwiftPM uses a prebuilt swift-syntax when one matches the toolchain
+#   (--enable-experimental-prebuilts), so only the package's own code is compiled under CodeQL;
+#   when none matches, it builds swift-syntax from source, as before. Compiling swift-syntax took
+#   most of the 18 minutes, and Xcode 16.4 (Swift 6.1) got no prebuilt, so the scan uses Xcode
+#   26.4.1 (Swift 6.3) on macos-26: the newest Swift CodeQL supports (5.4 to 6.3).
 #   Tools/ and Swift5Mode/ are separate packages and aren't built.
 # - Actions and Python need no build, so they run on Linux with build-mode none.
 # - Runs on pull requests to main (drafts too, so the gate has results by the time one is ready),
@@ -46,7 +48,7 @@ jobs:
       matrix:
         include:
           - language: swift
-            runner: macos-15
+            runner: macos-26
             build-mode: manual
           - language: actions
             runner: ubuntu-24.04
@@ -70,7 +72,7 @@ jobs:
       - name: Build the package
         if: ${{ matrix.build-mode == 'manual' }}
         env:
-          DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+          DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
         run: swift build --force-resolved-versions --enable-experimental-prebuilts
 
       - name: Analyze
