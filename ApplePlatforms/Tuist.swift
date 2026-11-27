@@ -19,7 +19,7 @@ import ProjectDescription
 let tuist = Tuist(
     fullHandle: "joeoct91/understudy",
     xcodeCache: .xcodeCache(
-        upload: Environment.cacheUpload?.getBoolean(default: false) ?? false
+        upload: Environment.cacheUpload.getBoolean(default: false)
     ),
     project: .tuist(
         generationOptions: .options(
