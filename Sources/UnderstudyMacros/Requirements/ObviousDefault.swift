@@ -24,7 +24,8 @@ func obviousDefault(of type: TypeSyntax) -> String? {
     if let named = type.as(IdentifierTypeSyntax.self) {
         (name, generics) = (named.name, named.genericArgumentClause)
     } else if let member = type.as(MemberTypeSyntax.self),
-        member.baseType.as(IdentifierTypeSyntax.self)?.name.text == "Swift" {
+        member.baseType.as(IdentifierTypeSyntax.self)?.name.text == "Swift"
+    {
         (name, generics) = (member.name, member.genericArgumentClause)
     } else {
         return nil

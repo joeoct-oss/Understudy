@@ -14,6 +14,7 @@ import SwiftSyntaxMacros
 /// per property the memberwise initializer takes, each with a default, and a body that calls that
 /// initializer.
 public struct SampleMacro: MemberMacro {
+    /// The `sample(...)` function, inside `#if DEBUG`.
     public static func expansion(
         of node: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
@@ -37,7 +38,8 @@ public struct SampleMacro: MemberMacro {
         let parameters = try type.memberBlock.members
             .compactMap { $0.decl.as(VariableDeclSyntax.self) }
             .flatMap(SampleParameter.parameters(of:))
-        let access = type.modifiers
+        let access =
+            type.modifiers
             .first { $0.name.text == "public" || $0.name.text == "package" }
             .map { $0.name.text + " " } ?? ""
         let list = parameters.map { "\($0.name): \($0.type) = \($0.value)" }.joined(separator: ",\n")

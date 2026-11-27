@@ -60,6 +60,9 @@ LEG_RULES = [
     # request (the fast checks and SonarQube run on every pull request anyway).
     (r"[^/]+\.md|LICENSE|\.gitignore|\.coderabbit\.yaml|\.spi\.yml|codecov\.yml", set()),
     (r"sonar-project\.properties|\.gitar/.*", set()),
+    # The lint config and scripts: lint runs in the fast checks on every pull request.
+    (r"\.swift-format|\.swiftlint\.yml|\.swiftlint-baseline\.json", set()),
+    (r"scripts/(lint|lint-tools|format)\.sh", set()),
     (r"\.github/(dependabot\.yml|pull_request_template\.md|assets/.*)", set()),
     (r"\.github/workflows/(branch-name|pr-rules|codeql|security-alerts|stress|release|cache)\.yml",
      set()),
@@ -282,6 +285,7 @@ def self_check():
     cases = [
         (["CHANGELOG.md", ".gitignore"], set()),
         (["README.md", "LICENSE", ".gitar/review/rules.md", ".coderabbit.yaml"], set()),
+        ([".swiftlint.yml", ".swift-format", "scripts/lint.sh"], set()),
         (["docs/guide.md"], ALL),
         (["Sources/Understudy/Spy.swift"], ALL),
         (["Tests/UnderstudyTests/SpyTests.swift"], ALL),

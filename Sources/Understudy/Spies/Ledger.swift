@@ -134,7 +134,7 @@ final class Ledger<Input, Output> {
             let hold = holds.isEmpty ? nil : holds.removeFirst()
             return (nextAnswer(), currentWatchers(), hold)
         }
-        watching.forEach { watch in
+        for watch in watching {
             watch(input)
         }
         let scripted = resolve(answer, for: input)
@@ -275,7 +275,8 @@ final class Ledger<Input, Output> {
             guard count != expectation.times else {
                 return nil
             }
-            let message = "expected \(Self.times(expectation.times)) with \(expectation.description), "
+            let message =
+                "expected \(Self.times(expectation.times)) with \(expectation.description), "
                 + "got \(Self.times(count))"
             return VerificationProblem(id: .unmet(index, calls: count), message: message, site: expectation.site)
         }
@@ -323,7 +324,8 @@ extension Ledger where Input: Sendable {
     private func handOutNext(to delivery: Delivery<Input>, key: Int) {
         synchronized {
             if handedOut < recordedCalls.count, watchers.removeValue(forKey: key) != nil,
-               delivery.deliver(recordedCalls[handedOut]) {
+                delivery.deliver(recordedCalls[handedOut])
+            {
                 handedOut += 1
             }
         }

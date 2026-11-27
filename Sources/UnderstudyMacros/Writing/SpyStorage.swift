@@ -79,14 +79,19 @@ extension GenerateSpiesMacro {
         guard !answers.isEmpty || !parents.isEmpty else {
             return nil
         }
-        let parameters = parents.map { "\($0.label): \($0.spyType)" } + answers.map { answer in
-            "\(label(of: answer.name)): \(answer.output)" + (answer.obvious.map { " = \($0)" } ?? "")
-        }
-        let assignments = parents.map { "self.\($0.property) = \($0.label)" } + answers.map { answer in
-            let name = label(of: answer.name)
-            return "self.\(answer.name) = .init(returning: \(name == "subscript" ? "`subscript`" : name))"
-        }
-        let what = parents.isEmpty
+        let parameters =
+            parents.map { "\($0.label): \($0.spyType)" }
+            + answers.map { answer in
+                "\(label(of: answer.name)): \(answer.output)" + (answer.obvious.map { " = \($0)" } ?? "")
+            }
+        let assignments =
+            parents.map { "self.\($0.property) = \($0.label)" }
+            + answers.map { answer in
+                let name = label(of: answer.name)
+                return "self.\(answer.name) = .init(returning: \(name == "subscript" ? "`subscript`" : name))"
+            }
+        let what =
+            parents.isEmpty
             ? "the answer each requirement gives"
             : "the spies of the protocols it inherits, and the answer each requirement gives"
         return """

@@ -22,7 +22,8 @@ extension FunctionRequirement {
         let effects = (isAsync ? " async" : "") + (throwsError ? " " + thrown : "")
         // Only the generic parameter it returns stays generic: the others reach the spy as their
         // `any` type, which the forwarder takes.
-        let generics = declaration.genericParameterClause?.parameters
+        let generics =
+            declaration.genericParameterClause?.parameters
             .first { $0.name.text == returnedParameter }
             .map { "<" + $0.with(\.trailingComma, nil).trimmedDescription + ">" } ?? ""
         let returned = declaration.signature.returnClause?.type.trimmedDescription ?? GeneratedName.void

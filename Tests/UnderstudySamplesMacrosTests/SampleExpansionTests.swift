@@ -55,12 +55,14 @@ struct SampleExpansionTests {
     /// A release build must carry no `sample(...)`, and an app target must still build in release.
     @Test("The sample is written for debug builds only")
     func sampleIsWrittenForDebugBuildsOnly() throws {
-        let (expanded, _) = expand("""
+        let (expanded, _) = expand(
+            """
             @Sample
             struct Seller {
                 let name: String
             }
-            """)
+            """
+        )
 
         let function = try #require(sampleFunction(in: expanded))
         let clause = sequence(first: Syntax(function), next: \.parent)
@@ -75,12 +77,14 @@ struct SampleExpansionTests {
     /// package struct, and an internal struct's sample stays internal.
     @Test("The sample is as visible as its struct", arguments: visibilities)
     func sampleIsAsVisibleAsItsStruct(declaration: String, access: String?) throws {
-        let (expanded, _) = expand("""
+        let (expanded, _) = expand(
+            """
             @Sample
             \(declaration) Seller {
                 let name: String
             }
-            """)
+            """
+        )
 
         let function = try #require(sampleFunction(in: expanded))
         let levels = ["public", "package", "internal", "fileprivate", "private"]
@@ -92,12 +96,14 @@ struct SampleExpansionTests {
     /// as a property wrapper's, is not one.
     @Test("Only @SampleDefault picks a sample value, not another attribute's argument")
     func onlySampleDefaultPicksTheValue() throws {
-        let (expanded, _) = expand("""
+        let (expanded, _) = expand(
+            """
             @Sample
             struct Seller {
                 @Clamped(9) var rating: Int
             }
-            """)
+            """
+        )
 
         let function = try #require(sampleFunction(in: expanded))
         #expect(function.signature.trimmedDescription.contains("rating: Int = 0"))

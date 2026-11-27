@@ -46,7 +46,8 @@ public macro Sample() = #externalMacro(module: "UnderstudySamplesMacros", type: 
 /// Write the value's type in full, as in `Seller.sample(...)`, because the attribute can't see the
 /// property's type.
 @attached(peer)
-public macro SampleDefault<Value>(_ value: Value) = #externalMacro(
-    module: "UnderstudySamplesMacros",
-    type: "SampleDefaultMacro"
-)
+public macro SampleDefault<Value>(_ value: Value) =
+    #externalMacro(
+        module: "UnderstudySamplesMacros",
+        type: "SampleDefaultMacro"
+    )
