@@ -14,10 +14,11 @@
 #    (benchmarks.yml) and mutation testing of the changed sources (mutation.yml), all on pull
 #    requests only.
 # - Each leg of stages 3 and 4 runs only when the pull request needs it, by the rules in
-#   scripts/ci-legs.py, their one home (Yousef, 2026-11-27). A docs-only pull request, or a merge from main that brings only docs
-#   or config, runs stages 1 and 2 and skips the tests. A skipped Linux or Apple leg still reports
-#   its gate as a pass, so it can merge, and the CodeQL Swift scan still runs (apple.yml), since
-#   the code scanning rule waits for a Swift result on every commit.
+#   scripts/ci-legs.py, their one home (Yousef, 2026-11-27). A docs-only pull request, or a
+#   merge from main that brings only docs or config, runs stages 1 and 2 and skips the tests. A
+#   skipped Linux or Apple leg still reports its gate as a pass, so it can merge, and the CodeQL
+#   Swift scan still runs (apple.yml), since the code scanning rule waits for a Swift result on
+#   every commit.
 # - CodeRabbit, CodeQL and Gitar are apps outside this workflow, and each gates the merge itself
 #   (Yousef, 2026-11-27). CodeRabbit: a required check, its approval as the required review, and
 #   every thread resolved. CodeQL: the ruleset's code scanning rule fails a PR with a new security
