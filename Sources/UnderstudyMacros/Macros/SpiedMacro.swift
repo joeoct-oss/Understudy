@@ -13,6 +13,7 @@ import SwiftSyntaxMacros
 /// calls the private forwarder `@GenerateSpies` wrote for it, with the function's own labels, so an
 /// overload reaches its own spy.
 public struct SpiedMacro: BodyMacro {
+    /// The body that calls the function's forwarder.
     public static func expansion(
         of _: AttributeSyntax,
         providingBodyFor declaration: some DeclSyntaxProtocol & WithOptionalCodeBlockSyntax,

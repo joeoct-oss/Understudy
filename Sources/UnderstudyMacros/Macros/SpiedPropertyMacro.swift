@@ -13,6 +13,7 @@ import SwiftSyntaxMacros
 /// first value, in a `@GenerateSpies` class. They go through the private forwarder
 /// `@GenerateSpies` wrote for the property, to its ``PropertySpy``.
 public struct SpiedPropertyMacro: AccessorMacro {
+    /// The getter and setter that call the property's forwarder.
     public static func expansion(
         of _: AttributeSyntax,
         providingAccessorsOf declaration: some DeclSyntaxProtocol,

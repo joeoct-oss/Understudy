@@ -18,15 +18,15 @@ let package = Package(
     name: "UnderstudyBenchmarks",
     platforms: [.macOS(.v13)],
     dependencies: [
-        .package(name: "Understudy", path: ".."),
+        .package(name: "Understudy", path: "..")
     ],
     targets: [
         .testTarget(
             name: "Benchmarks",
             dependencies: [
-                .product(name: "Understudy", package: "Understudy"),
+                .product(name: "Understudy", package: "Understudy")
             ]
-        ),
+        )
     ],
     swiftLanguageModes: [.v6]
 )

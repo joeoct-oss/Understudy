@@ -201,12 +201,14 @@ reviews:
     # check in a diff. Once Waypoint is public and CodeRabbit can read it, delete this entry and
     # add "joeoct-oss/Waypoint:CODE_STYLE.md" to knowledge_base.code_guidelines.filePatterns.
     # SonarQube Cloud's "Sonar way comprehensive" rules also check code quality, but none of the
-    # rules below, so they are CodeRabbit's alone.
+    # rules below. CI's swift-format and SwiftLint (scripts/lint.sh) catch most of them; CodeRabbit
+    # catches what the tools miss.
     - path: "**/*.swift"
       instructions: >-
         Shared code style. Report each broken rule as an inline should-fix finding (major
-        severity) that names the rule, never as a nitpick or trivial item: this package has no
-        linter, so review is the only check. Empty braces have one space
+        severity) that names the rule, never as a nitpick or trivial item. CI's fast checks run
+        swift-format and SwiftLint (scripts/lint.sh), which catch most of these; review catches
+        what they miss and what no tool can judge. Empty braces have one space
         inside, `{ }`, never `{}` (empty collection literals and braces inside string literals or
         test source fixtures are not braces). A type or extension with members opens its brace on
         the declaration line, puts each member on its own line and lists one enum case per line.
@@ -416,7 +418,9 @@ reviews:
         Keep a Changelog format. New user-facing changes go under Unreleased, in plain words
         a package user understands; breaking changes say they are breaking.
   tools:
-    # No SwiftLint config in this package; the profile-generated rules disagree with CODE_STYLE.md.
+    # CI's fast checks run SwiftLint through scripts/lint.sh, with the repo's config and its
+    # baseline of findings still to fix; a second run here would post findings again, and those
+    # in the baseline as new.
     swiftlint:
       enabled: false
     markdownlint:

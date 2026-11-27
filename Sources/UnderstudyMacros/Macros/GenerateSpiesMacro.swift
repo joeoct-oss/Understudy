@@ -58,12 +58,13 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
             return spy?.forwardingExtension().map { [$0] } ?? []
         }
         guard declaration.is(ClassDeclSyntax.self) || declaration.is(ActorDeclSyntax.self),
-              let requirements = try? spiedRequirements(of: declaration.memberBlock),
-              requirements.contains(where: \.isStatic) else {
+            let requirements = try? spiedRequirements(of: declaration.memberBlock),
+            requirements.contains(where: \.isStatic)
+        else {
             return []
         }
         return [
-            try ExtensionDeclSyntax("extension \(type.trimmed): \(raw: GeneratedName.staticSpies) {}"),
+            try ExtensionDeclSyntax("extension \(type.trimmed): \(raw: GeneratedName.staticSpies) {}")
         ]
     }
 
@@ -119,13 +120,15 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         in declaration: some DeclGroupSyntax,
         isActor: Bool
     ) throws {
-        let isSendable = declaration.inheritanceClause?.inheritedTypes.contains { inherited in
-            ["Sendable", "Swift.Sendable"].contains(inherited.type.trimmedDescription)
-        } == true
+        let isSendable =
+            declaration.inheritanceClause?.inheritedTypes.contains { inherited in
+                ["Sendable", "Swift.Sendable"].contains(inherited.type.trimmedDescription)
+            } == true
         guard let (property, attribute) = recorded.first, isActor || isSendable else {
             return
         }
-        let why = isActor
+        let why =
+            isActor
             ? "whose spy a test can't read on an actor without await"
             : "which a Sendable class can't hold, because a wrapped property's storage is a var"
         let name = TokenSyntax.identifier("SpiedProperty", trailingTrivia: attribute.attributeName.trailingTrivia)
@@ -149,19 +152,23 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         }
         let spy = try ProtocolSpy(proto, isNested: isNested)
         let kind = spy.isActor ? "actor" : "final class"
-        let members = try storage(
-            for: spy.requirements,
-            in: spy.spyName,
-            access: spy.access,
-            isActor: spy.isActor,
-            parents: spy.parents
-        ) + zip(spy.requirements, spy.spyNames).map { requirement, name in
-            requirement.implementation(spy: name, access: spy.access)
-        }
-        let conformances = [spy.name] + spy.parents.map(\.forwarding)
+        let members =
+            try storage(
+                for: spy.requirements,
+                in: spy.spyName,
+                access: spy.access,
+                isActor: spy.isActor,
+                parents: spy.parents
+            )
+            + zip(spy.requirements, spy.spyNames).map { requirement, name in
+                requirement.implementation(spy: name, access: spy.access)
+            }
+        let conformances =
+            [spy.name] + spy.parents.map(\.forwarding)
             + (spy.requirements.contains(where: \.isStatic) ? [GeneratedName.staticSpies] : [])
         let body = members.map { $0.trimmedDescription }.joined(separator: "\n\n")
-        let header = "\(spy.prefix)\(kind) \(spy.spyName)\(spy.genericParameters): "
+        let header =
+            "\(spy.prefix)\(kind) \(spy.spyName)\(spy.genericParameters): "
             + conformances.joined(separator: ", ")
         return [
             """
@@ -181,11 +188,13 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
                 return try SubscriptRequirement(spied, inProtocol: false)
             }
             if let property = member.decl.as(VariableDeclSyntax.self),
-               property.attributes.contains(where: { isAttribute($0, named: "SpiedProperty") }) {
+                property.attributes.contains(where: { isAttribute($0, named: "SpiedProperty") })
+            {
                 return try PropertyRequirement(property, inProtocol: false)
             }
             guard let function = member.decl.as(FunctionDeclSyntax.self),
-                  function.attributes.contains(where: { isAttribute($0, named: "Spied") }) else {
+                function.attributes.contains(where: { isAttribute($0, named: "Spied") })
+            else {
                 return nil
             }
             if let body = function.body {
@@ -210,8 +219,10 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         block.members
             .compactMap { $0.decl.as(VariableDeclSyntax.self) }
             .flatMap { variable -> [(IdentifierPatternSyntax, AttributeSyntax)] in
-                guard let attribute = variable.attributes.lazy.compactMap({ $0.as(AttributeSyntax.self) })
-                    .first(where: { isAttribute(.attribute($0), named: "Recorded") }) else {
+                guard
+                    let attribute = variable.attributes.lazy.compactMap({ $0.as(AttributeSyntax.self) })
+                        .first(where: { isAttribute(.attribute($0), named: "Recorded") })
+                else {
                     return []
                 }
                 return variable.bindings.compactMap { $0.pattern.as(IdentifierPatternSyntax.self) }

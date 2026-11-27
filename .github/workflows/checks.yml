@@ -1,8 +1,9 @@
 # Runs every check on a pull request to main and on a push to main, in stages: each stage starts
 # only when the one before it passed, so a failure stops the run before it spends a SonarQube
 # analysis, macOS time or a mutation run (Yousef, 2026-11-26).
-# 1. "Fast checks", seconds long: actionlint, zizmor, the size limits, dependency review when the
-#    package's dependencies changed, and which kinds of files changed.
+# 1. "Fast checks", seconds long: actionlint, zizmor, the size limits, lint (swift-format and
+#    SwiftLint, through scripts/lint.sh), dependency review when the package's dependencies
+#    changed, and which kinds of files changed.
 # 2. "SonarQube Cloud quality gate": scripts/sonar-scan.sh analyzes the code with the rules in
 #    sonar-project.properties and waits for the gate (bugs, security, code quality, duplication
 #    and reviewed hotspots on new code). Then the release check or publish (release.yml).
@@ -95,6 +96,22 @@ jobs:
       - name: Size limits
         if: ${{ !cancelled() }}
         run: scripts/check-structure.py
+
+      # Waypoint's CODE_STYLE.md, checked by swift-format and SwiftLint (scripts/lint.sh), as in
+      # the cloud while working. swift-format runs in the Swift image the Linux checks pin, whose
+      # `swift format` is the version scripts/lint-tools.sh expects. SwiftLint runs on the runner
+      # host, where scripts/lint.sh installs the version scripts/lint-tools.sh pins, with its
+      # sha256 checked: the Linux SwiftLint needs libxml2.so.2, which the image doesn't ship, and
+      # reads the syntax its custom rules need through the host toolchain's SourceKit. The image
+      # mounts the checkout read-only, so nothing it runs can change what the host runs next.
+      - name: Lint
+        if: ${{ !cancelled() }}
+        env:
+          IMAGE: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
+        run: |
+          docker run --rm --volume "$PWD:/package:ro" --workdir /package "$IMAGE" \
+            scripts/lint.sh --swift-format-only
+          scripts/lint.sh --swiftlint-only
 
       # Docs-only: every file the pull request changes is a Markdown file at the root (README,
       # CHANGELOG, CODE_STYLE and the like) or the LICENSE, which no build or test reads. A rename

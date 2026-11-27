@@ -83,4 +83,3 @@ public macro Spied() = #externalMacro(module: "UnderstudyMacros", type: "SpiedMa
 /// class and in an actor, where ``Recorded`` can't.
 @attached(accessor)
 public macro SpiedProperty() = #externalMacro(module: "UnderstudyMacros", type: "SpiedPropertyMacro")
-

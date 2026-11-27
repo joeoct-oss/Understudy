@@ -56,12 +56,14 @@ extension FunctionRequirement {
             return Erased(type: "(\(wrapped.type))?", parameter: wrapped.parameter)
         }
         if let dictionary = type.as(DictionaryTypeSyntax.self), !mentionsGeneric(dictionary.key, generics),
-           let value = generic(dictionary.value) {
+            let value = generic(dictionary.value)
+        {
             return Erased(type: "[\(dictionary.key.trimmedDescription): \(value.type)]", parameter: value.parameter)
         }
         if let set = type.as(IdentifierTypeSyntax.self), set.name.text == "Set",
-           let arguments = set.genericArgumentClause?.arguments, arguments.count == 1,
-           let element = arguments.first.flatMap({ generic($0.argument) }) {
+            let arguments = set.genericArgumentClause?.arguments, arguments.count == 1,
+            let element = arguments.first.flatMap({ generic($0.argument) })
+        {
             return Erased(type: "Swift.Set<Swift.AnyHashable>", parameter: element.parameter)
         }
         return nil

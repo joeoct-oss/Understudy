@@ -50,10 +50,11 @@ public final class HeldCall<Input: Sendable, Output: Sendable, Failure: Error>: 
 
     /// The waiting call and the answer it was scripted to give, once it arrives and until the test
     /// resumes it. `var` because the call sets it and the resume takes it.
-    private var waiting: (
-        continuation: CheckedContinuation<Result<Output, Failure>, Never>,
-        scripted: Result<Output, Failure>
-    )?
+    private var waiting:
+        (
+            continuation: CheckedContinuation<Result<Output, Failure>, Never>,
+            scripted: Result<Output, Failure>
+        )?
 
     /// Created by a spy's `holdNextCall()`.
     init() { }
