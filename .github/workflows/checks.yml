@@ -13,7 +13,8 @@
 #    (benchmarks.yml) and mutation testing of the changed sources (mutation.yml), all on pull
 #    requests only.
 # - A pull request that changes only Markdown files at the root or the LICENSE runs stages 1 and 2
-#   and skips the tests: the Linux and Apple gates still report, so it can merge.
+#   and skips the tests: the Linux and Apple gates still report, so it can merge. The CodeQL Swift
+#   scan still runs on it (apple.yml), since the code scanning rule waits for a Swift result.
 # - CodeRabbit, CodeQL and Gitar are apps outside this workflow, and each gates the merge itself
 #   (Yousef, 2026-11-27). CodeRabbit: a required check, its approval as the required review, and
 #   every thread resolved. CodeQL: the ruleset's code scanning rule fails a PR with a new security

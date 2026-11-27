@@ -7,9 +7,9 @@
 # - Actions and Python need no build, so they run on Linux with build-mode none, on every pull
 #   request to main (drafts too, so the gate has results by the time one is ready), on pushes to
 #   main, and weekly for queries added since the last push.
-# - The Swift in Sources/ is scanned in the oldest Xcode job of the Apple platform checks
-#   (apple.yml), on every pull request and push to main, since CodeQL reads Swift only on macOS
-#   and that job already has a macOS runner (Yousef, 2026-11-27).
+# - The Swift in Sources/ is scanned in the oldest Xcode job of the Apple platform checks, since
+#   CodeQL reads Swift only on macOS and that job already has a macOS runner (Yousef, 2026-11-27).
+#   apple.yml says when it runs.
 # Hardening as in ci.yml: free GitHub-hosted runners, actions pinned to a full commit SHA, the
 # checkout keeps no token, and each job gets only the permissions it uses.
 name: CodeQL
