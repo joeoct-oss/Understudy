@@ -108,7 +108,9 @@ jobs:
           swift --version
           swift test -Xswiftc -warnings-as-errors
 
+      # The scan runs even when the tests failed, so every commit gets a Swift result.
       - name: Set up CodeQL
+        if: ${{ !cancelled() }}
         uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         with:
           languages: swift
@@ -116,9 +118,11 @@ jobs:
           queries: security-extended
 
       - name: Build the package for CodeQL
+        if: ${{ !cancelled() }}
         run: swift build --force-resolved-versions --scratch-path .build-codeql
 
       - name: Analyze with CodeQL
+        if: ${{ !cancelled() }}
         uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         with:
           category: /language:swift
