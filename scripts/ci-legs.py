@@ -171,7 +171,11 @@ def api_get(token, path):
         f"{api}{path}",
         headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 - checked above
-        return json.load(response)
+        data = json.load(response)
+    if not isinstance(data, dict):
+        # ValueError, not TypeError: a bad answer is a failed lookup, which passed() handles.
+        raise ValueError(f"The API's answer for {path} isn't a JSON object")  # noqa: TRY004
+    return data
 
 
 def latest_release(repo, token):
@@ -189,8 +193,10 @@ def check_passed(repo, token, sha, leg, since=""):
     started at or after `since` (an API timestamp; these compare as text)."""
     query = urllib.parse.urlencode({"check_name": CHECK_NAMES[leg], "filter": "latest",
                                     "app_id": ACTIONS_APP_ID})
-    return any_passed(api_get(token, f"/repos/{repo}/commits/{sha}/check-runs?{query}")
-                      ["check_runs"], since)
+    runs = api_get(token, f"/repos/{repo}/commits/{sha}/check-runs?{query}").get("check_runs")
+    if not isinstance(runs, list) or not all(isinstance(run, dict) for run in runs):
+        raise ValueError(f"The check runs for {sha[:7]} aren't a list of objects")
+    return any_passed(runs, since)
 
 
 def any_passed(runs, since=""):
