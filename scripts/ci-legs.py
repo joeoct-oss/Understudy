@@ -17,7 +17,7 @@ A leg is skipped in two cases:
   leg reads (Markdown at the root, LICENSE, .gitignore, review tool config and the like) or one
   only other legs read.
 - It already passed on an earlier commit of this pull request, and nothing it reads changed
-  since. This is what a merge from main that brings only docs or config gets: the tests that
+  since, on the pull request or on the base (base_changes). This is what a merge from main that brings only docs or config gets: the tests that
   passed before the merge stay valid. The earlier commits are the pull request's own, followed by
   first parent from the head, newest first, up to MAX_COMMITS; the result is the leg's check run on
   that commit, made by GitHub Actions and read with the run's GITHUB_TOKEN.
@@ -107,6 +107,18 @@ def changed_files(old, new):
     return [line for line in out.splitlines() if line]
 
 
+def base_changes(sha, base):
+    """Every path a commit on the base touched since the commit forked from it. A run checks out
+    the commit merged with the base of its time, which this can't see, so every base change since
+    the fork counts, even one undone later: a pass is reused only when no base it could have been
+    merged with changed what a leg reads."""
+    fork = subprocess.run(["git", "merge-base", sha, base], check=True, capture_output=True,
+                          text=True).stdout.strip()
+    out = subprocess.run(["git", "log", "--no-renames", "--format=", "--name-only",
+                          f"{fork}..{base}"], check=True, capture_output=True, text=True).stdout
+    return sorted({line for line in out.splitlines() if line})
+
+
 def earlier_commits(head, base):
     """The pull request's own earlier commits, newest first, following first parents from the
     head and stopping at the first one main already has."""
@@ -129,7 +141,7 @@ def check_passed(repo, token, sha, leg):
     request = urllib.request.Request(
         f"{api}/repos/{repo}/commits/{sha}/check-runs?{query}",
         headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(request, timeout=20) as response:
+    with urllib.request.urlopen(request, timeout=10) as response:
         runs = json.load(response)["check_runs"]
     return any(run.get("conclusion") == "success" for run in runs)
 
@@ -162,16 +174,23 @@ def run():
     changed = changed_files(base, "HEAD")
     print("Changed files:", *changed, sep="\n  ")
 
+    # One failed lookup stops the rest, so a slow or broken API can't hold the job past its
+    # timeout: every leg not yet shown to have passed then runs.
+    lookups = {"failed": False}
+
     def passed(sha, leg):
+        if lookups["failed"] or not token:
+            return False
         try:
-            return bool(token) and check_passed(repo, token, sha, leg)
+            return check_passed(repo, token, sha, leg)
         except (OSError, ValueError, KeyError) as error:
-            print(f"Couldn't read {leg} on {sha[:7]}, so it counts as not passed: {error}",
-                  file=sys.stderr)
+            lookups["failed"] = True
+            print(f"Couldn't read {leg} on {sha[:7]}, so it and every later lookup count as not "
+                  f"passed: {error}", file=sys.stderr)
             return False
 
     def delta(sha):
-        return changed_files(sha, "HEAD")
+        return changed_files(sha, "HEAD") + base_changes(sha, base)
 
     return decide(changed, earlier_commits(head, base), passed, delta)
 
