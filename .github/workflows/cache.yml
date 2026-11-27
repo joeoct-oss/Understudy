@@ -63,6 +63,7 @@ jobs:
       # The same key ci.yml restores. The budget's tool has its own pins, so its key reads them too.
       - name: Work out the key
         id: key
+        shell: bash
         env:
           PREFIX: ${{ matrix.key-prefix }}
           PACKAGE_HASH: ${{ hashFiles('Package.swift', 'Package.resolved') }}
