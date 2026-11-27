@@ -86,8 +86,12 @@ reviews:
   # fails, and requests changes otherwise. Main's ruleset requires one approving review and
   # dismisses an approval when new commits are pushed, so a PR it hasn't reviewed at its head,
   # such as one whose review was rate limited, waits instead of merging (Yousef, 2026-11-26).
+  # The author can't approve with "@coderabbitai approve": that would meet the required review
+  # with no review at all (Yousef, 2026-11-27). Another org member still could, and no key turns
+  # that off; Yousef is the only member, so none can today. Revisit when someone joins the org.
   auto_approvals:
     enabled: true
+    allow_author_approval: false
   # The pull request rules as checks (Yousef, 2026-11-26). The required "Pull request rules"
   # job (.github/workflows/pr-rules.yml, scripts/check-pr-rules.py) decides the four yes-or-no
   # rules exactly and reruns when the body is edited. The checks of the same names here explain
@@ -443,6 +447,9 @@ reviews:
 chat:
   art: false
   auto_reply: true
+  # Only org members can chat with CodeRabbit, so strangers on this public repo can't spend the
+  # free plan's review quota (Yousef, 2026-11-27).
+  allow_non_org_members: false
 
 knowledge_base:
   # The one home for the code style. Keep any AGENTS.md or CLAUDE.md consistent with it,
