@@ -42,6 +42,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -84,6 +85,9 @@ CHECK_NAMES = {
     MUTATION: "Mutation testing / Mutation testing (Swift 6.4)",
 }
 MAX_COMMITS = 15
+# How long all check-run lookups together may take, in seconds, well inside the fast job's
+# 5-minute limit. Past it, every leg not yet shown to have passed runs.
+LOOKUP_BUDGET = 60
 # GitHub Actions' own app: a check run counts only when Actions made it, so no other app or
 # integration can stand in for a leg that passed.
 ACTIONS_APP_ID = 15368
@@ -186,12 +190,17 @@ def run():
     changed = changed_files(base, "HEAD")
     print("Changed files:", *changed, sep="\n  ")
 
-    # One failed lookup stops the rest, so a slow or broken API can't hold the job past its
-    # timeout: every leg not yet shown to have passed then runs.
-    lookups = {"failed": False}
+    # One failed lookup, or the lookups running past LOOKUP_BUDGET, stops the rest, so a slow or
+    # broken API can't hold the job past its timeout: every leg not yet shown to have passed runs.
+    lookups = {"failed": False, "deadline": time.monotonic() + LOOKUP_BUDGET}
 
     def passed(sha, leg):
         if lookups["failed"] or not token:
+            return False
+        if time.monotonic() > lookups["deadline"]:
+            lookups["failed"] = True
+            print(f"Check-run lookups took over {LOOKUP_BUDGET} s, so the rest count as not "
+                  "passed.", file=sys.stderr)
             return False
         try:
             return check_passed(repo, token, sha, leg)
