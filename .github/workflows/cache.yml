@@ -1,17 +1,23 @@
-# Fills the Linux build caches from main, so a new pull request's first run starts warm. GitHub
+# Fills the build caches from main, so a new pull request's first run starts warm. GitHub
 # lets a pull request read the caches of its base branch, but the checks only save caches on pull
 # requests, which no other branch can read, so every new pull request started cold (Yousef,
 # 2026-11-27).
-# - On every push to main, and by hand. Each job first looks up its key; when main already has it,
-#   the job stops before building. A key changes with Package.swift or Package.resolved, so a
-#   build runs about once per dependency change.
+# - On every push to main, and by hand. Each Linux job first looks up its key; when main already
+#   has it, the job stops before building. A key changes with Package.swift or Package.resolved,
+#   so a build runs about once per dependency change.
 # - Each job builds exactly as the Linux checks job that restores the cache does (ci.yml), in the
 #   same image, so the cached build matches: coverage, the thread sanitizer and the generated code
 #   budget's tool. The mutation testing job restores the coverage job's cache too.
+# - The Tuist job fills Tuist's remote caches from main for the iOS simulator job on pull requests
+#   (apple.yml): the module cache gets simulator binaries of swift-syntax and the package's
+#   targets, and Xcode's compilation cache what building them compiled. Tuist reuses what is
+#   already there, so a push that changes none of their inputs builds little. One macOS job,
+#   signed in with GitHub's OIDC token, so no secret.
 # - It gates nothing, and nothing waits on it. The checks restore a cache on pull requests only,
 #   so nothing a cache holds reaches a run that gates a release, as before.
-# Hardening as in ci.yml: free GitHub-hosted Linux runners only, actions pinned to a full commit SHA
-# and the image to a digest, read-only, and no checkout keeps the token.
+# Hardening as in ci.yml: free GitHub-hosted runners only, actions pinned to a full commit SHA, the
+# image to a digest and Tuist to a checksum (scripts/install-tuist.sh), read-only, and no checkout
+# keeps the token.
 name: Build cache
 
 on:
@@ -102,3 +108,31 @@ jobs:
         with:
           path: ${{ matrix.path }}
           key: ${{ steps.key.outputs.key }}
+
+  tuist:
+    name: Warm Tuist's caches for the iOS simulator tests (Xcode 26.6)
+    runs-on: macos-26
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Tuist
+        run: |
+          scripts/install-tuist.sh
+          tuist setup cache
+
+      # The project the iOS simulator job tests, with the package's pins.
+      - name: Warm the caches
+        working-directory: ApplePlatforms
+        run: |
+          cp ../Package.resolved .
+          tuist install
+          tuist cache --destination simulator
