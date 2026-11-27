@@ -248,6 +248,28 @@ struct TestClockTests {
     }
 
     @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
+    @Test(
+        "A woken task that hasn't slept again reads the clock's time once the next advance has ended",
+        .timeLimit(.minutes(1))
+    )
+    func wokenTimeLastsOnlyUntilTheNextAdvanceEnds() async throws {
+        let clock = TestClock()
+        let gate = Spy<Int, Void>()
+        let held = gate.holdNextCall()
+        let readAt = Spy<TestClock.Instant, Void>()
+
+        async let napped: Void = napWaitThenReadTheTime(on: clock, behind: gate, to: readAt)
+        await clock.advance(by: .seconds(5))
+        _ = await held.arrived()
+        await clock.advance(by: .seconds(5))
+        held.resume(returning: ())
+        try await napped
+
+        let expected = [TestClock.Instant(offset: .seconds(10))]
+        #expect(readAt.calls == expected)
+    }
+
+    @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
     @Test("A woken task's time never goes back when it sleeps until an instant already passed", .timeLimit(.minutes(1)))
     func wokenTaskTimeNeverGoesBack() async throws {
         let clock = TestClock()
@@ -422,6 +444,19 @@ private func napPastTheAdvance(
     try await napThenReadTheTime(on: clock, for: .seconds(1), to: wokeAt)
     await gate.respond(to: 1)
     try await napThenReadTheTime(on: clock, for: .seconds(1), to: wokeAt)
+}
+
+/// Sleeps a second, waits behind `gate`, which the test opens only after two advances have
+/// returned, then reads the time without sleeping again.
+@available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
+private func napWaitThenReadTheTime(
+    on clock: TestClock,
+    behind gate: Spy<Int, Void>,
+    to readAt: Spy<TestClock.Instant, Void>
+) async throws {
+    try await clock.sleep(for: .seconds(1))
+    await gate.respond(to: 1)
+    readAt(clock.now)
 }
 
 /// Sleeps until 3, then until 2, which has passed, reading the time after each.
