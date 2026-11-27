@@ -1,0 +1,138 @@
+# TEMPORARY spike, removed before the pull request: measures Tuist on the Apple jobs.
+name: Tuist spike
+
+on:
+  push:
+    branches: [claude/project-thread-m5e8iq]
+
+permissions: {}
+
+jobs:
+  generated:
+    name: Generated project (${{ matrix.case }})
+    runs-on: macos-26
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [root, applePlatforms]
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Tuist (latest release, print its checksum)
+        run: |
+          tag=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/tuist/tuist/releases?per_page=50" \
+            | jq -r '[.[] | select(.prerelease == false and .draft == false) | .tag_name | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))][0]')
+          echo "Tuist release: $tag"
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/tuist/tuist/releases/tags/$tag" | jq -r '.assets[].name'
+          mkdir -p "$RUNNER_TEMP/tuist"
+          curl -fsSL -o "$RUNNER_TEMP/tuist.zip" "https://github.com/tuist/tuist/releases/download/$tag/tuist.zip"
+          curl -fsSL -o "$RUNNER_TEMP/SHASUMS256.txt" "https://github.com/tuist/tuist/releases/download/$tag/SHASUMS256.txt" || true
+          echo "sha256 of tuist.zip:"; shasum -a 256 "$RUNNER_TEMP/tuist.zip"
+          echo "SHASUMS256.txt:"; cat "$RUNNER_TEMP/SHASUMS256.txt" || true
+          unzip -q "$RUNNER_TEMP/tuist.zip" -d "$RUNNER_TEMP/tuist"
+          ls -la "$RUNNER_TEMP/tuist"
+          echo "$RUNNER_TEMP/tuist" >> "$GITHUB_PATH"
+
+      - run: tuist version && xcodebuild -version
+
+      - name: Setup cache
+        continue-on-error: true
+        run: time tuist setup cache
+
+      - name: Generate
+        env:
+          CASE: ${{ matrix.case }}
+        run: |
+          if [[ "$CASE" == "applePlatforms" ]]; then
+            cp Tuist.swift ApplePlatforms/ && cp Package.resolved ApplePlatforms/
+            cd ApplePlatforms
+          fi
+          time tuist install
+          time tuist generate --no-open
+          ls
+          ws=$(ls -d *.xcworkspace | head -1)
+          xcodebuild -list -workspace "$ws" | head -60
+
+      - name: tuist test, iOS simulator
+        continue-on-error: true
+        env:
+          CASE: ${{ matrix.case }}
+        run: |
+          [[ "$CASE" == "applePlatforms" ]] && cd ApplePlatforms
+          time tuist test --destination simulator --platform iOS -- -skipMacroValidation CODE_SIGNING_ALLOWED=NO
+
+      - name: tuist test, macOS
+        continue-on-error: true
+        env:
+          CASE: ${{ matrix.case }}
+        run: |
+          [[ "$CASE" == "applePlatforms" ]] && cd ApplePlatforms
+          time tuist test --platform macOS -- -skipMacroValidation
+
+      - name: tuist cache (warm)
+        continue-on-error: true
+        env:
+          CASE: ${{ matrix.case }}
+        run: |
+          [[ "$CASE" == "applePlatforms" ]] && cd ApplePlatforms
+          time tuist cache
+
+  xcodecache:
+    name: Plain xcodebuild with the Xcode cache, iOS simulator
+    runs-on: macos-26
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Tuist
+        run: |
+          tag=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/tuist/tuist/releases?per_page=50" \
+            | jq -r '[.[] | select(.prerelease == false and .draft == false) | .tag_name | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))][0]')
+          mkdir -p "$RUNNER_TEMP/tuist"
+          curl -fsSL -o "$RUNNER_TEMP/tuist.zip" "https://github.com/tuist/tuist/releases/download/$tag/tuist.zip"
+          unzip -q "$RUNNER_TEMP/tuist.zip" -d "$RUNNER_TEMP/tuist"
+          echo "$RUNNER_TEMP/tuist" >> "$GITHUB_PATH"
+      - name: Setup cache
+        run: time tuist setup cache
+      - name: Test on an iOS simulator with the compilation cache
+        working-directory: ApplePlatforms
+        run: |
+          cp ../Package.resolved .
+          device=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          ios = sorted((r for r in runtimes if ".iOS-" in r), key=lambda r: [int(n) for n in r.rsplit(".iOS-", 1)[1].split("-")])
+          phones = [d for r in reversed(ios) for d in runtimes[r] if d["name"].startswith("iPhone")]
+          print(phones[0]["udid"] if phones else "")
+          ')
+          time xcodebuild test \
+            -scheme ApplePlatforms-Package \
+            -destination "id=$device" \
+            -skipMacroValidation \
+            -onlyUsePackageVersionsFromResolvedFile \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILATION_CACHE_ENABLE_CACHING=YES \
+            COMPILATION_CACHE_ENABLE_PLUGIN=YES \
+            COMPILATION_CACHE_PLUGIN_PATH=$HOME/.local/state/tuist/libtuist_cas_plugin.dylib \
+            COMPILATION_CACHE_REMOTE_SERVICE_PATH=$HOME/.local/state/tuist/cas-proxy.sock \
+            COMPILATION_CACHE_ENABLE_DETACHED_KEY_QUERIES=YES \
+            COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
+            'OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=joeoct91/understudy' \
+            2>&1 | tee "$RUNNER_TEMP/build.log" | grep -E -v "^(CompileSwift|SwiftCompile|SwiftDriver)" | tail -80
+          echo "Cache remarks:"; grep -c -i "cache hit" "$RUNNER_TEMP/build.log" || true; grep -c -i "cache miss" "$RUNNER_TEMP/build.log" || true
