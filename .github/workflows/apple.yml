@@ -129,7 +129,7 @@ jobs:
           if [[ -n "$unseen" ]]; then
             echo "Full run: the change touches files the hashes can't see:"
             echo "$unseen"
-            echo "selective=--no-selective-testing" >> "$GITHUB_OUTPUT"
+            echo "selective=--no-selective-testing --no-binary-cache" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install Tuist
@@ -166,7 +166,7 @@ jobs:
           xcrun simctl list devices | grep "$device"
           if [[ "$TUIST" == "true" ]]; then
             tuist install
-            # shellcheck disable=SC2086 # SELECTIVE is one flag or empty.
+            # shellcheck disable=SC2086 # SELECTIVE is zero or more flags.
             tuist test $SELECTIVE --destination simulator --platform iOS -- \
               -destination "id=$device" \
               -skipMacroValidation \

@@ -18,15 +18,15 @@ set -euo pipefail
 VERSION="4.218.5"
 SHA256="5a5431cadf2c276ed559f4cacc38748128307d224d3472bbef04e546c8952d39"
 
-dir="${RUNNER_TEMP:-$(mktemp -d)}/tuist-$VERSION"
-zip="$dir.zip"
+dir=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/tuist-$VERSION.XXXXXX")
+zip="$dir/tuist.zip"
 curl --proto "=https" --tlsv1.2 -fsSL --retry 3 -o "$zip" "https://github.com/tuist/tuist/releases/download/$VERSION/tuist.zip"
 if ! echo "$SHA256  $zip" | shasum -a 256 -c --status; then
   echo "::error::tuist.zip $VERSION doesn't match the SHA-256 pinned in scripts/install-tuist.sh." >&2
   exit 1
 fi
-mkdir -p "$dir"
 unzip -q "$zip" -d "$dir"
+rm "$zip"
 if [[ -n "${GITHUB_PATH:-}" ]]; then
   echo "$dir" >> "$GITHUB_PATH"
 fi
