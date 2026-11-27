@@ -21,3 +21,8 @@ __pycache__/
 
 # SwiftLint, installed by scripts/lint.sh.
 /.tools
+
+# What Tuist generates from ApplePlatforms/Package.swift (.github/workflows/apple.yml).
+/ApplePlatforms/*.xcodeproj
+/ApplePlatforms/*.xcworkspace
+/ApplePlatforms/Derived
