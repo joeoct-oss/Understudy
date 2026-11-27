@@ -10,6 +10,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Changed
 
+- For contributors: CodeQL now scans the Swift in `Sources/` too, beside the workflows and the Python scripts, with the security-extended queries, from a workflow in the repository (`.github/workflows/codeql.yml`) that builds the package on macOS. GitHub's managed setup scanned only 3 of the 76 Swift files. Nothing in the package changes.
 - For contributors: a pull request's author can no longer approve it by commenting `@coderabbitai approve`. Another member of the organization still can. Only members of the organization can chat with CodeRabbit. Nothing in the package changes.
 - For contributors: a pull request waits less for CI. The iOS simulator tests run in their own macOS job beside the macOS tests instead of after them on the same runner, which made it the longest job of every run; iOS and visionOS now share one lowest-version build job, so a run still uses 5 macOS jobs. The generated code budget runs in its own Linux job beside the coverage job. A new **Build cache** workflow ([`cache.yml`](.github/workflows/cache.yml)) fills the Linux build caches from main, so a new pull request's first run starts warm; it gates nothing, and runs that gate a release still use no cache. Every check still has to pass, and the required checks keep their names. Nothing in the package changes.
 
