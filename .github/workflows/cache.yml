@@ -124,10 +124,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Tuist
-        run: |
-          scripts/install-tuist.sh
-          tuist setup cache
+      - name: Install Tuist
+        run: scripts/install-tuist.sh
+
+      # The local proxy Xcode's compilation cache talks to, signed in to Tuist.
+      - name: Set up Tuist's cache
+        run: tuist setup cache
 
       # The project the iOS simulator job tests, with the package's pins.
       - name: Warm the caches

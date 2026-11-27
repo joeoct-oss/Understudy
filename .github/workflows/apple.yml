@@ -131,11 +131,14 @@ jobs:
             echo "selective=--no-selective-testing" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Set up Tuist
+      - name: Install Tuist
         if: ${{ steps.mode.outputs.tuist == 'true' }}
-        run: |
-          scripts/install-tuist.sh
-          tuist setup cache
+        run: scripts/install-tuist.sh
+
+      # The local proxy Xcode's compilation cache talks to, signed in to Tuist.
+      - name: Set up Tuist's cache
+        if: ${{ steps.mode.outputs.tuist == 'true' }}
+        run: tuist setup cache
 
       # The first available iPhone simulator of the newest iOS the runner has. No signing: the
       # simulator runs unsigned test bundles. Warnings as errors aren't set, for the reason given
