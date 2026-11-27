@@ -99,6 +99,8 @@ LOOKUP_BUDGET = 60
 # GitHub Actions' own app: a check run counts only when Actions made it, so no other app or
 # integration can stand in for a leg that passed.
 ACTIONS_APP_ID = 15368
+# The form GitHub writes its timestamps in, which sorts in time order as text.
+API_TIME = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
 
 
 def legs_reading(path):
@@ -181,11 +183,19 @@ def api_get(token, path):
 def latest_release(repo, token):
     """When the latest release was published, as the API writes it ("" with no release yet)."""
     try:
-        return api_get(token, f"/repos/{repo}/releases/latest")["published_at"] or ""
+        return api_time(api_get(token, f"/repos/{repo}/releases/latest").get("published_at"))
     except urllib.error.HTTPError as error:
         if error.code == 404:
             return ""
         raise
+
+
+def api_time(value):
+    """An API timestamp, checked to be one so that comparing them as text orders them in time.
+    Anything else raises ValueError, which counts as a failed lookup, so the leg runs."""
+    if not isinstance(value, str) or not API_TIME.fullmatch(value):
+        raise ValueError(f"{value!r} isn't a GitHub API timestamp")
+    return value
 
 
 def check_passed(repo, token, sha, leg, since=""):
@@ -206,7 +216,8 @@ def check_passed(repo, token, sha, leg, since=""):
         suite = run.get("check_suite")
         if not isinstance(suite, dict) or "id" not in suite:
             raise ValueError(f"A check run on {sha[:7]} names no check suite")
-        return api_get(token, f"/repos/{repo}/check-suites/{suite['id']}").get("created_at") or ""
+        return api_time(api_get(token, f"/repos/{repo}/check-suites/{suite['id']}")
+                        .get("created_at"))
 
     return any_passed(runs, since, began)
 
@@ -394,8 +405,18 @@ def release_failures():
 
     cases = [(runs, "", True), (runs, "2026-11-27T09:00:00Z", True),
              (runs, "2026-11-27T11:00:00Z", False), ([{"conclusion": "failure"}], "", False)]
-    return [("release", since, want) for runs, since, want in cases
-            if any_passed(runs, since, began) != want]
+    failures = [("release", since, want) for runs, since, want in cases
+                if any_passed(runs, since, began) != want]
+    for value, valid in [("2026-11-27T10:00:00Z", True), ("unavailable", False), (None, False),
+                         ("", False), ("2026-11-27 10:00:00", False)]:
+        try:
+            api_time(value)
+            ok = True
+        except ValueError:
+            ok = False
+        if ok != valid:
+            failures.append(("timestamp", value, valid))
+    return failures
 
 
 def self_check():
@@ -404,7 +425,7 @@ def self_check():
         failures.append(("a base merge that changes a file and a later one that undoes it",))
     for failure in failures:
         print("Self-check failed:", *failure, file=sys.stderr)
-    total = len(CLASSIFY_CASES) + len(FLOW_CASES) + 4 + 1
+    total = len(CLASSIFY_CASES) + len(FLOW_CASES) + 4 + 5 + 1
     print(f"{total - len(failures)} of {total} cases passed.")
     return 1 if failures else 0
 
