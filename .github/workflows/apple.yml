@@ -139,6 +139,7 @@ jobs:
       # The local proxy Xcode's compilation cache talks to, signed in to Tuist.
       - name: Set up Tuist's cache
         if: ${{ steps.mode.outputs.tuist == 'true' }}
+        working-directory: ApplePlatforms
         run: tuist setup cache
 
       # The first available iPhone simulator of the newest iOS the runner has. No signing: the

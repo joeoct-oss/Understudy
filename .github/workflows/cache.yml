@@ -129,6 +129,7 @@ jobs:
 
       # The local proxy Xcode's compilation cache talks to, signed in to Tuist.
       - name: Set up Tuist's cache
+        working-directory: ApplePlatforms
         run: tuist setup cache
 
       # The project the iOS simulator job tests, with the package's pins.
