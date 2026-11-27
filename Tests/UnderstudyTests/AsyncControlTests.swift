@@ -13,19 +13,19 @@ import Understudy
 /// other tasks.
 @Suite("Holding and waiting for calls")
 struct AsyncControlTests {
-    /// The error the tests script.
-    ///
-    /// Conformances:
-    /// - `Error`, so a spy can throw it.
-    /// - `Equatable`, so a test can check which error came out.
+    // The error the tests script.
+    //
+    // Conformances:
+    // - `Error`, so a spy can throw it.
+    // - `Equatable`, so a test can check which error came out.
     private enum LoadError: Error, Equatable {
         case offline
     }
 
-    /// How long a test waits for something that must not happen.
+    // How long a test waits for something that must not happen.
     private static let shortWait = 0.05
 
-    /// How many times a test that races waits against calls runs.
+    // How many times a test that races waits against calls runs.
     private static let raceRuns = 200
 
     @Test("A held call waits until the test resumes it, then returns what the test gave")
@@ -102,6 +102,20 @@ struct AsyncControlTests {
         let answer = await spy.respond(to: 1)
 
         #expect(answer == "first")
+    }
+
+    @Test("A resume after the held call has returned changes nothing")
+    func aResumeAfterTheCallReturnedChangesNothing() async {
+        let spy = Spy<Int, String>(returning: "scripted")
+        let held = spy.holdNextCall()
+
+        held.resume(returning: "first")
+        let first = await spy.respond(to: 1)
+        held.resume(returning: "late")
+        let second = await spy.respond(to: 2)
+
+        #expect(first == "first")
+        #expect(second == "scripted")
     }
 
     @Test("Holding applies to one call, and later calls get the scripted answer")
@@ -184,8 +198,8 @@ struct AsyncControlTests {
         #expect(next == 1)
     }
 
-    /// The wait and the call race, so the call may come before or during the wait. The test runs
-    /// them many times, so both cases happen.
+    // The wait and the call race, so the call may come before or during the wait. The test runs
+    // them many times, so both cases happen.
     @Test("A call made from another task is given to one wait only, and a later wait gets the next")
     func callDuringAWaitIsGivenOnce() async {
         for _ in 1...Self.raceRuns {
@@ -205,8 +219,8 @@ struct AsyncControlTests {
         }
     }
 
-    /// The waits and the calls race, so the calls may come before, between or after the waits
-    /// start. The test runs them many times, so each case happens.
+    // The waits and the calls race, so the calls may come before, between or after the waits
+    // start. The test runs them many times, so each case happens.
     @Test("Two waits started together each get a call of their own, whenever the calls come")
     func twoWaitsAtOnceEachGetTheirOwnCall() async {
         for _ in 1...Self.raceRuns {
