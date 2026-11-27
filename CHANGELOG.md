@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Fixed
+
+- `TestClock`: a task started just before `advance(by:)`, `advance(to:)`, `advance()` or `run()` could miss its first sleep on a busy machine, because the clock let work run for only 10 ms before its first wake. The task's sleep then counted from the time the clock had already moved to, and never woke. Before its first wake the clock now also waits up to 100 ms of real time while no sleep waits on it, and stops waiting as soon as one does. An advance when nothing is asleep on the clock now takes up to 100 ms instead of 10 ms. Seen about once in 3,000 runs of the clock hop test on GitHub's macOS runners.
+
 ### Added
 
 - For contributors: a pull request template (`.github/pull_request_template.md`), and a required **Pull request rules** check that holds a pull request until the template is filled in and the rules it lists are met (`scripts/check-pr-rules.py`). CodeRabbit now approves a pull request once its blocking findings are resolved, and main requires that approval, so a pull request whose review was rate limited waits instead of merging. Its pre-merge checks explain a failure and warn on docs, tests and doc comments. Nothing in the package changes.
