@@ -15,6 +15,16 @@
 #   longest job of the run (Yousef, 2026-11-27).
 # - Oldest Xcode: Xcode 16.0, the first with Swift 6.0, the tools version in Package.swift, and
 #   the lowest swift-syntax Package.swift allows, as the Linux lowest versions job does.
+# - CodeQL's Swift scan runs in the oldest Xcode job, after its tests, so it takes no macOS job of
+#   its own (Yousef, 2026-11-27). CodeQL reads Swift only on macOS and only the code it sees
+#   compiled, so it builds the package's own targets again under its build tracer, in a separate
+#   build folder (the tracer has to see a fresh build), with the security-extended queries. Swift
+#   6.0 is inside the versions CodeQL supports (5.4 to 6.3). It adds about 17 minutes: about 8 for
+#   the tracer to start on macOS and the rest to compile swift-syntax under it, which neither
+#   SwiftPM's prebuilt swift-syntax nor building it before CodeQL starts avoided (PR #97). The main
+#   ruleset's code scanning rule reads the result, so a pull request with a new Swift security alert
+#   of high severity or higher, or a CodeQL error, can't merge. codeql.yml scans the workflows and
+#   the Python scripts.
 # - Lowest platform versions: the package's tests (ApplePlatforms/Package.swift) built for iOS 13,
 #   tvOS 13, watchOS 6 and visionOS 1 with Xcode 16.4, so an API newer than a platform's floor
 #   fails here. Xcode 16 deploys back to iOS 12, so each floor is built as declared, and 16.4 is
@@ -44,9 +54,10 @@ jobs:
     name: Tests on macOS (Xcode ${{ matrix.xcode }})
     if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
+      security-events: write
     strategy:
       fail-fast: false
       matrix:
@@ -81,6 +92,24 @@ jobs:
         run: |
           swift --version
           swift test -Xswiftc -warnings-as-errors
+
+      - name: Set up CodeQL
+        if: ${{ matrix.lowest }}
+        uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          languages: swift
+          build-mode: manual
+          queries: security-extended
+
+      - name: Build the package for CodeQL
+        if: ${{ matrix.lowest }}
+        run: swift build --scratch-path .build-codeql
+
+      - name: Analyze with CodeQL
+        if: ${{ matrix.lowest }}
+        uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          category: /language:swift
 
   ios:
     name: Tests on an iOS simulator (Xcode 26.6)
