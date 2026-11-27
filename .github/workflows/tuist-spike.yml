@@ -54,13 +54,14 @@ jobs:
         run: |
           case "$CASE" in
             libraryEdit) echo "// spike $GITHUB_RUN_ID" >> Sources/Understudy/Macros.swift ;;
-            macroEdit) f=$(ls Sources/UnderstudyMacros/*.swift | head -1); echo "// spike $GITHUB_RUN_ID" >> "$f" ;;
+            macroEdit) f=$(find Sources/UnderstudyMacros -name "*.swift" | sort | head -1); echo "// spike $GITHUB_RUN_ID" >> "$f" ;;
           esac
           git status --short
 
       - name: tuist test, iOS simulator
         working-directory: ApplePlatforms
         run: |
+          set -o pipefail
           cp ../Tuist.swift ../Package.resolved .
           time tuist install
           time tuist test --destination simulator --platform iOS -- -skipMacroValidation CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/test.log" | grep -v -E "^note:|✔"
