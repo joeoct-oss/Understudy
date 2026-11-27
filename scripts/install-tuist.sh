@@ -20,7 +20,7 @@ SHA256="5a5431cadf2c276ed559f4cacc38748128307d224d3472bbef04e546c8952d39"
 
 dir="${RUNNER_TEMP:-$(mktemp -d)}/tuist-$VERSION"
 zip="$dir.zip"
-curl -fsSL --retry 3 -o "$zip" "https://github.com/tuist/tuist/releases/download/$VERSION/tuist.zip"
+curl --proto "=https" --tlsv1.2 -fsSL --retry 3 -o "$zip" "https://github.com/tuist/tuist/releases/download/$VERSION/tuist.zip"
 if ! echo "$SHA256  $zip" | shasum -a 256 -c --status; then
   echo "::error::tuist.zip $VERSION doesn't match the SHA-256 pinned in scripts/install-tuist.sh."
   exit 1
