@@ -207,12 +207,14 @@ jobs:
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: coverage.lcov
-          # The uploader the action downloads, pinned like the action itself; its signature is
-          # still checked. Without it, each run fetches whatever version is newest.
+          # The uploader the action downloads, pinned like the action itself. Without it, each
+          # run fetches whatever version is newest.
           version: v11.3.2
           disable_search: true
           use_oidc: true
-          fail_ci_if_error: false
+          # Stops before running an uploader whose signature or checksum doesn't match, and fails
+          # this job on any upload error. The job's continue-on-error keeps the run passing.
+          fail_ci_if_error: true
 
   apple:
     name: Apple platform checks
