@@ -39,6 +39,7 @@ Usage: ci-legs.py                reads BASE_SHA, HEAD_SHA, GITHUB_REPOSITORY, GI
        ci-legs.py --self-check   runs its own cases and exits
 """
 
+import datetime
 import json
 import os
 import pathlib
@@ -195,6 +196,7 @@ def api_time(value):
     Anything else raises ValueError, which counts as a failed lookup, so the leg runs."""
     if not isinstance(value, str) or not API_TIME.fullmatch(value):
         raise ValueError(f"{value!r} isn't a GitHub API timestamp")
+    datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")  # noqa: DTZ007 - checks the date only
     return value
 
 
@@ -408,7 +410,8 @@ def release_failures():
     failures = [("release", since, want) for runs, since, want in cases
                 if any_passed(runs, since, began) != want]
     for value, valid in [("2026-11-27T10:00:00Z", True), ("unavailable", False), (None, False),
-                         ("", False), ("2026-11-27 10:00:00", False)]:
+                         ("", False), ("2026-11-27 10:00:00", False),
+                         ("9999-99-99T99:99:99Z", False), ("2026-02-30T10:00:00Z", False)]:
         try:
             api_time(value)
             ok = True
@@ -425,7 +428,7 @@ def self_check():
         failures.append(("a base merge that changes a file and a later one that undoes it",))
     for failure in failures:
         print("Self-check failed:", *failure, file=sys.stderr)
-    total = len(CLASSIFY_CASES) + len(FLOW_CASES) + 4 + 5 + 1
+    total = len(CLASSIFY_CASES) + len(FLOW_CASES) + 4 + 7 + 1
     print(f"{total - len(failures)} of {total} cases passed.")
     return 1 if failures else 0
 
