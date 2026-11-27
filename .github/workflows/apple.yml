@@ -5,10 +5,10 @@
 # - The checks workflow (checks.yml) calls it on pull requests to main once the Linux checks
 #   passed, so no macOS time goes to a change that already fails on Linux; drafts are skipped until
 #   they are ready for review. A pull request that needs none of these checks (skip-tests input,
-#   from scripts/ci-legs.py: no file they read changed, or they already passed and none changed
-#   since) skips every job and test but the CodeQL scan in the oldest Xcode job, and the gate
-#   reports a pass. The release workflow (release.yml) calls it on every push to main, after the
-#   Linux checks, and publishes only when it passes there.
+#   decided by scripts/ci-legs.py, the one home of the skip rules) skips every job and test but
+#   the CodeQL scan in the oldest Xcode job, and the gate reports a pass. The release workflow
+#   (release.yml) calls it on every push to main, after the Linux checks, and publishes only when
+#   it passes there.
 # - "Apple builds and tests" is its one gate: it passes only when every job below passed.
 # - Newest Xcode: every test on macOS, warnings as errors, with the committed Package.resolved.
 # - iOS simulator: the package's tests (ApplePlatforms/Package.swift) run on an iOS simulator from

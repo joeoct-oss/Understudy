@@ -13,9 +13,8 @@
 # 4. Once the Linux checks passed: the Apple platform checks (apple.yml), the benchmarks
 #    (benchmarks.yml) and mutation testing of the changed sources (mutation.yml), all on pull
 #    requests only.
-# - Each leg of stages 3 and 4 runs only when the change touches a file it reads, or when it hasn't
-#   passed yet on the pull request since the last such change (scripts/ci-legs.py, where the rules
-#   live; Yousef, 2026-11-27). A docs-only pull request, or a merge from main that brings only docs
+# - Each leg of stages 3 and 4 runs only when the pull request needs it, by the rules in
+#   scripts/ci-legs.py, their one home (Yousef, 2026-11-27). A docs-only pull request, or a merge from main that brings only docs
 #   or config, runs stages 1 and 2 and skips the tests. A skipped Linux or Apple leg still reports
 #   its gate as a pass, so it can merge, and the CodeQL Swift scan still runs (apple.yml), since
 #   the code scanning rule waits for a Swift result on every commit.
@@ -120,11 +119,9 @@ jobs:
             scripts/lint.sh --swift-format-only
           scripts/lint.sh --swiftlint-only
 
-      # Which legs the run needs (scripts/ci-legs.py, where the rules live): a leg runs only when
-      # a file it reads changed, and is skipped when nothing it reads changed in the pull request,
-      # or when it already passed on an earlier commit of the pull request and nothing it reads
-      # changed since, as after a merge from main that brings only docs or config. Its check runs
-      # are read with the token, hence checks: read. A push to main always runs every leg.
+      # Which legs the run needs. The skip rules live only in scripts/ci-legs.py's docstring. It
+      # reads earlier check runs and the latest release with the token, hence checks: read. A
+      # push to main always runs every leg.
       - name: Check the leg rules
         if: ${{ !cancelled() }}
         run: python3 -I scripts/ci-legs.py --self-check

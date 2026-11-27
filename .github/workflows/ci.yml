@@ -2,9 +2,8 @@
 # publishes only when it passes there, so it is the last check before a version goes out.
 # - The checks workflow (checks.yml) calls it on pull requests to main once its fast checks and
 #   SonarQube Cloud's quality gate passed; drafts are skipped until they are ready for review. A
-#   pull request that needs none of these checks (skip-tests input, from scripts/ci-legs.py: no
-#   file they read changed, or they already passed and none changed since) skips every job, and
-#   the gate reports a pass.
+#   pull request that needs none of these checks (skip-tests input, decided by scripts/ci-legs.py,
+#   the one home of the skip rules) skips every job, and the gate reports a pass.
 # - "Linux build and tests" is this workflow's one required check: it passes only when every job
 #   below passed.
 # - Swift 6.4: warnings as errors and every line of Sources/ covered (scripts/check-coverage.sh),
