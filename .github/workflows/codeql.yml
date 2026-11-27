@@ -6,8 +6,10 @@
 #   Tools/ExpansionRecord instead of the package and scanned 3 of 76 Swift files.
 # - Swift: CodeQL reads only the code it sees compiled, and only on macOS, so the job builds the
 #   package's own targets with `swift build`, not its tests, pinned to the committed
-#   Package.resolved. Xcode 16.4 (Swift 6.1), inside the Swift versions CodeQL supports (5.4 to
-#   6.3). Tools/ and Swift5Mode/ are separate packages and aren't built.
+#   Package.resolved. swift-syntax comes prebuilt (--enable-experimental-prebuilts), so only the
+#   package's own code is compiled under CodeQL: compiling swift-syntax took most of the 18
+#   minutes. Xcode 16.4 (Swift 6.1), inside the Swift versions CodeQL supports (5.4 to 6.3).
+#   Tools/ and Swift5Mode/ are separate packages and aren't built.
 # - Actions and Python need no build, so they run on Linux with build-mode none.
 # - Runs on pull requests to main (drafts too, so the gate has results by the time one is ready),
 #   on pushes to main, and weekly for queries added since the last push.
@@ -69,7 +71,7 @@ jobs:
         if: ${{ matrix.build-mode == 'manual' }}
         env:
           DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
-        run: swift build --force-resolved-versions
+        run: swift build --force-resolved-versions --enable-experimental-prebuilts
 
       - name: Analyze
         uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
