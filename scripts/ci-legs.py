@@ -39,6 +39,7 @@ Usage: ci-legs.py                reads BASE_SHA, HEAD_SHA, GITHUB_REPOSITORY, GI
 
 import json
 import os
+import pathlib
 import re
 import subprocess
 import sys
@@ -244,9 +245,9 @@ def merge_change_counts():
                                   check=True, capture_output=True, text=True).stdout.strip()
 
         def write(path, text):
-            os.makedirs(os.path.dirname(os.path.join(repo, path)), exist_ok=True)
-            with open(os.path.join(repo, path), "w", encoding="utf-8") as file:
-                file.write(text)
+            target = pathlib.Path(repo, path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
 
         git("init", "-q", "-b", "main")
         write("Sources/a.swift", "one\n")
