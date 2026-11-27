@@ -203,8 +203,10 @@ def check_passed(repo, token, sha, leg, since=""):
         return any_passed(runs)
 
     def began(run):
-        suite = api_get(token, f"/repos/{repo}/check-suites/{run['check_suite']['id']}")
-        return suite.get("created_at") or ""
+        suite = run.get("check_suite")
+        if not isinstance(suite, dict) or "id" not in suite:
+            raise ValueError(f"A check run on {sha[:7]} names no check suite")
+        return api_get(token, f"/repos/{repo}/check-suites/{suite['id']}").get("created_at") or ""
 
     return any_passed(runs, since, began)
 
@@ -262,7 +264,7 @@ def run():
                 lookups["release"] = latest_release(repo, token)
             since = lookups["release"] if leg == LINUX else ""
             return check_passed(repo, token, sha, leg, since)
-        except (OSError, ValueError, KeyError) as error:
+        except (OSError, ValueError, KeyError, TypeError) as error:
             lookups["failed"] = True
             print(f"Couldn't read {leg} on {sha[:7]}, so it and every later lookup count as not "
                   f"passed: {error}", file=sys.stderr)
