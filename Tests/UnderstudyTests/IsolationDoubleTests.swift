@@ -59,7 +59,7 @@ struct IsolationDoubleTests {
         #expect(ran.callCount == 1)
     }
 
-    @Test("Public, open, fileprivate, main-actor and Sendable-closure doubles build and record calls")
+    @Test("Public, open, private, main-actor and Sendable-closure doubles build and record calls")
     @MainActor
     func doublesOfEveryAccessLevelAndIsolationBuildAndRecord() async {
         let gate = SpyOpenGate(isOpen: true)
