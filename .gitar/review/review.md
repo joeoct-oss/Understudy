@@ -12,6 +12,9 @@ change reaches package users at once.
 - Look hardest at what the linters and SonarQube Cloud can't see: logic and behaviour bugs,
   changes to the code the macros generate or to their diagnostics, locking and waiting code,
   breaking public API changes, and tests that would pass with the bug.
+- The checks in `.gitar/rules/` (macro diagnostics, macro tests, Swift 6 concurrency, breaking
+  changes and file headers) are reported under Verification. Verification alone doesn't block a
+  merge, so a diff line that breaks one of those rules is also a should-fix finding.
 - Code style, including docs and examples. `CODE_STYLE.md` holds this package's own rules and
   links to the shared rules, which live outside this repo. The shared rules a diff can show are
   restated in the `path_instructions` of `.coderabbit.yaml`: apply those too, and ignore its
