@@ -4,6 +4,10 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ## Unreleased
 
+### Changed
+
+- swift-format and SwiftLint now enforce the code style. `scripts/lint.sh` runs both and fails on any finding: run it while working, and CI's **Fast checks** run it again on every pull request. `scripts/format.sh` fixes what the tools can fix. `.swift-format` and `.swiftlint.yml` hold the same rules as Waypoint's, and `CODE_STYLE.md` says where. The code is reformatted to match, with no behaviour change, and the SwiftLint findings already in the code are listed in `.swiftlint-baseline.json` until they are fixed.
+
 ## 1.0.1 - 2026-11-27
 
 The test hardening moved from 1.0.0: the full mutation run over `Sources/`, with a new test for every change the tests could catch, 100 runs of the whole suite under the thread sanitizer, and a fix for the one hang the new macOS checks found in the test clock. No public API changes, and nothing a test writes needs to change.
@@ -19,7 +23,6 @@ The test hardening moved from 1.0.0: the full mutation run over `Sources/`, with
 
 ### Changed
 
-- swift-format and SwiftLint now enforce the code style. `scripts/lint.sh` runs both and fails on any finding: run it while working, and CI's **Fast checks** run it again on every pull request. `scripts/format.sh` fixes what the tools can fix. `.swift-format` and `.swiftlint.yml` hold the same rules as Waypoint's, and `CODE_STYLE.md` says where. The code is reformatted to match, with no behaviour change, and the SwiftLint findings already in the code are listed in `.swiftlint-baseline.json` until they are fixed.
 - CI now also checks the package with Apple's toolchain, on GitHub's macOS runners (the **Apple platform checks** workflow): every test on macOS with the newest Xcode and with Xcode 16.0 and the lowest swift-syntax, and the tests built for iOS 13, tvOS 13, watchOS 6 and visionOS 1, so an API newer than a platform's lowest version fails before a release. A release waits for these checks as it does for the Linux checks. Nothing in the package changes.
 - CI runs its checks in stages, each starting only when the one before passed: fast checks (workflow lint, size limits, swift-format and SwiftLint, and a review of any changed dependency for known vulnerabilities), then SonarQube Cloud's quality gate, then the Linux checks, then the Apple platform checks, benchmarks and mutation testing. A failure stops the run before the slower checks start. The Apple checks now also run the tests on an iOS simulator, coverage is measured once per run instead of twice, the thread sanitizer runs in its own job beside the coverage job, a pull request that changes only docs skips the tests, and the SonarQube scanner now downloads from SonarSource's own site, cached on pull requests, since Maven Central refused shared runners with HTTP 429. Nothing in the package changes.
 - For maintainers: a **Stress** workflow ([`stress.yml`](.github/workflows/stress.yml)), run by hand, runs the whole test suite under the thread sanitizer many times over parallel jobs, and names every failed run and test in its summary. Each suite run also runs the clock hop test 1,000 times. Nothing in the package changes.
