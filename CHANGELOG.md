@@ -6,7 +6,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Added
 
-- For contributors: Gitar reviews every pull request that is ready for review, beside CodeRabbit, on a trial. It follows `CODE_STYLE.md` and the shared style rules restated in `.coderabbit.yaml` through `.gitar/review/review.md`. It doesn't approve, write commits or edit the description, but it gates the merge: a finding of important severity or higher requests changes, and its check is required. CodeQL gates the merge too: a new security alert of high severity or higher, or any error, blocks it. Nothing in the package changes.
+- For contributors: Gitar reviews every pull request that is ready for review, beside CodeRabbit, on a trial. It follows `CODE_STYLE.md` and the shared style rules restated in `.coderabbit.yaml` through `.gitar/review/review.md`. It doesn't approve, write commits or edit the description, but it gates the merge: a finding of important severity or higher requests changes, and its check is required. CodeQL gates the merge too: a new security alert of high severity or higher in the workflows or the Python scripts, or any error, blocks it. Nothing in the package changes.
 
 ### Changed
 

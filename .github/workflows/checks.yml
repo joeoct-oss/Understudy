@@ -17,7 +17,8 @@
 # - CodeRabbit, CodeQL and Gitar are apps outside this workflow, and each gates the merge itself
 #   (Yousef, 2026-11-27). CodeRabbit: a required check, its approval as the required review, and
 #   every thread resolved. CodeQL: the ruleset's code scanning rule fails a PR with a new security
-#   alert of high severity or higher, or any error. Gitar: the required "Gitar" check, and changes
+#   alert of high severity or higher in the workflows or the Python scripts, or any error; the
+#   Swift scan runs after the merge (codeql.yml). Gitar: the required "Gitar" check, and changes
 #   requested on any finding of important severity or higher.
 # - The branch name check stays in its own workflow: it runs no package code and is the same file
 #   in every repo.
