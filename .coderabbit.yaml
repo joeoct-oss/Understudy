@@ -87,7 +87,8 @@ reviews:
   # dismisses an approval when new commits are pushed, so a PR it hasn't reviewed at its head,
   # such as one whose review was rate limited, waits instead of merging (Yousef, 2026-11-26).
   # The author can't approve with "@coderabbitai approve": that would meet the required review
-  # with no review at all (Yousef, 2026-11-27).
+  # with no review at all (Yousef, 2026-11-27). Another org member still could, and no key turns
+  # that off; Yousef is the only member, so none can today. Revisit when someone joins the org.
   auto_approvals:
     enabled: true
     allow_author_approval: false
