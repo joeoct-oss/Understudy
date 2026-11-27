@@ -97,13 +97,14 @@ jobs:
       # `swift format` is the version scripts/lint-tools.sh expects. SwiftLint runs on the runner
       # host, where scripts/lint.sh installs the version scripts/lint-tools.sh pins, with its
       # sha256 checked: the Linux SwiftLint needs libxml2.so.2, which the image doesn't ship, and
-      # reads the syntax its custom rules need through the host toolchain's SourceKit.
+      # reads the syntax its custom rules need through the host toolchain's SourceKit. The image
+      # mounts the checkout read-only, so nothing it runs can change what the host runs next.
       - name: Lint
         if: ${{ !cancelled() }}
         env:
           IMAGE: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
         run: |
-          docker run --rm --volume "$PWD:/package" --workdir /package "$IMAGE" \
+          docker run --rm --volume "$PWD:/package:ro" --workdir /package "$IMAGE" \
             scripts/lint.sh --swift-format-only
           scripts/lint.sh --swiftlint-only
 
