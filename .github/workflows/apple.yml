@@ -44,7 +44,7 @@ on:
   workflow_call:
     inputs:
       docs-only:
-        description: The change touches only docs no build reads, so every job is skipped
+        description: Only docs no build reads changed, so every job but the Swift scan is skipped
         type: boolean
         default: false
   workflow_dispatch:
@@ -224,14 +224,20 @@ jobs:
     timeout-minutes: 2
     permissions: {}
     steps:
-      # A docs-only change skips every job on purpose, so it passes.
+      # A docs-only change skips every job but the CodeQL scan in the oldest Xcode job on purpose,
+      # so it passes once that scan passed.
       - name: Check that every job passed
         env:
           DOCS_ONLY: ${{ inputs.docs-only }}
+          LOWEST: ${{ needs.macos-lowest.result }}
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           if [[ "$DOCS_ONLY" == "true" ]]; then
-            echo "Docs-only change: no build reads these files, so the checks were skipped."
+            if [[ "$LOWEST" != "success" ]]; then
+              echo "::error::The CodeQL Swift scan didn't pass: $LOWEST."
+              exit 1
+            fi
+            echo "Docs-only change: no build reads these files, so only the Swift scan ran."
             exit 0
           fi
           echo "Job results: $RESULTS"
