@@ -1,8 +1,10 @@
 # How to review an Understudy pull request
 
-Gitar reviews beside CodeRabbit and gives advice only: it never approves, never blocks a merge
-and never writes commits or edits the pull request description. Every merge to `main` publishes
-a release, so a change reaches package users at once.
+Gitar reviews beside CodeRabbit. It never approves, never writes commits and never edits the
+pull request description, but it gates the merge: any finding of important severity or higher
+requests changes, and its "Gitar" check is required on `main`. So rate a finding important only
+when it is a blocker or a should-fix item below. Every merge to `main` publishes a release, so a
+change reaches package users at once.
 
 - Report only blockers and should-fix items, each as one inline comment that names the rule it
   breaks and why. Breaking a code style rule is a should-fix item. No praise, no recaps and no
