@@ -34,8 +34,8 @@
 # Hardening as in ci.yml: standard GitHub-hosted runners only, never a larger runner (those are
 # billed) and no self-hosted Mac. Every action is pinned to a full commit SHA with the version in a
 # comment, each job reads the repo and nothing else (the oldest Xcode job also uploads its CodeQL
-# results), and no checkout keeps the token. Runner labels and Xcode versions are pinned and bumped by hand. No build cache, so nothing a cache holds
-# reaches a run that gates a release.
+# results), and no checkout keeps the token. Runner labels and Xcode versions are pinned and
+# bumped by hand. No build cache, so nothing a cache holds reaches a run that gates a release.
 name: Apple platform checks
 
 on:
