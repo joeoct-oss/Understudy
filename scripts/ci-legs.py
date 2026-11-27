@@ -17,11 +17,12 @@ A leg is skipped in two cases:
   leg reads (Markdown at the root, LICENSE, .gitignore, review tool config and the like) or one
   only other legs read.
 - It already passed on an earlier commit of this pull request, and nothing it reads changed
-  since, on the pull request or on the base (base_changes). This is what a merge from main that
-  brings only docs or config gets: the tests that passed before the merge stay valid. The earlier
-  commits are the pull request's own, followed by first parent from the head, newest first, up to
-  MAX_COMMITS; the result is the leg's check run on that commit, made by GitHub Actions and read
-  with the run's GITHUB_TOKEN.
+  since, on the pull request or on the base (base_changes), and, for the Linux leg, no release
+  was tagged on the base since, as its public API check compares with the latest one. This is
+  what a merge from main that brings only docs or config gets: the tests that passed before the
+  merge stay valid. The earlier commits are the pull request's own, followed by first parent from
+  the head, newest first, up to MAX_COMMITS; the result is the leg's check run on that commit,
+  made by GitHub Actions and read with the run's GITHUB_TOKEN.
 A file that no rule names reads as every leg's, so a new kind of file runs everything until it is
 given a rule. A push to main, or any failure to read the diff, runs every leg.
 
