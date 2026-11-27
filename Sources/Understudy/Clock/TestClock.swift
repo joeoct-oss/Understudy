@@ -33,8 +33,9 @@ import Foundation
 /// next sleep counts from when it woke.
 /// After each wake, `advance` lets the other tasks run until the woken task sleeps on the clock
 /// again, even across actors and the main actor, and that sleep is woken in the same call when
-/// it falls inside the window. It waits for that for up to 10 ms of real time, which is also how
-/// long it lets work run before the first wake, so tasks just started reach their first sleep.
+/// it falls inside the window. It waits for that for up to 10 ms of real time. Before the first
+/// wake it lets work run for 10 ms too, and for up to 100 ms while no sleep waits on the clock,
+/// so tasks just started reach their first sleep.
 /// Swift has no public way to know when every task has reached its next suspension, so a woken
 /// task that takes longer, such as one that waits on real I/O, may still be running when
 /// `advance` returns. It never misses its deadlines, though: a sleep it starts later, inside the
@@ -98,6 +99,12 @@ public final class TestClock: Clock, @unchecked Sendable {
     /// left one run in 1,000 behind on a busy two-core machine, where a hop to the main actor
     /// can wait longer than that.
     private static let quietTime = Duration.milliseconds(10)
+
+    /// How long ``advance(to:)`` keeps yielding before its first wake while no sleep waits on the
+    /// clock, in real time, so a task started just before it reaches its first sleep. 10 ms left
+    /// about one run in 3,000 behind on GitHub's macOS runners, where the task's sleep then
+    /// never woke. Any sleep already waiting ends this wait at once.
+    private static let firstSleepTime = Duration.milliseconds(100)
 
     /// Guards every stored value below.
     private let lock = NSLock()
@@ -233,7 +240,8 @@ public final class TestClock: Clock, @unchecked Sendable {
     /// Yields to the other tasks, so the work `woken` started runs on to its next suspension:
     /// at least ``minimumYields`` times, then until the woken task sleeps on this clock again,
     /// or until ``quietTime`` has passed. With nothing woken yet, it waits the quiet time, so
-    /// tasks just started reach their first sleep.
+    /// tasks just started reach their first sleep, and then up to ``firstSleepTime`` while no
+    /// sleep waits at all.
     private func settle(after woken: Sleeper?) async {
         let start = ContinuousClock.now
         for _ in 0..<Self.minimumYields {
@@ -241,6 +249,19 @@ public final class TestClock: Clock, @unchecked Sendable {
         }
         while ContinuousClock.now - start < Self.quietTime, !isSleeping(woken?.task) {
             await Task.yield()
+        }
+        guard woken == nil else {
+            return
+        }
+        while ContinuousClock.now - start < Self.firstSleepTime, !hasSleepers() {
+            await Task.yield()
+        }
+    }
+
+    /// Whether any sleep waits on this clock.
+    private func hasSleepers() -> Bool {
+        synchronized {
+            !sleepers.isEmpty
         }
     }
 

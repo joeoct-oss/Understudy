@@ -489,7 +489,7 @@ func signInWaitsForTheServer() async throws {
 **What `advance` promises:**
 
 - A woken task reads `now` as the deadline it woke at, until it sleeps again or the next advance ends, so its next sleep counts from when it woke.
-- After each wake, `advance` lets other tasks run until the woken code sleeps on the clock again, even when it hops across actors and the main actor, and wakes that sleep in the same call. It waits up to 10 ms of real time for this, and lets work run as long before the first wake, so a task just started reaches its first sleep.
+- After each wake, `advance` lets other tasks run until the woken code sleeps on the clock again, even when it hops across actors and the main actor, and wakes that sleep in the same call. It waits up to 10 ms of real time for this. Before the first wake it lets work run for 10 ms too, and for up to 100 ms while nothing sleeps on the clock, so a task just started reaches its first sleep.
 - Woken code that takes longer, such as code waiting on real network or disk work, may still be running when `advance` returns, because Swift has no public way to know when every task has reached its next suspension. It never misses its deadlines, though: a sleep it starts later, inside the window the clock has passed, returns at once.
 - A sleep from a task the clock never woke, started after `advance` returns, counts from the clock's time then.
 
