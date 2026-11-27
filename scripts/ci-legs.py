@@ -20,7 +20,7 @@ A leg is skipped in two cases:
   since. This is what a merge from main that brings only docs or config gets: the tests that
   passed before the merge stay valid. The earlier commits are the pull request's own, followed by
   first parent from the head, newest first, up to MAX_COMMITS; the result is the leg's check run on
-  that commit, read with the run's GITHUB_TOKEN.
+  that commit, made by GitHub Actions and read with the run's GITHUB_TOKEN.
 A file that no rule names reads as every leg's, so a new kind of file runs everything until it is
 given a rule. A push to main, or any failure to read the diff, runs every leg.
 
@@ -79,6 +79,9 @@ CHECK_NAMES = {
     MUTATION: "Mutation testing / Mutation testing (Swift 6.4)",
 }
 MAX_COMMITS = 15
+# GitHub Actions' own app: a check run counts only when Actions made it, so no other app or
+# integration can stand in for a leg that passed.
+ACTIONS_APP_ID = 15368
 
 
 def legs_reading(path):
@@ -119,9 +122,10 @@ def earlier_commits(head, base):
 
 
 def check_passed(repo, token, sha, leg):
-    """Whether the leg's latest check run on the commit passed."""
+    """Whether the leg's latest check run on the commit, made by GitHub Actions, passed."""
     api = os.environ.get("GITHUB_API_URL", "https://api.github.com")
-    query = urllib.parse.urlencode({"check_name": CHECK_NAMES[leg], "filter": "latest"})
+    query = urllib.parse.urlencode({"check_name": CHECK_NAMES[leg], "filter": "latest",
+                                    "app_id": ACTIONS_APP_ID})
     request = urllib.request.Request(
         f"{api}/repos/{repo}/commits/{sha}/check-runs?{query}",
         headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"})
