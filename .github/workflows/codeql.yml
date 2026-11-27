@@ -1,7 +1,8 @@
 # Scans the code with CodeQL: the Swift in Sources/, the workflows and the Python scripts, with
 # the security-extended queries (Yousef, 2026-11-27). The main ruleset's code scanning rule reads
-# the results, so a pull request with a new security alert of high severity or higher, or any
-# CodeQL error, can't merge. Copilot Autofix suggests fixes on the alerts.
+# the results, so a pull request with a new security alert of high severity or higher in the
+# workflows or the Python scripts, or any CodeQL error, can't merge. Swift alerts show after the
+# merge, from the push to main or the weekly scan. Copilot Autofix suggests fixes on the alerts.
 # - Replaces GitHub's managed default setup, which can't be given a build command: it built
 #   Tools/ExpansionRecord instead of the package and scanned 3 of 76 Swift files.
 # - Actions and Python need no build, so they run on Linux with build-mode none, on every pull
