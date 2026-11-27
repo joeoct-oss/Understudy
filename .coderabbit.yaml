@@ -333,7 +333,7 @@ reviews:
         6.1 to 6.3 from the run on main and before a release, drops a job from the Apple
         platform checks or stops a release waiting for them, renames a job that is a required
         check (SonarQube Cloud quality gate, Linux checks / Linux build and tests, Branch name,
-        Release / Release check, CodeRabbit, Fast checks), or breaks the stage order in
+        Gitar, Release / Release check, CodeRabbit, Fast checks), or breaks the stage order in
         checks.yml: Fast checks, then the SonarQube Cloud quality gate, then the Linux checks,
         then the Apple checks, benchmarks and mutation testing, so a later stage never starts
         before an earlier one passed. Flag a new pinned commit of
