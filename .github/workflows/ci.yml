@@ -2,7 +2,8 @@
 # publishes only when it passes there, so it is the last check before a version goes out.
 # - The checks workflow (checks.yml) calls it on pull requests to main once its fast checks and
 #   SonarQube Cloud's quality gate passed; drafts are skipped until they are ready for review. A
-#   docs-only pull request (docs-only input) skips every job, and the gate reports a pass.
+#   pull request that needs none of these checks (skip-tests input, decided by scripts/ci-legs.py,
+#   the one home of the skip rules) skips every job, and the gate reports a pass.
 # - "Linux build and tests" is this workflow's one required check: it passes only when every job
 #   below passed.
 # - Swift 6.4: warnings as errors and every line of Sources/ covered (scripts/check-coverage.sh),
@@ -37,8 +38,8 @@ name: Linux checks
 on:
   workflow_call:
     inputs:
-      docs-only:
-        description: The change touches only docs no build reads, so every job is skipped
+      skip-tests:
+        description: Nothing these checks read changed since they passed, so every job is skipped
         type: boolean
         default: false
   workflow_dispatch:
@@ -48,7 +49,7 @@ permissions: {}
 jobs:
   coverage:
     name: Tests and coverage (Swift 6.4)
-    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
+    if: ${{ !github.event.pull_request.draft && !inputs.skip-tests }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -88,7 +89,7 @@ jobs:
 
   budget:
     name: Generated code budget (Swift 6.4)
-    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
+    if: ${{ !github.event.pull_request.draft && !inputs.skip-tests }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -119,7 +120,7 @@ jobs:
   # the longest step on the path every later check waits for.
   tsan:
     name: Thread sanitizer (Swift 6.4)
-    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
+    if: ${{ !github.event.pull_request.draft && !inputs.skip-tests }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -148,7 +149,7 @@ jobs:
 
   swift:
     name: Tests on Swift ${{ matrix.swift }}
-    if: ${{ github.event_name != 'pull_request' && !inputs.docs-only }}
+    if: ${{ github.event_name != 'pull_request' && !inputs.skip-tests }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -176,7 +177,7 @@ jobs:
 
   lowest:
     name: Lowest versions (Swift 6.0, lowest swift-syntax)
-    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
+    if: ${{ !github.event.pull_request.draft && !inputs.skip-tests }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -206,7 +207,7 @@ jobs:
 
   swift5:
     name: Swift 5 language mode (Swift 6.4)
-    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
+    if: ${{ !github.event.pull_request.draft && !inputs.skip-tests }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -229,7 +230,7 @@ jobs:
 
   api:
     name: Public API kept (Swift 6.4)
-    if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
+    if: ${{ !github.event.pull_request.draft && !inputs.skip-tests }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -275,19 +276,19 @@ jobs:
     permissions: {}
     steps:
       # A pull request skips the middle Swift versions on purpose, so their job isn't counted there.
-      # A docs-only change skips every job on purpose, so it passes.
+      # A change these checks don't read skips every job on purpose, so it passes.
       - name: Check that every job passed
         env:
           EVENT: ${{ github.event_name }}
-          DOCS_ONLY: ${{ inputs.docs-only }}
+          SKIP_TESTS: ${{ inputs.skip-tests }}
           RESULTS: ${{ join(needs.*.result, ' ') }}
           PR_RESULTS: >-
             ${{ needs.coverage.result }} ${{ needs.budget.result }} ${{ needs.tsan.result }}
             ${{ needs.lowest.result }}
             ${{ needs.swift5.result }} ${{ needs.api.result }}
         run: |
-          if [[ "$DOCS_ONLY" == "true" ]]; then
-            echo "Docs-only change: no build reads these files, so the tests were skipped."
+          if [[ "$SKIP_TESTS" == "true" ]]; then
+            echo "No file these checks read changed since they last passed, so they were skipped."
             exit 0
           fi
           if [[ "$EVENT" == "pull_request" ]]; then
