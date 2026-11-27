@@ -4,9 +4,10 @@
 # targets, so these jobs check it there.
 # - The checks workflow (checks.yml) calls it on pull requests to main once the Linux checks
 #   passed, so no macOS time goes to a change that already fails on Linux; drafts are skipped until
-#   they are ready for review. A docs-only pull request (docs-only input) skips every job, and the
-#   gate reports a pass. The release workflow (release.yml) calls it on every push to main, after
-#   the Linux checks, and publishes only when it passes there.
+#   they are ready for review. A docs-only pull request (docs-only input) skips every job and test
+#   but the CodeQL scan in the oldest Xcode job, and the gate reports a pass. The release workflow
+#   (release.yml) calls it on every push to main, after the Linux checks, and publishes only when
+#   it passes there.
 # - "Apple builds and tests" is its one gate: it passes only when every job below passed.
 # - Newest Xcode: every test on macOS, warnings as errors, with the committed Package.resolved.
 # - iOS simulator: the package's tests (ApplePlatforms/Package.swift) run on an iOS simulator from
@@ -15,6 +16,17 @@
 #   longest job of the run (Yousef, 2026-11-27).
 # - Oldest Xcode: Xcode 16.0, the first with Swift 6.0, the tools version in Package.swift, and
 #   the lowest swift-syntax Package.swift allows, as the Linux lowest versions job does.
+# - CodeQL's Swift scan runs in the oldest Xcode job, after its tests, so it takes no macOS job of
+#   its own (Yousef, 2026-11-27). CodeQL reads Swift only on macOS and only the code it sees
+#   compiled, so it builds the package's own targets again under its build tracer, in a separate
+#   build folder (the tracer has to see a fresh build), with the security-extended queries. Swift
+#   6.0 is inside the versions CodeQL supports (5.4 to 6.3). It adds about 17 minutes: about 8 for
+#   the tracer to start on macOS and the rest to compile swift-syntax under it, which neither
+#   SwiftPM's prebuilt swift-syntax nor building it before CodeQL starts avoided (PR #97). The main
+#   ruleset's code scanning rule reads the result, so a pull request with a new Swift security alert
+#   of high severity or higher, or a CodeQL error, can't merge. That rule waits for a Swift result
+#   on every pull request, so the scan runs on docs-only pull requests too, without the tests.
+#   codeql.yml scans the workflows and the Python scripts.
 # - Lowest platform versions: the package's tests (ApplePlatforms/Package.swift) built for iOS 13,
 #   tvOS 13, watchOS 6 and visionOS 1 with Xcode 16.4, so an API newer than a platform's floor
 #   fails here. Xcode 16 deploys back to iOS 12, so each floor is built as declared, and 16.4 is
@@ -23,16 +35,16 @@
 #   tvOS and watchOS another, so a run uses 5 macOS jobs, as many as a free plan runs at once.
 # Hardening as in ci.yml: standard GitHub-hosted runners only, never a larger runner (those are
 # billed) and no self-hosted Mac. Every action is pinned to a full commit SHA with the version in a
-# comment, each job reads the repo and nothing else, and no checkout keeps the token. Runner
-# labels and Xcode versions are pinned and bumped by hand. No build cache, so nothing a cache holds
-# reaches a run that gates a release.
+# comment, each job reads the repo and nothing else (the oldest Xcode job also uploads its CodeQL
+# results), and no checkout keeps the token. Runner labels and Xcode versions are pinned and
+# bumped by hand. No build cache, so nothing a cache holds reaches a run that gates a release.
 name: Apple platform checks
 
 on:
   workflow_call:
     inputs:
       docs-only:
-        description: The change touches only docs no build reads, so every job is skipped
+        description: Only docs no build reads changed, so every job but the Swift scan is skipped
         type: boolean
         default: false
   workflow_dispatch:
@@ -41,24 +53,37 @@ permissions: {}
 
 jobs:
   macos:
-    name: Tests on macOS (Xcode ${{ matrix.xcode }})
+    name: Tests on macOS (Xcode 26.6)
     if: ${{ !github.event.pull_request.draft && !inputs.docs-only }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: macos-26
     timeout-minutes: 30
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - xcode: "26.6"
-            runner: macos-26
-            lowest: false
-          - xcode: "16.0"
-            runner: macos-15
-            lowest: true
     env:
-      DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Test, with warnings as errors
+        run: |
+          swift --version
+          swift test -Xswiftc -warnings-as-errors
+
+  # Its own job, not a matrix entry beside the newest Xcode, so only this job gets the permission
+  # to upload code scanning results.
+  macos-lowest:
+    name: Tests on macOS (Xcode 16.0)
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: macos-15
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.0.app/Contents/Developer
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,7 +91,7 @@ jobs:
           persist-credentials: false
 
       - name: Resolve the lowest swift-syntax Package.swift allows
-        if: ${{ matrix.lowest }}
+        if: ${{ !inputs.docs-only }}
         run: |
           floor=$(sed -n 's|.*/swift-syntax", "\([0-9][0-9.]*\)"\.\.<.*|\1|p' Package.swift)
           if [[ -z "$floor" ]]; then
@@ -78,9 +103,29 @@ jobs:
           echo "Testing with swift-syntax $floor."
 
       - name: Test, with warnings as errors
+        if: ${{ !inputs.docs-only }}
         run: |
           swift --version
           swift test -Xswiftc -warnings-as-errors
+
+      # The scan runs even when the tests failed, so every commit gets a Swift result.
+      - name: Set up CodeQL
+        if: ${{ !cancelled() }}
+        uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          languages: swift
+          build-mode: manual
+          queries: security-extended
+
+      - name: Build the package for CodeQL
+        if: ${{ !cancelled() }}
+        run: swift build --force-resolved-versions --scratch-path .build-codeql
+
+      - name: Analyze with CodeQL
+        if: ${{ !cancelled() }}
+        uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          category: /language:swift
 
   ios:
     name: Tests on an iOS simulator (Xcode 26.6)
@@ -177,20 +222,26 @@ jobs:
 
   gate:
     name: Apple builds and tests
-    needs: [macos, ios, platforms]
+    needs: [macos, macos-lowest, ios, platforms]
     if: ${{ always() && !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}
     steps:
-      # A docs-only change skips every job on purpose, so it passes.
+      # A docs-only change skips every job but the CodeQL scan in the oldest Xcode job on purpose,
+      # so it passes once that scan passed.
       - name: Check that every job passed
         env:
           DOCS_ONLY: ${{ inputs.docs-only }}
+          LOWEST: ${{ needs.macos-lowest.result }}
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           if [[ "$DOCS_ONLY" == "true" ]]; then
-            echo "Docs-only change: no build reads these files, so the checks were skipped."
+            if [[ "$LOWEST" != "success" ]]; then
+              echo "::error::The CodeQL Swift scan didn't pass: $LOWEST."
+              exit 1
+            fi
+            echo "Docs-only change: no build reads these files, so only the Swift scan ran."
             exit 0
           fi
           echo "Job results: $RESULTS"

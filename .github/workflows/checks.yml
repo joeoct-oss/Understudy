@@ -13,12 +13,14 @@
 #    (benchmarks.yml) and mutation testing of the changed sources (mutation.yml), all on pull
 #    requests only.
 # - A pull request that changes only Markdown files at the root or the LICENSE runs stages 1 and 2
-#   and skips the tests: the Linux and Apple gates still report, so it can merge.
+#   and skips the tests: the Linux and Apple gates still report, so it can merge. The CodeQL Swift
+#   scan still runs on it (apple.yml), since the code scanning rule waits for a Swift result.
 # - CodeRabbit, CodeQL and Gitar are apps outside this workflow, and each gates the merge itself
 #   (Yousef, 2026-11-27). CodeRabbit: a required check, its approval as the required review, and
 #   every thread resolved. CodeQL: the ruleset's code scanning rule fails a PR with a new security
-#   alert of high severity or higher, or any error. Gitar: the required "Gitar" check, and changes
-#   requested on any finding of important severity or higher.
+#   alert of high severity or higher, or any error, from codeql.yml (workflows, Python) or the
+#   Swift scan in the oldest Xcode Apple job (apple.yml). Gitar: the required "Gitar" check, and
+#   changes requested on any finding of important severity or higher.
 # - The branch name check stays in its own workflow: it runs no package code and is the same file
 #   in every repo.
 # - Drafts are skipped until they are ready for review. A newer push cancels the run still going
@@ -219,12 +221,20 @@ jobs:
           # this job on any upload error. The job's continue-on-error keeps the run passing.
           fail_ci_if_error: true
 
+  # One pull request's Apple checks run at a time, since they fill the 5 macOS jobs a free plan
+  # runs at once: a later one waits instead of sharing the jobs (Yousef, 2026-11-27). GitHub keeps
+  # one waiting run per group, so a third replaces the waiting one, which then needs a re-run.
+  # Main's Apple checks run from the release workflow, outside this group, and are never held.
   apple:
     name: Apple platform checks
     needs: [fast, linux]
     if: github.event_name == 'pull_request'
+    concurrency:
+      group: apple-pull-requests
+      cancel-in-progress: false
     permissions:
       contents: read
+      security-events: write
     uses: ./.github/workflows/apple.yml # zizmor: ignore[self-repository]
     with:
       docs-only: ${{ needs.fast.outputs.docs-only == 'true' }}
@@ -255,4 +265,5 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: write
+      security-events: write
     uses: ./.github/workflows/release.yml # zizmor: ignore[self-repository]
