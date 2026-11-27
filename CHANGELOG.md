@@ -10,7 +10,7 @@ All notable changes to this package are listed here. The format follows [Keep a 
 
 ### Changed
 
-- For contributors: a pull request's author can no longer approve it by commenting `@coderabbitai approve`, so the approval that `main` needs comes from CodeRabbit's review. Only members of the organization can chat with CodeRabbit. Nothing in the package changes.
+- For contributors: a pull request's author can no longer approve it by commenting `@coderabbitai approve`. Another member of the organization still can. Only members of the organization can chat with CodeRabbit. Nothing in the package changes.
 
 ## 1.0.1 - 2026-11-27
 
