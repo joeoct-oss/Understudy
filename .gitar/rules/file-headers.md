@@ -2,7 +2,7 @@
 title: "New source files carry the author header"
 description: "Every new Swift, shell or Python file opens with the package's file header"
 type: check
-when: "PRs that add or rename a .swift, .sh or .py file"
+when: "Every pull request: the header part applies to added or renamed .swift, .sh and .py files, the attribution part to every added line and commit message"
 actions: "Mark the check unmet and name each file whose header is missing or wrong"
 ---
 

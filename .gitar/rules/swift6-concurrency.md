@@ -17,7 +17,8 @@ The check is met when the changed code keeps all of these:
 - `@unchecked Sendable` and `nonisolated(unsafe)` appear only with a comment above the type or
   value that names the lock guarding every mutable stored value, the way `CallOrder` and
   `HeldCall` do. Each new mutable stored value in such a type is read and written under that lock.
-- A type is `Sendable` only when every value it stores is, and its conformance comment says so.
+- A checked `Sendable` conformance holds only `Sendable` values, and its conformance comment
+  says so. An `@unchecked Sendable` type may hold other values only under the lock above.
 - No `@preconcurrency` on a conformance or import, no mutable global or `static var`, and no
   `MainActor.assumeIsolated` or `unsafeBitCast` to get around an isolation error.
 - Spies and the code the macros generate carry no actor: no `@MainActor` or other global actor

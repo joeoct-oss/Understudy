@@ -2,7 +2,7 @@
 title: "Macros refuse with a diagnostic, never a crash"
 description: "Every macro path the user's syntax can reach ends in code or a diagnostic"
 type: check
-when: "PRs that change Swift files under Sources/UnderstudyMacros/ or Sources/UnderstudySamplesMacros/"
+when: "PRs that change Swift files under Sources/UnderstudyMacros/ or Sources/UnderstudySamplesMacros/, or the macro declarations in Sources/Understudy/Macros.swift or Sources/UnderstudySamples/Sample.swift"
 actions: "Mark the check unmet and name each file and line that breaks it"
 ---
 

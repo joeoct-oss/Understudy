@@ -17,8 +17,8 @@ A change is breaking when it:
 - drops a public protocol conformance, `Sendable` included;
 - adds a protocol requirement without a default, or a case to a public enum;
 - changes what a public macro generates in a way user code can see: a member's name, type,
-  access level or isolation, a removed member, or a shape the macro used to accept and now
-  refuses;
+  access level or isolation, a removed member, a shape the macro used to accept and now
+  refuses, or what a generated member records, answers or throws;
 - raises a platform minimum, `swift-tools-version` or the lowest swift-syntax in `Package.swift`.
 
 The check is met when the PR has no breaking change, or `CHANGELOG.md` gains an entry under

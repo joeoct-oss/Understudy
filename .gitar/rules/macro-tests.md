@@ -14,10 +14,11 @@ This package does not compare expanded text: never ask for `assertMacroExpansion
 
 The check is met when:
 
-- Each newly accepted shape is added to the accepted doubles in
-  `Tests/UnderstudyMacrosTests/Fixtures/` (or `SampleExpansionTests` for `@Sample`), and a test
-  in `Tests/UnderstudyTests/` uses it in source so the compiler builds the generated double, and
-  checks what it records and answers.
+- Each shape the spy macros newly accept is added to the accepted doubles in
+  `Tests/UnderstudyMacrosTests/Fixtures/`, and a test in `Tests/UnderstudyTests/` uses it in
+  source so the compiler builds the generated double, and checks what it records and answers.
+- `@Sample` writes no double, so a shape it newly accepts is pinned in `SampleExpansionTests`,
+  and the sample value it builds in `Tests/UnderstudySamplesTests/SampleTests.swift`.
 - Each new refusal or changed diagnostic is in the refused doubles or shapes, with its message,
   line, column and any fix-it and the code that fix-it gives.
 - A test checks expanded text only for what a running test can't show: a stop message, the
