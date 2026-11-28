@@ -67,7 +67,9 @@ ATTRIBUTION = [
     ),
     # Any claude.ai link: a session, a project or thread, an artifact, a chat or a share. The
     # "Requested by" credit line at the top of a body carries a project link, so it fails here.
-    re.compile(r"\bclaude\.ai/", re.IGNORECASE),
+    # A bare site link ends at the host: "https://claude.ai" or "https://claude.ai." both fail,
+    # while a longer host such as claude.ai.example.com passes.
+    re.compile(r"\bclaude\.ai/|https?://([\w-]+\.)*claude\.ai(?![\w-]|\.\w)", re.IGNORECASE),
     # The hidden credit comment at the top of a generated body.
     re.compile(r"claude-projects-attribution", re.IGNORECASE),
 ]
@@ -385,6 +387,9 @@ REQUESTED_BY = f"_Requested by **Someone** · {PROJECT_LINK}_"
 CREDIT_COMMENT = "<!-- claude-projects-" + 'attribution: {"github_login":"someone"} -->'
 ARTIFACT_LINK = f"{CLAUDE_AI}/code/artifact/abc"
 SHARE_LINK = f"{CLAUDE_AI}/share/abc"
+ROOT_LINK = f"See {CLAUDE_AI}."
+SUBDOMAIN_LINK = "See https://www.claude" + ".ai"
+LONGER_HOST = "See https://claude" + ".ai.example.com/docs and https://notclaude" + ".ai/x"
 WRITTEN_WITH = "Written " + f"with {CLAUDE_CODE}"
 MADE_USING = "Made " + "using ChatGPT"
 
@@ -402,9 +407,9 @@ CHANGELOG_SAMPLE = """# Changelog
 """
 
 
-def self_check_cases():
-    """Each case is (name, errors found, errors expected): the table the self-check runs."""
-    cases = [
+def template_cases():
+    """The template and one-issue cases."""
+    return [
         ("a filled-in body passes the template", template_errors(FILLED, SAMPLE_TEMPLATE), 0),
         ("the bare template fails", template_errors(SAMPLE_TEMPLATE, SAMPLE_TEMPLATE), 3),
         (
@@ -422,6 +427,12 @@ def self_check_cases():
         ("two closing lines fail", issue_errors("Closes #1\nFixes #2\n"), 1),
         ("one line closing two issues fails", issue_errors("Closes #1, closes #2\n"), 1),
         ("the template's placeholder fails", issue_errors(SAMPLE_TEMPLATE), 1),
+    ]
+
+
+def changelog_entry_cases():
+    """The CHANGELOG cases where the pull request adds lines to it."""
+    return [
         (
             "a line under Unreleased passes",
             changelog_errors(CHANGELOG_SAMPLE, [7], [CHANGELOG], FILLED, SAMPLE_TEMPLATE),
@@ -455,11 +466,6 @@ def self_check_cases():
             2,
         ),
         (
-            "no entry with a package change fails",
-            changelog_errors("", [], ["Sources/A.swift"], FILLED, SAMPLE_TEMPLATE),
-            1,
-        ),
-        (
             "an edited Unreleased heading alone fails",
             changelog_errors(CHANGELOG_SAMPLE, [3, 5], [CHANGELOG], FILLED, SAMPLE_TEMPLATE),
             1,
@@ -491,6 +497,17 @@ def self_check_cases():
             ),
             0,
         ),
+    ]
+
+
+def changelog_without_entry_cases():
+    """The CHANGELOG cases where the pull request adds no entry."""
+    return [
+        (
+            "no entry with a package change fails",
+            changelog_errors("", [], ["Sources/A.swift"], FILLED, SAMPLE_TEMPLATE),
+            1,
+        ),
         (
             "a changelog that only loses lines fails",
             changelog_errors(CHANGELOG_SAMPLE, [], [CHANGELOG], FILLED, SAMPLE_TEMPLATE),
@@ -512,8 +529,11 @@ def self_check_cases():
             ),
             0,
         ),
-        ("a plain body passes", attribution_errors("Add a check", FILLED, ["Add a check"], {}), 0),
     ]
+
+
+def body_and_title_attribution_cases():
+    """Each credit form in the body, the credit lines at its top, and the title."""
     in_body = [
         ("a footer", FOOTER),
         ("a robot footer", ROBOT_FOOTER),
@@ -524,8 +544,13 @@ def self_check_cases():
         ("the hidden credit comment", CREDIT_COMMENT),
         ("an artifact link", ARTIFACT_LINK),
         ("a share link", SHARE_LINK),
+        ("a site root link", ROOT_LINK),
+        ("a subdomain link", SUBDOMAIN_LINK),
         ("a written-with line", WRITTEN_WITH),
         ("a made-using line", MADE_USING),
+    ]
+    cases = [
+        ("a plain body passes", attribution_errors("Add a check", FILLED, ["Add a check"], {}), 0),
     ]
     cases += [
         (
@@ -543,6 +568,14 @@ def self_check_cases():
         ),
         ("a credit in the title fails", attribution_errors(WRITTEN_WITH, "", [], {}), 1),
         ("a link in the title fails", attribution_errors(SESSION_LINK, "", [], {}), 1),
+        ("a longer host name passes", attribution_errors(LONGER_HOST, LONGER_HOST, [], {}), 0),
+    ]
+    return cases
+
+
+def commit_attribution_cases():
+    """Credit in commit messages."""
+    return [
         (
             "a co-author trailer fails",
             attribution_errors("", "", [f"Fix\n\n{TRAILER}"], {}),
@@ -564,6 +597,12 @@ def self_check_cases():
             attribution_errors("", "", [f"Fix\n\n{SESSION_LINK}"], {}),
             1,
         ),
+    ]
+
+
+def added_line_cases():
+    """Credit and private references in the lines a pull request adds."""
+    return [
         (
             "a footer in a file fails",
             attribution_errors("", "", [], {"README.md": [FOOTER]}),
@@ -605,6 +644,11 @@ def self_check_cases():
             0,
         ),
     ]
+
+
+def patch_cases():
+    """How a patch's added lines are read."""
+    cases = []
     patch = "--- a/n.md\n+++ b/n.md\n@@ -0,0 +1,2 @@\n+++ looks like a header\n+second\n"
     for name, separator in (("a line separator", "\u2028"), ("a carriage return", "\r")):
         odd = f"--- a/n.md\n+++ b/n.md\n@@ -0,0 +1,2 @@\n+one{separator}two\n+filler\n"
@@ -623,6 +667,19 @@ def self_check_cases():
         )
     )
     return cases
+
+
+def self_check_cases():
+    """Each case is (name, errors found, errors expected): the table the self-check runs."""
+    return (
+        template_cases()
+        + changelog_entry_cases()
+        + changelog_without_entry_cases()
+        + body_and_title_attribution_cases()
+        + commit_attribution_cases()
+        + added_line_cases()
+        + patch_cases()
+    )
 
 
 def self_check():
