@@ -69,9 +69,11 @@ ATTRIBUTION = [
     # "Requested by" credit line at the top of a body carries a project link, so it fails here.
     # The host must be claude.ai or one of its subdomains: a bare site link ("https://claude.ai",
     # or the same with a full stop after it) fails, while a longer host such as
-    # claude.ai.example.com or one that only ends in the name, such as not-claude.ai, passes.
+    # claude.ai.example.com or one that only ends in the name, such as not-claude.ai, passes. A
+    # link's user information is skipped, so the host after an "@" is the one that counts.
     re.compile(
-        r"(?<![\w.-])([\w-]+\.)*claude\.ai/|https?://([\w-]+\.)*claude\.ai(?![\w-]|\.\w)",
+        r"(?<![\w.@-])([\w-]+\.)*claude\.ai/"
+        r"|https?://([^\s/@]*@)?([\w-]+\.)*claude\.ai(?![\w@-]|\.\w)",
         re.IGNORECASE,
     ),
     # The hidden credit comment at the top of a generated body.
@@ -396,6 +398,8 @@ SUBDOMAIN_LINK = "See https://www.claude" + ".ai"
 LONGER_HOST = "See https://claude" + ".ai.example.com/docs and https://notclaude" + ".ai/x"
 HYPHENATED_HOST = "See https://not-claude" + ".ai/docs and docs.not-claude" + ".ai/x"
 BARE_SUBDOMAIN_PATH = "See www.claude" + ".ai/x"
+USER_INFO_LINK = "See https://reader@claude" + ".ai"
+OTHER_HOST_USER_INFO = "See https://claude" + ".ai@example.com/docs"
 WRITTEN_WITH = "Written " + f"with {CLAUDE_CODE}"
 MADE_USING = "Made " + "using ChatGPT"
 
@@ -596,6 +600,12 @@ def title_and_host_cases():
         ("a longer host name passes", attribution_errors(LONGER_HOST, LONGER_HOST, [], {}), 0),
         ("a hyphenated host name passes", attribution_errors(HYPHENATED_HOST, "", [], {}), 0),
         ("a subdomain path fails", attribution_errors(BARE_SUBDOMAIN_PATH, "", [], {}), 1),
+        ("a link with user information fails", attribution_errors(USER_INFO_LINK, "", [], {}), 1),
+        (
+            "user information naming the site passes",
+            attribution_errors(OTHER_HOST_USER_INFO, "", [], {}),
+            0,
+        ),
     ]
 
 
