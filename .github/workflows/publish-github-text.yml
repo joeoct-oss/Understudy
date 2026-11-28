@@ -1,0 +1,56 @@
+# Publishes the pull request, issue and comment text that cloud work pushes in a text commit,
+# with Yousef's own token, so GitHub's first revision is the clean one (Yousef, 2026-11-28).
+# Text written to GitHub from the cloud gets a tool credit line added on the way, and the edit
+# history keeps it; commits pushed with git are untouched, so the text travels in a commit.
+# scripts/publish-github-text.py is the one home for the file format and the rules; this file
+# only starts it on a push.
+# - Runs on a push to a claude/ branch whose commits change .github/text-to-publish/. The pushed
+#   commit must be Verified and change only that folder. The work under it is moved onto the
+#   pull request's head branch, then the pushed branch is moved back to the work, so the text
+#   files never land. A forced push, such as that move back, doesn't run it.
+# - The push runs this file as it is on the pushed commit, so it works on a branch before it is
+#   on main. The token can post as Yousef in this repo, so only people who can push can use it.
+# - UNDERSTUDY_TEXT_PUBLISHER_TOKEN holds "Understudy GitHub text publisher", a fine-grained
+#   personal access token of Yousef's: owner joeoct-oss, the Understudy repos only, Contents,
+#   Issues, Pull requests and Workflows set to read and write, expiring on 2027-11-28. It lives
+#   in Settings > Secrets and variables > Actions.
+# The same file is in every repo.
+# Hardening: a free GitHub-hosted Linux runner, actions pinned to a full commit SHA, the checkout
+# keeps no token, and the job's own token can only read; the secret does the writing.
+name: Publish GitHub text
+
+on:
+  push:
+    branches: ["claude/**"]
+    paths: [".github/text-to-publish/**"]
+
+permissions: {}
+
+concurrency:
+  group: publish-github-text-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  post:
+    name: Publish GitHub text
+    if: github.event.deleted == false && github.event.forced == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the script itself
+        run: python3 -I scripts/publish-github-text.py --self-check
+
+      - name: Publish the text
+        env:
+          UNDERSTUDY_TEXT_PUBLISHER_TOKEN: ${{ secrets.UNDERSTUDY_TEXT_PUBLISHER_TOKEN }}
+          TEXT_COMMIT: ${{ github.sha }}
+          PUSHED_BRANCH: ${{ github.ref_name }}
+        run: python3 -I scripts/publish-github-text.py
