@@ -3,9 +3,10 @@
 # the branch rule, so "Automatically delete head branches" never removes the claude/ one.
 # scripts/delete-unused-claude-branches.py is the one home for which branches go and how; this
 # file only schedules it and hands it the workflow's token.
-# - Every day, and by hand from the Actions tab, where "Dry run" lists what it would delete and
-#   deletes nothing. The run summary lists each deleted branch with its commit, so one can be put
-#   back from that commit.
+# - Every day at 3:00 AM Cairo time (cron reads UTC, so 01:00 UTC; 4:00 AM in Cairo during
+#   Egypt's summer time), and by hand from the Actions tab, where "Dry run" lists what it would
+#   delete and deletes nothing. The run summary lists each deleted branch with its commit, so one
+#   can be put back from that commit.
 # - Only main, so a changed copy of this file on another branch never deletes anything.
 # - A failed run means nothing or only part was deleted; the next day's run tries again.
 # The same file is in every repo.
@@ -16,7 +17,7 @@ name: Delete unused claude branches
 
 on:
   schedule:
-    - cron: "41 4 * * *"
+    - cron: "0 1 * * *"
   workflow_dispatch:
     inputs:
       dry-run:
