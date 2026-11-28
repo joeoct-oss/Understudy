@@ -93,7 +93,7 @@ reviews:
     enabled: true
     allow_author_approval: false
   # The pull request rules as checks (Yousef, 2026-11-26). The required "Pull request rules"
-  # job (.github/workflows/pr-rules.yml, scripts/check-pr-rules.py) decides the four yes-or-no
+  # job (.github/workflows/pr-rules.yml, scripts/check-pr-rules.py) decides the yes-or-no
   # rules exactly and reruns when the title or body is edited. The checks of the same names here
   # explain a failure in words and only warn, like the judgment calls: in error mode a model's
   # misreading would withhold the approval until a push or a comment. Dependabot's own PRs

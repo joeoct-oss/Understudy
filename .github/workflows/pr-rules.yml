@@ -1,6 +1,7 @@
 # Fails a pull request that breaks a yes-or-no pull request rule (Yousef, 2026-11-26): the
 # template filled in, one issue per PR, a CHANGELOG entry under Unreleased, and no AI or tool
-# attribution (in the title, body, commits or added lines) or private planning references.
+# attribution (in the title, body, commits or added lines) or private planning references, and
+# no file under .github/text-to-publish/ (2026-11-28), which never merges.
 # scripts/check-pr-rules.py holds the rules and checks itself first. It reruns when the title or
 # body is edited, so fixing them clears it with no new push. CodeRabbit's pre-merge checks of the
 # same names explain a failure in words.
