@@ -1,8 +1,8 @@
 # Posts new code scanning and secret scanning alerts to Slack #security, because GitHub's Slack app
 # doesn't send them and they no longer come by email. scripts/post-security-alerts.sh does the work
 # and is the one home for what gets posted; this file only schedules it and hands it its tokens.
-# - Every 2 hours, and by hand from the Actions tab. It reads the window from its own runs, so a
-#   late or failed run loses nothing.
+# - Every 2 hours on the hour, and by hand from the Actions tab. It reads the window from its own
+#   runs, so a late or failed run loses nothing.
 # - Its secrets live in the "security-alerts" environment, which only main may use, so a run from
 #   any other branch, even with this file changed, never gets them: SLACK_SECURITY_WEBHOOK_URL,
 #   the #security incoming webhook of the OSS Alerts Slack app, and SECRET_SCANNING_TOKEN, a
@@ -15,7 +15,7 @@ name: Security alerts
 
 on:
   schedule:
-    - cron: "23 */2 * * *"
+    - cron: "0 */2 * * *"
   workflow_dispatch:
 
 permissions: {}

@@ -6,7 +6,8 @@
 #   Tools/ExpansionRecord instead of the package and scanned 3 of 76 Swift files.
 # - Actions and Python need no build, so they run on Linux with build-mode none, on every pull
 #   request to main (drafts too, so the gate has results by the time one is ready), on pushes to
-#   main, and weekly for queries added since the last push.
+#   main, and on Mondays at 6:00 AM Cairo time for queries added since the last push (cron
+#   reads UTC, so 04:00 UTC; 7:00 AM in Cairo during Egypt's summer time).
 # - The Swift in Sources/ is scanned in the oldest Xcode job of the Apple platform checks, since
 #   CodeQL reads Swift only on macOS and that job already has a macOS runner (Yousef, 2026-11-27).
 #   apple.yml says when it runs.
@@ -20,7 +21,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "17 4 * * 1"
+    - cron: "0 4 * * 1"
   workflow_dispatch:
 
 permissions: {}

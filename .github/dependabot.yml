@@ -1,11 +1,14 @@
 # Keeps the pinned actions and swift-syntax current. Each ecosystem gets one grouped pull request a
-# month. The swift images in ci.yml are pinned by digest and bumped by hand in the actions PR.
+# month, at 3:00 AM Cairo time. The swift images in ci.yml are pinned by digest and bumped by hand
+# in the actions PR.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+      time: "03:00"
+      timezone: Africa/Cairo
     groups:
       actions:
         patterns: ["*"]
@@ -14,6 +17,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+      time: "03:00"
+      timezone: Africa/Cairo
     groups:
       swift-packages:
         patterns: ["*"]

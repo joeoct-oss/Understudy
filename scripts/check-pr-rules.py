@@ -26,6 +26,9 @@ The rules (Yousef, 2026-11-26), each as one check:
   credit comment. Nothing is exempt, so the credit lines a tool puts at the top of a body fail
   too (Yousef, 2026-11-28: text posted from the cloud is cleaned after, and this check is the
   net that holds the merge until it is).
+- No text to publish: nothing under .github/text-to-publish/ changes. Those files carry the text
+  scripts/publish-github-text.py publishes, and that script never moves them onto a pull
+  request's branch, so one there was pushed by hand and must be taken out before the merge.
 
 Pull requests Dependabot opened from its own dependabot/ branch carry no template and pass.
 CodeRabbit's pre-merge checks of the same names explain a failure in words; this script decides.
@@ -87,6 +90,7 @@ PRIVATE_REFS = [
     re.compile(r"\b[A-Za-z]+-planning\b"),
     re.compile(r"\bdecisions?\s+\d{3,4}\b", re.IGNORECASE),
 ]
+TEXT_FOLDER = ".github/text-to-publish/"
 CLOSING = re.compile(r"^\s*(closes|fixes|resolves)\b", re.IGNORECASE)
 PART_OF = re.compile(r"^\s*part of\b", re.IGNORECASE)
 # A reference is "#n" or "owner/repo#n"; counting the "#n" part is enough.
@@ -261,6 +265,12 @@ def attribution_errors(title, body, commit_messages, added, added_numbers=None):
     return sorted(set(errors))
 
 
+def unpublished_text_errors(changed):
+    """The changed files under the text folder, which never merge."""
+    return [f"{path} is text to publish, which never merges; remove it from the branch"
+            for path in changed if path.startswith(TEXT_FOLDER)]
+
+
 GIT = shutil.which("git") or "git"
 
 
@@ -341,6 +351,7 @@ def run():
         "No attribution or private refs": attribution_errors(
             os.environ.get("PR_TITLE", ""), body, messages, added, numbers
         ),
+        "No text to publish": unpublished_text_errors(changed),
     }
     failed = False
     for name, errors in checks.items():
@@ -785,6 +796,16 @@ def patch_cases():
     return cases
 
 
+def unpublished_text_cases():
+    """The text folder never merges."""
+    return [
+        ("a text file to publish fails",
+         unpublished_text_errors([".github/text-to-publish/pull-request.md", "README.md"]), 1),
+        ("a file merely named text-to-publish elsewhere passes",
+         unpublished_text_errors(["docs/text-to-publish/notes.md"]), 0),
+    ]
+
+
 def self_check_cases():
     """Each case is (name, errors found, errors expected): the table the self-check runs."""
     return (
@@ -799,6 +820,7 @@ def self_check_cases():
         + added_line_cases()
         + private_reference_cases()
         + patch_cases()
+        + unpublished_text_cases()
     )
 
 

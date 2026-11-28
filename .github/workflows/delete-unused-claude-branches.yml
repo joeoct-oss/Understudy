@@ -1,0 +1,56 @@
+# Deletes the claude/ branches that no open pull request uses, once a day (Yousef, 2026-11-28).
+# Cloud work pushes to its own claude/ branch and opens the pull request from a branch named by
+# the branch rule, so "Automatically delete head branches" never removes the claude/ one.
+# scripts/delete-unused-claude-branches.py is the one home for which branches go and how; this
+# file only schedules it and hands it the workflow's token.
+# - Every day at 3:00 AM Cairo time (cron reads UTC, so 01:00 UTC; 4:00 AM in Cairo during
+#   Egypt's summer time), and by hand from the Actions tab, where "Dry run" lists what it would
+#   delete and deletes nothing. The run summary lists each deleted branch with its commit, so one
+#   can be put back from that commit.
+# - Only main, so a changed copy of this file on another branch never deletes anything.
+# - A failed run means nothing or only part was deleted; the next day's run tries again.
+# The same file is in every repo.
+# Hardening: a free GitHub-hosted Linux runner, actions pinned to a full commit SHA,
+# the checkout keeps no token, and the job gets only the permissions it uses: contents: write to
+# delete branches (with a git push), pull-requests: read to see the open pull requests.
+name: Delete unused claude branches
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: List the branches it would delete, and delete nothing
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: delete-unused-claude-branches
+  cancel-in-progress: false
+
+jobs:
+  delete:
+    name: Delete unused claude branches
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the script itself
+        run: python3 -I scripts/delete-unused-claude-branches.py --self-check
+
+      - name: Delete unused claude branches
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry-run == true }}
+        run: python3 -I scripts/delete-unused-claude-branches.py
