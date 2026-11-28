@@ -215,8 +215,8 @@ def self_check_cases():
     and each kind of drift it must catch."""
     fixture = self_check_fixtures()
 
-    def article_problems(article, guides=fixture["test"]):
-        return problems({"a.md": article}, {}, {}, guides)
+    def article_problems(article, guides=None):
+        return problems({"a.md": article}, {}, {}, fixture["test"] if guides is None else guides)
 
     def tutorial_problems(steps, guides):
         return problems({}, {"t": fixture["tutorial"]}, steps, guides)[0]
