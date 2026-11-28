@@ -20,8 +20,10 @@ A leg is skipped in two cases:
   since, on the pull request or on the base (base_changes), and, for the Linux leg, no release
   was published since the workflow run of that pass began, as its public API check compares
   with the latest release (latest_release and check_passed; a release tagged on a commit the
-  pull request already has counts too). This is what a merge from main that brings only docs or
-  config gets: the tests that passed before the merge stay valid. The earlier commits are the
+  pull request already has counts too). This is what a merge from main that brings only root
+  Markdown or config gets: the tests that passed before the merge stay valid. A DocC catalog
+  file or scripts/build-docs.sh is the Linux leg's, which builds the docs, so a merge that
+  brings one runs that leg again instead of reusing its pass. The earlier commits are the
   pull request's own, followed by first parent from the head, newest first, up to MAX_COMMITS;
   the result is the leg's check run on that commit, made by GitHub Actions and read with the
   run's GITHUB_TOKEN.
