@@ -1,0 +1,13 @@
+@Tutorials(name: "Understudy") {
+    @Intro(title: "Write test doubles with Understudy") {
+        Give a test a stand-in for a real dependency, script what it answers, and check how your code called it.
+    }
+
+    @Chapter(name: "Your first test double") {
+        Add Understudy to a test target, write a double for a protocol with one macro, and test a screen with it.
+
+        @Image(source: "understudy-tutorials.png", alt: "Understudy: pure Swift test doubles that stand in for the real thing. A mask with a dashed second mask behind it.")
+
+        @TutorialReference(tutorial: "doc:WriteYourFirstTestDouble")
+    }
+}

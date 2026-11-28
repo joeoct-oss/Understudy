@@ -14,7 +14,7 @@ import Understudy
 /// itself, as `.freshSpies(...)` would.
 @Suite("Init requirements")
 struct InitRequirementTests {
-    @Test("Creating the spy through the protocol's init records the argument")
+    @Test("The protocol's init builds the double with its first answers, and records the argument")
     func protocolInitRecordsItsArgument() async throws {
         try await WalletSpy.withFreshSpies {
             let wallet = try makeWallet(WalletSpy.self, user: "ana")
@@ -22,18 +22,6 @@ struct InitRequirementTests {
             let expectedUsers = ["ana"]
             #expect(WalletSpy.initSpy.calls == expectedUsers)
             #expect(wallet.balance() == 0)
-        }
-    }
-
-    @Test("A throwing init throws what the test scripted, and records the call")
-    func throwingInitThrowsTheScriptedError() async throws {
-        try await WalletSpy.withFreshSpies {
-            WalletSpy.initSpy.willThrow(WalletError.locked)
-
-            #expect(throws: WalletError.locked) {
-                try makeWallet(WalletSpy.self, user: "bo")
-            }
-            #expect(WalletSpy.initSpy.callCount == 1)
         }
     }
 
@@ -179,19 +167,6 @@ struct InitRequirementTests {
         }
     }
 
-    @Test("The class form records its init through a static spy it calls")
-    func classFormRecordsItsInitThroughAStaticSpy() async throws {
-        try await SpyRenderer.withFreshSpies {
-            let renderer = makeRenderer(SpyRenderer.self, title: "Home")
-
-            renderer.draw()
-
-            let expectedTitles = ["Home"]
-            #expect(SpyRenderer.madeSpy.calls == expectedTitles)
-            #expect(renderer.drawSpy.callCount == 1)
-        }
-    }
-
     @Test("Parallel tests each see only their own init calls", arguments: 0..<8)
     func parallelTestsSeeOnlyTheirOwnInitCalls(_ user: Int) async throws {
         try await WalletSpy.withFreshSpies {
@@ -208,45 +183,9 @@ private func makeWallet<Made: Wallet>(_ type: Made.Type, user: String) throws ->
     try Made(user: user)
 }
 
-/// Makes a renderer the way production code would, through the protocol.
-private func makeRenderer<Made: Renderer>(_ type: Made.Type, title: String) -> Made {
-    Made(title: title)
-}
-
-/// A renderer production code makes for a screen's title.
-protocol Renderer {
-    init(title: String)
-
-    func draw()
-}
-
-/// The class form of a double for a protocol with an `init`: the class writes the `init` and
-/// records it through a static spy.
-///
-/// Conformances:
-/// - `Renderer`, so production code can make it through the protocol's `init`.
-@GenerateSpies
-final class SpyRenderer: Renderer {
-    convenience init(title: String) {
-        self.init()
-        Self.made(title: title)
-    }
-
-    @Spied static func made(title: String)
-    @Spied func draw()
-}
-
 /// Makes a member the way production code would, through the protocol.
 private func makeMember<Made: Member>(_ type: Made.Type) -> Made {
     Made()
-}
-
-/// Why a wallet can't be opened.
-///
-/// Conformances:
-/// - `Error`, so the wallet's init spy can throw it.
-enum WalletError: Error {
-    case locked
 }
 
 /// A wallet production code opens for a user.

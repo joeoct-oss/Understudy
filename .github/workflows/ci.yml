@@ -26,6 +26,9 @@
 #   a change that would break a user's code fails here. A deliberate break belongs in a new major
 #   version: list each one, as the job prints it, in .github/api-breakage-allowlist.txt, and
 #   delete that file once the major version is released and becomes the new baseline.
+# - Docs build: the DocC catalog (Sources/Understudy/Understudy.docc) and the API docs, with
+#   warnings as errors (scripts/build-docs.sh). The fast checks compare the catalog's examples
+#   with the guide tests (scripts/check-doc-examples.py), which the coverage job runs.
 # - Workflow lint and the size limits run in the checks workflow's fast checks, before this one.
 # Hardening: free GitHub-hosted Linux runners only; the Apple checks (apple.yml) have the macOS
 # jobs. Every action is pinned to a full commit SHA and every image to a digest, with the version in
@@ -267,9 +270,29 @@ jobs:
             swift package diagnose-api-breaking-changes "$latest" --products Understudy
           fi
 
+  docs:
+    name: Docs build (Swift 6.4)
+    if: ${{ !github.event.pull_request.draft && !inputs.skip-tests }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    container:
+      image: swift:6.4.3@sha256:e0f67c4120502628d4ced5058df25d334332e21501ae1a0797fd0c0a96486e79
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The DocC catalog and the API docs, with warnings as errors, so a broken link or tutorial
+      # directive fails here instead of on the Swift Package Index.
+      - name: Build the docs, with warnings as errors
+        run: scripts/build-docs.sh
+
   gate:
     name: Linux build and tests
-    needs: [coverage, budget, tsan, swift, lowest, swift5, api]
+    needs: [coverage, budget, tsan, swift, lowest, swift5, api, docs]
     if: ${{ always() && !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -285,7 +308,7 @@ jobs:
           PR_RESULTS: >-
             ${{ needs.coverage.result }} ${{ needs.budget.result }} ${{ needs.tsan.result }}
             ${{ needs.lowest.result }}
-            ${{ needs.swift5.result }} ${{ needs.api.result }}
+            ${{ needs.swift5.result }} ${{ needs.api.result }} ${{ needs.docs.result }}
         run: |
           if [[ "$SKIP_TESTS" == "true" ]]; then
             echo "No file these checks read changed since they last passed, so they were skipped."
