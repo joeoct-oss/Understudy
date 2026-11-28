@@ -443,7 +443,7 @@ try await SessionSpy.withFreshSpies {
 }
 ```
 
-The spy's own initializer, `SessionSpy(ping: 3)`, is unchanged and records nothing. When the protocol declares `init()` and the spy's own initializer would take nothing, the protocol's `init()` is the spy's, so the test's own `SessionSpy()` is recorded too. `initSpy` is a static spy, so run the test's body in `withFreshSpies` (see [Static members](#static-members)). A failable or generic `init`, and an `init` next to an associated type or in a protocol that inherits one with a spy, need the class form.
+The spy's own initializer, `SessionSpy(ping: 3)`, is unchanged and records nothing; under a global actor, a `nonisolated` `init` stays `nonisolated` on the spy, and so does the spy's own initializer. When the protocol declares `init()` and the spy's own initializer would take nothing, the protocol's `init()` is the spy's, so the test's own `SessionSpy()` is recorded too. `initSpy` is a static spy, so run the test's body in `withFreshSpies` (see [Static members](#static-members)). A failable or generic `init`, and an `init` next to an associated type or in a protocol that inherits one with a spy, need the class form.
 
 **Inherited protocols.** When the parent protocol has `@GenerateSpies` too, the child's spy stores the parent's spy and answers the parent's requirements through it. The child's initializer takes each parent's spy, first, so the parent's answers are set where its spy is made, and the test reads the parent's spies on the child's:
 
