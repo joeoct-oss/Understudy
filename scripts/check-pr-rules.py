@@ -18,13 +18,20 @@ The rules (Yousef, 2026-11-26), each as one check:
 - CHANGELOG: an added line under "## Unreleased" (or a new version heading, for a release). With
   no CHANGELOG change, nothing under Sources/ or in Package.swift may change, and the body's
   "Docs and CHANGELOG" section says why in a line of its own.
-- No attribution: no AI or tool credit in the body, the commit messages or the added lines, and
-  no added line citing a private planning issue, a planning repo or a numbered decision.
+- No attribution: no AI or tool credit in the title, the body, the commit messages or the added
+  lines, and no added line citing a private planning issue, a planning repo or a numbered
+  decision. Credit means a "Generated", "Written", "Created" or "Made" with, by or using line
+  naming an AI tool, a Co-Authored-By trailer naming one, a Claude-Session trailer, any claude.ai
+  link (a session, a project or thread, an artifact, a chat or a share), and the hidden project
+  credit comment. Nothing is exempt, so the credit lines a tool puts at the top of a body fail
+  too (Yousef, 2026-11-28: text posted from the cloud is cleaned after, and this check is the
+  net that holds the merge until it is).
 
 Pull requests Dependabot opened from its own dependabot/ branch carry no template and pass.
 CodeRabbit's pre-merge checks of the same names explain a failure in words; this script decides.
 
-Usage: check-pr-rules.py             reads PR_BODY, PR_AUTHOR, HEAD_REF, BASE_SHA, HEAD_SHA
+Usage: check-pr-rules.py             reads PR_TITLE, PR_BODY, PR_AUTHOR, HEAD_REF, BASE_SHA,
+                                     HEAD_SHA
        check-pr-rules.py --self-check  runs its own cases and exits
 """
 
@@ -50,15 +57,31 @@ AUTHOR_TEXT_SECTIONS = [WHAT, MERGE, TESTS]
 # These files hold the patterns below, so their own lines would always match.
 PATTERN_FILES = {"scripts/check-pr-rules.py", "scripts/check-public-text.sh", ".coderabbit.yaml"}
 
-AI_TOOLS = r"(claude|anthropic|copilot|codex|cursor|chatgpt|openai|gemini|devin)"
+# The tool's name can't run on into a letter or digit, so "cursors" or "Devinder" is plain text.
+# An underscore may follow it, as in Markdown emphasis, so "_Made using ChatGPT_" still fails.
+AI_TOOLS = r"(claude|anthropic|copilot|codex|cursor|chatgpt|openai|gemini|devin)(?![a-z0-9])"
 ATTRIBUTION = [
     re.compile(r"co-authored-by:.*" + AI_TOOLS, re.IGNORECASE),
-    re.compile(r"^\s*claude-session:", re.IGNORECASE),
-    re.compile(r"generated (with|by)\W*(github\W+)?" + AI_TOOLS, re.IGNORECASE),
-    re.compile(r"claude\.ai/code/session", re.IGNORECASE),
+    re.compile(r"\bclaude-session\s*:", re.IGNORECASE),
+    re.compile(
+        r"(generated|written|created|made)[*_]*\s+[*_]*(with|by|using)[\W_]*(github[\W_]+)?"
+        + AI_TOOLS,
+        re.IGNORECASE,
+    ),
+    # Any claude.ai link: a session, a project or thread, an artifact, a chat or a share. The
+    # "Requested by" credit line at the top of a body carries a project link, so it fails here.
+    # The host must be claude.ai or one of its subdomains: a bare site link ("https://claude.ai",
+    # or the same with a full stop after it) fails, while a longer host such as
+    # claude.ai.example.com or one that only ends in the name, such as not-claude.ai, passes. A
+    # link's user information is skipped, so the host after an "@" is the one that counts.
+    re.compile(
+        r"(?<![\w.@-])([\w-]+\.)*claude\.ai/"
+        r"|https?://([^\s/@]*@)?([\w-]+\.)*claude\.ai(?![\w@-]|\.\w)",
+        re.IGNORECASE,
+    ),
+    # The hidden credit comment at the top of a generated body.
+    re.compile(r"claude-projects-attribution", re.IGNORECASE),
 ]
-# The two credit lines at the top of a body: an HTML comment and a "Requested by" line.
-CREDIT_LINE = re.compile(r"^\s*(<!-- claude-projects-attribution:.*-->|_Requested by .*_)\s*$")
 PRIVATE_REFS = [
     re.compile(r"planning\s*#\s*\d+", re.IGNORECASE),
     re.compile(r"\b[A-Za-z]+-planning\b"),
@@ -180,23 +203,58 @@ def credits_a_tool(line):
     return any(pattern.search(line) for pattern in ATTRIBUTION)
 
 
-def attribution_errors(body, commit_messages, added):
-    """added maps each changed file to its added lines."""
+def credit_errors(where, text):
+    """Each line of the text that credits a tool, or, when the credit is wrapped over several
+    lines (as in a Markdown paragraph), the wrapped part."""
     errors = [
-        f'the body credits an AI or tool: "{line.strip()[:80]}"'
-        for line in body.splitlines()
-        if not CREDIT_LINE.match(line) and credits_a_tool(line)
-    ]
-    errors += [
-        f'a commit message credits an AI or tool: "{line.strip()[:80]}"'
-        for message in commit_messages
-        for line in message.splitlines()
+        f'{where} credits an AI or tool: "{line.strip()[:80]}"'
+        for line in text.splitlines()
         if credits_a_tool(line)
     ]
+    if errors:
+        return errors
+    for pattern in ATTRIBUTION:
+        match = pattern.search(text)
+        if match:
+            wrapped = " ".join(match.group(0).split())
+            return [f'{where} credits an AI or tool over several lines: "{wrapped[:80]}"']
+    return []
+
+
+def added_blocks(lines, numbers):
+    """The added lines joined into blocks of consecutive lines, so a credit wrapped over two
+    added lines is seen whole while lines from separate hunks are never joined. Without
+    numbers, the lines count as one block."""
+    if not numbers:
+        return ["\n".join(lines)] if lines else []
+    blocks = []
+    block = []
+    previous = None
+    for number, line in zip(numbers, lines, strict=True):
+        if block and number != previous + 1:
+            blocks.append("\n".join(block))
+            block = []
+        block.append(line)
+        previous = number
+    if block:
+        blocks.append("\n".join(block))
+    return blocks
+
+
+def attribution_errors(title, body, commit_messages, added, added_numbers=None):
+    """added maps each changed file to its added lines, and added_numbers maps it to their line
+    numbers."""
+    errors = []
+    if credits_a_tool(title):
+        errors.append(f'the title credits an AI or tool: "{title.strip()[:80]}"')
+    errors += credit_errors("the body", body)
+    for message in commit_messages:
+        errors += credit_errors("a commit message", message)
     for path, lines in added.items():
         if path in PATTERN_FILES:
             continue
-        if any(credits_a_tool(line) for line in lines):
+        numbers = (added_numbers or {}).get(path, [])
+        if any(credits_a_tool(block) for block in added_blocks(lines, numbers)):
             errors.append(f"{path} adds AI or tool attribution")
         if any(pattern.search(line) for line in lines for pattern in PRIVATE_REFS):
             errors.append(f"{path} adds a private planning or decision reference")
@@ -280,7 +338,9 @@ def run():
         "CHANGELOG under Unreleased": changelog_errors(
             changelog, numbers.get(CHANGELOG, []), changed, body, template
         ),
-        "No attribution or private refs": attribution_errors(body, messages, added),
+        "No attribution or private refs": attribution_errors(
+            os.environ.get("PR_TITLE", ""), body, messages, added, numbers
+        ),
     }
     failed = False
     for name, errors in checks.items():
@@ -292,7 +352,8 @@ def run():
             print(f"{name}: passes")
     if failed:
         print(
-            f"Fix the body or the branch, as {TEMPLATE} asks. Editing the body reruns this.",
+            f"Fix the title, the body or the branch, as {TEMPLATE} asks. Editing the title or"
+            " the body reruns this.",
             file=sys.stderr,
         )
     return 1 if failed else 0
@@ -323,10 +384,7 @@ Closes <owner/repo>#<issue>
 - [ ] Code follows `CODE_STYLE.md`
 """
 
-FILLED = """<!-- claude-projects-attribution: {"github_login":"someone"} -->
-_Requested by **Someone** · [project thread](https://claude.ai/code/project/x)_
-
-Closes owner/repo#12
+FILLED = """Closes owner/repo#12
 Part of owner/repo#10
 
 ## What changed and why
@@ -356,10 +414,36 @@ PLANNING_ISSUE = "planning" + " #12"
 PLANNING_REPO = "Waypoint-" + "planning"
 DECISION = "decision" + " 0012"
 # The attribution samples are built in pieces too, so the file adds no attribution itself.
-FOOTER = "_Generated " + "by [Claude Code](https://x)_"
+CLAUDE_CODE = "Claude" + " Code"
+CLAUDE_AI = "https://claude" + ".ai"
+FOOTER = "_Generated " + f"by [{CLAUDE_CODE}]({CLAUDE_AI}/code)_"
+ROBOT_FOOTER = "🤖 Generated " + f"with [{CLAUDE_CODE}](https://claude.com/claude-code)"
 COPILOT = "Generated " + "by GitHub Copilot"
 TRAILER = "Co-Authored-" + "By: Claude <noreply@anthropic.com>"
+ANTHROPIC_TRAILER = "Co-authored-" + "by: someone <noreply@anthropic.com>"
 SESSION = "Claude-" + "Session: x"
+INDENTED_SESSION = "  Claude-" + "Session: x"
+SESSION_LINK = f"See {CLAUDE_AI}/code/session_01ABC"
+PROJECT_LINK = f"[project thread]({CLAUDE_AI}/code/project/chan_01?thread=cmsg_01)"
+REQUESTED_BY = f"_Requested by **Someone** · {PROJECT_LINK}_"
+CREDIT_COMMENT = "<!-- claude-projects-" + 'attribution: {"github_login":"someone"} -->'
+ARTIFACT_LINK = f"{CLAUDE_AI}/code/artifact/abc"
+SHARE_LINK = f"{CLAUDE_AI}/share/abc"
+ROOT_LINK = f"See {CLAUDE_AI}."
+SUBDOMAIN_LINK = "See https://www.claude" + ".ai"
+LONGER_HOST = "See https://claude" + ".ai.example.com/docs and https://notclaude" + ".ai/x"
+HYPHENATED_HOST = "See https://not-claude" + ".ai/docs and docs.not-claude" + ".ai/x"
+BARE_SUBDOMAIN_PATH = "See www.claude" + ".ai/x"
+USER_INFO_LINK = "See https://reader@claude" + ".ai"
+OTHER_HOST_USER_INFO = "See https://claude" + ".ai@example.com/docs"
+WRITTEN_WITH = "Written " + f"with {CLAUDE_CODE}"
+MADE_USING = "Made " + "using ChatGPT"
+WRAPPED_CREDIT = "Written " + "with\nClaude Code"
+WRAPPED_LINES = WRAPPED_CREDIT.split("\n")
+TOOL_AS_WORD_PART = "Made with cursors instead of arrays."
+EMPHASIZED_CREDIT = "_Made " + "using ChatGPT_"
+EMPHASIZED_TOOL = "Made " + "with _ChatGPT_"
+EMPHASIZED_VERB = "**Written** " + f"with {CLAUDE_CODE}"
 
 CHANGELOG_SAMPLE = """# Changelog
 
@@ -375,9 +459,9 @@ CHANGELOG_SAMPLE = """# Changelog
 """
 
 
-def self_check_cases():
-    """Each case is (name, errors found, errors expected): the table the self-check runs."""
-    cases = [
+def template_cases():
+    """The template and one-issue cases."""
+    return [
         ("a filled-in body passes the template", template_errors(FILLED, SAMPLE_TEMPLATE), 0),
         ("the bare template fails", template_errors(SAMPLE_TEMPLATE, SAMPLE_TEMPLATE), 3),
         (
@@ -395,6 +479,12 @@ def self_check_cases():
         ("two closing lines fail", issue_errors("Closes #1\nFixes #2\n"), 1),
         ("one line closing two issues fails", issue_errors("Closes #1, closes #2\n"), 1),
         ("the template's placeholder fails", issue_errors(SAMPLE_TEMPLATE), 1),
+    ]
+
+
+def changelog_entry_cases():
+    """The CHANGELOG cases about where an added entry sits."""
+    return [
         (
             "a line under Unreleased passes",
             changelog_errors(CHANGELOG_SAMPLE, [7], [CHANGELOG], FILLED, SAMPLE_TEMPLATE),
@@ -405,6 +495,23 @@ def self_check_cases():
             changelog_errors(CHANGELOG_SAMPLE, [11], [CHANGELOG], FILLED, SAMPLE_TEMPLATE),
             2,
         ),
+        (
+            "an entry that starts with an issue number passes",
+            changelog_errors(
+                CHANGELOG_SAMPLE.replace("- New thing.", "#12: New thing."),
+                [7],
+                [CHANGELOG],
+                FILLED,
+                SAMPLE_TEMPLATE,
+            ),
+            0,
+        ),
+    ]
+
+
+def changelog_release_heading_cases():
+    """The CHANGELOG cases about a new release heading."""
+    return [
         (
             "a release heading passes",
             changelog_errors(
@@ -427,11 +534,12 @@ def self_check_cases():
             ),
             2,
         ),
-        (
-            "no entry with a package change fails",
-            changelog_errors("", [], ["Sources/A.swift"], FILLED, SAMPLE_TEMPLATE),
-            1,
-        ),
+    ]
+
+
+def changelog_heading_cases():
+    """The CHANGELOG cases about editing a heading."""
+    return [
         (
             "an edited Unreleased heading alone fails",
             changelog_errors(CHANGELOG_SAMPLE, [3, 5], [CHANGELOG], FILLED, SAMPLE_TEMPLATE),
@@ -453,16 +561,16 @@ def self_check_cases():
             ),
             1,
         ),
+    ]
+
+
+def changelog_without_entry_cases():
+    """The CHANGELOG cases where the pull request adds no entry."""
+    return [
         (
-            "an entry that starts with an issue number passes",
-            changelog_errors(
-                CHANGELOG_SAMPLE.replace("- New thing.", "#12: New thing."),
-                [7],
-                [CHANGELOG],
-                FILLED,
-                SAMPLE_TEMPLATE,
-            ),
-            0,
+            "no entry with a package change fails",
+            changelog_errors("", [], ["Sources/A.swift"], FILLED, SAMPLE_TEMPLATE),
+            1,
         ),
         (
             "a changelog that only loses lines fails",
@@ -485,40 +593,178 @@ def self_check_cases():
             ),
             0,
         ),
-        ("the credit lines pass", attribution_errors(FILLED, ["Add a check"], {}), 0),
+    ]
+
+
+def body_attribution_cases():
+    """Each credit form in the body, and the credit lines at its top."""
+    in_body = [
+        ("a footer", FOOTER),
+        ("a robot footer", ROBOT_FOOTER),
+        ("a vendor-first footer", COPILOT),
+        ("a session link", SESSION_LINK),
+        ("a project link", PROJECT_LINK),
+        ("a Requested by credit line", REQUESTED_BY),
+        ("the hidden credit comment", CREDIT_COMMENT),
+        ("an artifact link", ARTIFACT_LINK),
+        ("a share link", SHARE_LINK),
+        ("a site root link", ROOT_LINK),
+        ("a subdomain link", SUBDOMAIN_LINK),
+        ("a written-with line", WRITTEN_WITH),
+        ("a made-using line", MADE_USING),
+    ]
+    cases = [
+        ("a plain body passes", attribution_errors("Add a check", FILLED, ["Add a check"], {}), 0),
+    ]
+    cases += [
         (
-            "a footer in the body fails",
-            attribution_errors(FILLED + f"\n{FOOTER}\n", [], {}),
+            f"{name} in the body fails",
+            attribution_errors("", FILLED + f"\n{line}\n", [], {}),
+            1,
+        )
+        for name, line in in_body
+    ]
+    cases += [
+        (
+            "the credit lines at the top of a body fail",
+            attribution_errors("", f"{CREDIT_COMMENT}\n{REQUESTED_BY}\n\n{FILLED}", [], {}),
+            2,
+        ),
+    ]
+    return cases
+
+
+def title_and_host_cases():
+    """Credit in the title, and which host names count as the site."""
+    return [
+        ("a credit in the title fails", attribution_errors(WRITTEN_WITH, "", [], {}), 1),
+        ("a link in the title fails", attribution_errors(SESSION_LINK, "", [], {}), 1),
+        ("a longer host name passes", attribution_errors(LONGER_HOST, LONGER_HOST, [], {}), 0),
+        (
+            "a credit wrapped over two lines fails",
+            attribution_errors("", WRAPPED_CREDIT, [], {}),
             1,
         ),
+        (
+            "a credit wrapped in a commit fails",
+            attribution_errors("", "", [f"Fix\n\n{WRAPPED_CREDIT}"], {}),
+            1,
+        ),
+        (
+            "a tool name inside a longer word passes",
+            attribution_errors(TOOL_AS_WORD_PART, TOOL_AS_WORD_PART, [TOOL_AS_WORD_PART], {}),
+            0,
+        ),
+        ("a credit in emphasis fails", attribution_errors(EMPHASIZED_CREDIT, "", [], {}), 1),
+        ("a tool name in emphasis fails", attribution_errors(EMPHASIZED_TOOL, "", [], {}), 1),
+        ("a verb in emphasis fails", attribution_errors(EMPHASIZED_VERB, "", [], {}), 1),
+        ("a hyphenated host name passes", attribution_errors(HYPHENATED_HOST, "", [], {}), 0),
+        ("a subdomain path fails", attribution_errors(BARE_SUBDOMAIN_PATH, "", [], {}), 1),
+        ("a link with user information fails", attribution_errors(USER_INFO_LINK, "", [], {}), 1),
+        (
+            "user information naming the site passes",
+            attribution_errors(OTHER_HOST_USER_INFO, "", [], {}),
+            0,
+        ),
+    ]
+
+
+def commit_attribution_cases():
+    """Credit in commit messages."""
+    return [
         (
             "a co-author trailer fails",
-            attribution_errors("", [f"Fix\n\n{TRAILER}"], {}),
+            attribution_errors("", "", [f"Fix\n\n{TRAILER}"], {}),
             1,
         ),
-        ("a session line fails", attribution_errors("", [f"Fix\n\n{SESSION}"], {}), 1),
-        ("a vendor-first footer fails", attribution_errors(COPILOT, [], {}), 1),
+        (
+            "an anthropic co-author fails",
+            attribution_errors("", "", [f"Fix\n\n{ANTHROPIC_TRAILER}"], {}),
+            1,
+        ),
+        ("a session line fails", attribution_errors("", "", [f"Fix\n\n{SESSION}"], {}), 1),
+        (
+            "an indented session line fails",
+            attribution_errors("", "", [f"Fix\n\n{INDENTED_SESSION}"], {}),
+            1,
+        ),
+        (
+            "a link in a commit fails",
+            attribution_errors("", "", [f"Fix\n\n{SESSION_LINK}"], {}),
+            1,
+        ),
+    ]
+
+
+def added_line_cases():
+    """Credit in the lines a pull request adds."""
+    return [
+        (
+            "a footer in a file fails",
+            attribution_errors("", "", [], {"README.md": [FOOTER]}),
+            1,
+        ),
+        (
+            "a project link in a file fails",
+            attribution_errors("", "", [], {"docs/notes.md": [PROJECT_LINK]}),
+            1,
+        ),
+        (
+            "a credit wrapped over two added lines fails",
+            attribution_errors(
+                "", "", [], {"README.md": WRAPPED_LINES}, {"README.md": [4, 5]}
+            ),
+            1,
+        ),
+        (
+            "a credit split across two hunks passes",
+            attribution_errors(
+                "", "", [], {"README.md": WRAPPED_LINES}, {"README.md": [4, 9]}
+            ),
+            0,
+        ),
+        (
+            "this file's own patterns pass",
+            attribution_errors("", "", [], {"scripts/check-pr-rules.py": [FOOTER]}),
+            0,
+        ),
+    ]
+
+
+def private_reference_cases():
+    """Private planning references in added lines, and plain text that passes."""
+    return [
         (
             "a planning reference in a file fails",
-            attribution_errors("", [], {"README.md": [f"See {PLANNING_ISSUE}."]}),
+            attribution_errors("", "", [], {"README.md": [f"See {PLANNING_ISSUE}."]}),
             1,
         ),
         (
             "a planning repo name in a file fails",
-            attribution_errors("", [], {"a.swift": [f"// in {PLANNING_REPO}"]}),
+            attribution_errors("", "", [], {"a.swift": [f"// in {PLANNING_REPO}"]}),
             1,
         ),
         (
             "a numbered decision in a file fails",
-            attribution_errors("", [], {"a.md": [f"As {DECISION} says."]}),
+            attribution_errors("", "", [], {"a.md": [f"As {DECISION} says."]}),
             1,
         ),
         (
             "plain text passes",
-            attribution_errors("", [], {"a.md": ["Plan the route, then decide."]}),
+            attribution_errors(
+                "Plan the release",
+                "",
+                ["Add a plan"],
+                {"a.md": ["Plan the route, then decide.", "Made with care by hand."]},
+            ),
             0,
         ),
     ]
+
+
+def patch_cases():
+    """How a patch's added lines are read."""
+    cases = []
     patch = "--- a/n.md\n+++ b/n.md\n@@ -0,0 +1,2 @@\n+++ looks like a header\n+second\n"
     for name, separator in (("a line separator", "\u2028"), ("a carriage return", "\r")):
         odd = f"--- a/n.md\n+++ b/n.md\n@@ -0,0 +1,2 @@\n+one{separator}two\n+filler\n"
@@ -537,6 +783,23 @@ def self_check_cases():
         )
     )
     return cases
+
+
+def self_check_cases():
+    """Each case is (name, errors found, errors expected): the table the self-check runs."""
+    return (
+        template_cases()
+        + changelog_entry_cases()
+        + changelog_release_heading_cases()
+        + changelog_heading_cases()
+        + changelog_without_entry_cases()
+        + body_attribution_cases()
+        + title_and_host_cases()
+        + commit_attribution_cases()
+        + added_line_cases()
+        + private_reference_cases()
+        + patch_cases()
+    )
 
 
 def self_check():
