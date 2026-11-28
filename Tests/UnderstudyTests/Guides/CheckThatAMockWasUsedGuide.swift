@@ -32,7 +32,7 @@ struct CheckThatAMockWasUsedGuide {
         analytics.trackSpy.verify()
     }
 
-    @Test(.verifiesMocks)
+    @Test("Paying sends one payment event", .verifiesMocks)
     func payingSendsOnePaymentEvent() {
         analytics.trackSpy.expect("paid")
 

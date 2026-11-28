@@ -10,7 +10,7 @@ import Testing
 import Understudy
 
 struct DishScreenTests {
-    @Test
+    @Test("The screen shows the dish's name")
     func showsTheDishesName() {
         let menu = SpyMenu()
         menu.dishSpy.willReturn(Dish(number: 7, name: "Soup"))
@@ -20,7 +20,7 @@ struct DishScreenTests {
         #expect(screen.title == "Soup")
     }
 
-    @Test
+    @Test("The screen asks the menu for the dish it was opened with")
     func asksTheMenuForTheDishItWasOpenedWith() {
         let menu = SpyMenu()
 

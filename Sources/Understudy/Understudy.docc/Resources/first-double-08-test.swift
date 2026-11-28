@@ -11,7 +11,7 @@ import Understudy
 
 @Suite(.verifiesMocks)
 struct DishScreenTests {
-    @Test
+    @Test("The screen shows the dish's name")
     func showsTheDishesName() {
         let menu = SpyMenu()
         menu.dishSpy.willReturn(Dish(number: 7, name: "Soup"))
@@ -21,7 +21,7 @@ struct DishScreenTests {
         #expect(screen.title == "Soup")
     }
 
-    @Test
+    @Test("The screen asks the menu for the dish it was opened with")
     func asksTheMenuForTheDishItWasOpenedWith() {
         let menu = SpyMenu()
 
@@ -31,7 +31,7 @@ struct DishScreenTests {
         #expect(menu.dishSpy.calls == expectedIDs)
     }
 
-    @Test
+    @Test("The screen asks the menu once for a missing dish")
     func asksTheMenuOnceForAMissingDish() {
         let menu = SpyMenu()
         menu.dishSpy.expect(7)

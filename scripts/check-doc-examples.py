@@ -152,10 +152,17 @@ def problems(articles, tutorials, resources, guides):
 
 def read_tree():
     """The catalog's articles, tutorials and code files, and the guide tests, from the repo."""
-    articles = {str(path.relative_to(ROOT)): path.read_text() for path in sorted(CATALOG.rglob("*.md"))}
-    tutorials = {str(path.relative_to(ROOT)): path.read_text() for path in sorted(CATALOG.rglob("*.tutorial"))}
-    resources = {path.name: path.read_text() for path in sorted(CATALOG.rglob("*.swift"))}
-    guides = {str(path.relative_to(ROOT)): path.read_text() for path in sorted(GUIDES.rglob("*.swift"))}
+
+    def texts(folder, pattern, key):
+        return {key(path): path.read_text(encoding="utf-8") for path in sorted(folder.rglob(pattern))}
+
+    def relative(path):
+        return str(path.relative_to(ROOT))
+
+    articles = texts(CATALOG, "*.md", relative)
+    tutorials = texts(CATALOG, "*.tutorial", relative)
+    resources = texts(CATALOG, "*.swift", lambda path: path.name)
+    guides = texts(GUIDES, "*.swift", relative)
     return articles, tutorials, resources, guides
 
 
@@ -164,20 +171,48 @@ def self_check():
     test = {"Guides/A.swift": "// header\n\nprivate final class Spy {\n    func call() {\n        run()\n    }\n}\n"}
     article = "# A\n\n```swift\nfinal class Spy {\n  func call() {\n      run()\n\n  }\n```\n"
     drifted = "# A\n\n```swift\nfinal class Spy {\n    func call() {\n        walk()\n```\n"
-    manifest = "# A\n\n<!-- not compiled: a package manifest -->\n```swift\nlet package = Package()\n```\n"
-    tutorial = '@Section(title: "A") {\n@Code(name: "S.swift", file: "s1.swift")\n@Code(name: "S.swift", file: "s2.swift")\n}'
-    steps = {"s1.swift": "// header\nfinal class Spy {\n}\n", "s2.swift": "final class Spy {\nfunc call() {\nrun()\n}\n}"}
-    bad_steps = {"s1.swift": "final class Other {\n}\n", "s2.swift": steps["s2.swift"]}
+    marker = "<!-- not compiled: a package manifest -->\n"
+    manifest = "# A\n\n" + marker + "```swift\nlet package = Package()\n```\n"
+    unmarked = manifest.replace(marker, "")
+    tutorial = (
+        '@Section(title: "A") {\n'
+        '@Code(name: "S.swift", file: "s1.swift")\n'
+        '@Code(name: "S.swift", file: "s2.swift")\n'
+        "}"
+    )
+    last_step = "final class Spy {\nfunc call() {\nrun()\n}\n}"
+    steps = {"s1.swift": "// header\nfinal class Spy {\n}\n", "s2.swift": last_step}
+    bad_steps = {"s1.swift": "final class Other {\n}\n", "s2.swift": last_step}
+    holding_test = {"G.swift": last_step}
+    other_test = {"G.swift": "final class Spy {}"}
+    manifest_tutorial = {"t": '@Code(name: "Package", file: "package.swift")'}
+    manifest_file = {"package.swift": "// swift-tools-version: 6.0\nlet package = Package()"}
     cases = [
         ("an example in a guide test passes", problems({"a.md": article}, {}, {}, test)[0], []),
         ("a drifted example fails", len(problems({"a.md": drifted}, {}, {}, test)[0]), 1),
-        ("a marked manifest is listed, not checked", problems({"a.md": manifest}, {}, {}, test), ([], ["a.md:5: a package manifest"])),
-        ("an unmarked manifest fails", len(problems({"a.md": manifest.replace("<!-- not compiled: a package manifest -->\n", "")}, {}, {}, test)[0]), 1),
-        ("a tutorial's steps that build to its last file pass", problems({}, {"t": tutorial}, steps, {"G.swift": steps["s2.swift"]})[0], []),
-        ("a step that isn't part of the last file fails", len(problems({}, {"t": tutorial}, bad_steps, {"G.swift": steps["s2.swift"]})[0]), 1),
-        ("a last file no test holds fails", len(problems({}, {"t": tutorial}, steps, {"G.swift": "final class Spy {}"})[0]), 1),
+        (
+            "a marked manifest is listed, not checked",
+            problems({"a.md": manifest}, {}, {}, test),
+            ([], ["a.md:5: a package manifest"]),
+        ),
+        ("an unmarked manifest fails", len(problems({"a.md": unmarked}, {}, {}, test)[0]), 1),
+        (
+            "a tutorial's steps that build to its last file pass",
+            problems({}, {"t": tutorial}, steps, holding_test)[0],
+            [],
+        ),
+        (
+            "a step that isn't part of the last file fails",
+            len(problems({}, {"t": tutorial}, bad_steps, holding_test)[0]),
+            1,
+        ),
+        ("a last file no test holds fails", len(problems({}, {"t": tutorial}, steps, other_test)[0]), 1),
         ("a missing code file fails", len(problems({}, {"t": tutorial}, {}, {})[0]), 2),
-        ("a tutorial manifest is listed", problems({}, {"t": '@Code(name: "P", file: "p.swift")'}, {"p.swift": "// swift-tools-version: 6.0\nlet p = 1"}, {})[1], ["p.swift: a package manifest"]),
+        (
+            "a tutorial manifest is listed",
+            problems({}, manifest_tutorial, manifest_file, {})[1],
+            ["package.swift: a package manifest"],
+        ),
     ]
     failed = [name for name, actual, expected in cases if actual != expected]
     for name in failed:
@@ -200,7 +235,10 @@ def main():
     for line in errors:
         print(f"error: {line}", file=sys.stderr)
     if errors:
-        print("Write each example in a test under Tests/UnderstudyTests/Guides/ exactly as the docs show it.", file=sys.stderr)
+        print(
+            "Write each example in a test under Tests/UnderstudyTests/Guides/ exactly as the docs show it.",
+            file=sys.stderr,
+        )
         return 1
     print("Every example in the docs is in a guide test.")
     return 0

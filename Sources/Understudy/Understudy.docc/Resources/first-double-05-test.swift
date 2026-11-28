@@ -10,7 +10,7 @@ import Testing
 import Understudy
 
 struct DishScreenTests {
-    @Test
+    @Test("The screen shows the dish's name")
     func showsTheDishesName() {
         let menu = SpyMenu()
 

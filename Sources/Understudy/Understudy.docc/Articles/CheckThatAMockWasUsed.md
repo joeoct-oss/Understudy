@@ -22,7 +22,7 @@ analytics.trackSpy.verify()
 With `.verifiesMocks` on a test or a suite, every spy given an expectation is checked when the test ends, so a forgotten `verify()` can't pass silently. An unmet expectation is reported at its `expect` line:
 
 ```swift
-@Test(.verifiesMocks)
+@Test("Paying sends one payment event", .verifiesMocks)
 func payingSendsOnePaymentEvent() {
     analytics.trackSpy.expect("paid")
 
