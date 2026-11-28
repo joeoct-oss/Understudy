@@ -273,8 +273,8 @@ await task.value
 ```swift
 screen.startPolling()
 
-let id = try #require(await catalog.productSpy.nextCall())
-#expect(id == 7)
+let productID = try #require(await catalog.productSpy.nextCall())
+#expect(productID == 7)
 ```
 
 `nextCall()` gives each call once, in order, or `nil` when none comes in time (`within:`, one second by default).
@@ -551,7 +551,7 @@ import UnderstudySamples
 
 @Sample
 public struct Product: Equatable {
-    let id: UUID
+    let productID: UUID
     let name: String
     let price: Decimal
     var stock: Int = 5
