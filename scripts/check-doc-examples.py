@@ -178,59 +178,86 @@ def read_tree():
     return articles, tutorials, resources, guides
 
 
-def self_check():
-    """Runs the script's own cases: what passes, and each kind of drift it must catch."""
-    test = {"Guides/A.swift": "// header\n\nprivate final class Spy {\n    func call() {\n        run()\n    }\n}\n"}
-    article = "# A\n\n```swift\nfinal class Spy {\n  func call() {\n      run()\n\n  }\n```\n"
-    drifted = "# A\n\n```swift\nfinal class Spy {\n    func call() {\n        walk()\n```\n"
+def self_check_fixtures():
+    """The texts the self-check cases run `problems` on, by name."""
     marker = "<!-- not compiled: a package manifest -->\n"
     manifest = "# A\n\n" + marker + "```swift\nlet package = Package()\n```\n"
-    unmarked = manifest.replace(marker, "")
-    tutorial = (
-        '@Section(title: "A") {\n'
-        '@Code(name: "S.swift", file: "s1.swift")\n'
-        '@Code(name: "S.swift", file: "s2.swift")\n'
-        "}"
-    )
     last_step = "final class Spy {\nfunc call() {\nrun()\n}\n}"
-    steps = {"s1.swift": "// header\nfinal class Spy {\n}\n", "s2.swift": last_step}
-    bad_steps = {"s1.swift": "final class Other {\n}\n", "s2.swift": last_step}
-    holding_test = {"G.swift": last_step}
-    other_test = {"G.swift": "final class Spy {}"}
-    long_fence = "# A\n\n```swift\nfinal class Spy {\n    func call() {\n        run()\n````\n\nProse after it.\n"
-    testable = {"Guides/A.swift": "import Understudy\nfinal class Spy {\n}\n"}
-    importing = "# A\n\n```swift\n@testable import Restaurant\nimport Understudy\nfinal class Spy {\n}\n```\n"
-    manifest_tutorial = {"t": '@Code(name: "Package", file: "package.swift")'}
-    manifest_file = {"package.swift": "// swift-tools-version: 6.0\nlet package = Package()"}
-    cases = [
-        ("an example in a guide test passes", problems({"a.md": article}, {}, {}, test)[0], []),
-        ("a drifted example fails", len(problems({"a.md": drifted}, {}, {}, test)[0]), 1),
+    return {
+        "test": {
+            "Guides/A.swift": "// header\n\nprivate final class Spy {\n    func call() {\n        run()\n    }\n}\n"
+        },
+        "article": "# A\n\n```swift\nfinal class Spy {\n  func call() {\n      run()\n\n  }\n```\n",
+        "drifted": "# A\n\n```swift\nfinal class Spy {\n    func call() {\n        walk()\n```\n",
+        "manifest": manifest,
+        "unmarked": manifest.replace(marker, ""),
+        "tutorial": (
+            '@Section(title: "A") {\n'
+            '@Code(name: "S.swift", file: "s1.swift")\n'
+            '@Code(name: "S.swift", file: "s2.swift")\n'
+            "}"
+        ),
+        "steps": {"s1.swift": "// header\nfinal class Spy {\n}\n", "s2.swift": last_step},
+        "bad_steps": {"s1.swift": "final class Other {\n}\n", "s2.swift": last_step},
+        "holding_test": {"G.swift": last_step},
+        "other_test": {"G.swift": "final class Spy {}"},
+        "long_fence": "# A\n\n```swift\nfinal class Spy {\n    func call() {\n        run()\n````\n\nProse after it.\n",
+        "testable": {"Guides/A.swift": "import Understudy\nfinal class Spy {\n}\n"},
+        "importing": "# A\n\n```swift\n@testable import Restaurant\nimport Understudy\nfinal class Spy {\n}\n```\n",
+        "manifest_tutorial": {"t": '@Code(name: "Package", file: "package.swift")'},
+        "manifest_file": {"package.swift": "// swift-tools-version: 6.0\nlet package = Package()"},
+    }
+
+
+def self_check_cases():
+    """The script's own cases, as (name, what `problems` gave, what it should give): what passes,
+    and each kind of drift it must catch."""
+    fixture = self_check_fixtures()
+
+    def article_problems(article, guides=fixture["test"]):
+        return problems({"a.md": article}, {}, {}, guides)
+
+    def tutorial_problems(steps, guides):
+        return problems({}, {"t": fixture["tutorial"]}, steps, guides)[0]
+
+    return [
+        ("an example in a guide test passes", article_problems(fixture["article"])[0], []),
+        ("a drifted example fails", len(article_problems(fixture["drifted"])[0]), 1),
         (
             "a marked manifest is listed, not checked",
-            problems({"a.md": manifest}, {}, {}, test),
+            article_problems(fixture["manifest"]),
             ([], ["a.md:5: a package manifest"]),
         ),
-        ("an unmarked manifest fails", len(problems({"a.md": unmarked}, {}, {}, test)[0]), 1),
+        ("an unmarked manifest fails", len(article_problems(fixture["unmarked"])[0]), 1),
         (
             "a tutorial's steps that build to its last file pass",
-            problems({}, {"t": tutorial}, steps, holding_test)[0],
+            tutorial_problems(fixture["steps"], fixture["holding_test"]),
             [],
         ),
         (
             "a step that isn't part of the last file fails",
-            len(problems({}, {"t": tutorial}, bad_steps, holding_test)[0]),
+            len(tutorial_problems(fixture["bad_steps"], fixture["holding_test"])),
             1,
         ),
-        ("a last file no test holds fails", len(problems({}, {"t": tutorial}, steps, other_test)[0]), 1),
-        ("a longer closing fence ends the block", problems({"a.md": long_fence}, {}, {}, test)[0], []),
-        ("an @testable import line is left out", problems({"a.md": importing}, {}, {}, testable)[0], []),
-        ("a missing code file fails", len(problems({}, {"t": tutorial}, {}, {})[0]), 2),
+        ("a last file no test holds fails", len(tutorial_problems(fixture["steps"], fixture["other_test"])), 1),
+        ("a longer closing fence ends the block", article_problems(fixture["long_fence"])[0], []),
+        (
+            "an @testable import line is left out",
+            article_problems(fixture["importing"], fixture["testable"])[0],
+            [],
+        ),
+        ("a missing code file fails", len(tutorial_problems({}, {})), 2),
         (
             "a tutorial manifest is listed",
-            problems({}, manifest_tutorial, manifest_file, {})[1],
+            problems({}, fixture["manifest_tutorial"], fixture["manifest_file"], {})[1],
             ["package.swift: a package manifest"],
         ),
     ]
+
+
+def self_check():
+    """Runs the script's own cases and says which failed."""
+    cases = self_check_cases()
     failed = [name for name, actual, expected in cases if actual != expected]
     for name in failed:
         print(f"self-check failed: {name}", file=sys.stderr)
