@@ -431,7 +431,7 @@ def template_cases():
 
 
 def changelog_entry_cases():
-    """The CHANGELOG cases where the pull request adds lines to it."""
+    """The CHANGELOG cases about where an added entry sits."""
     return [
         (
             "a line under Unreleased passes",
@@ -443,6 +443,23 @@ def changelog_entry_cases():
             changelog_errors(CHANGELOG_SAMPLE, [11], [CHANGELOG], FILLED, SAMPLE_TEMPLATE),
             2,
         ),
+        (
+            "an entry that starts with an issue number passes",
+            changelog_errors(
+                CHANGELOG_SAMPLE.replace("- New thing.", "#12: New thing."),
+                [7],
+                [CHANGELOG],
+                FILLED,
+                SAMPLE_TEMPLATE,
+            ),
+            0,
+        ),
+    ]
+
+
+def changelog_heading_cases():
+    """The CHANGELOG cases about release and other headings."""
+    return [
         (
             "a release heading passes",
             changelog_errors(
@@ -485,17 +502,6 @@ def changelog_entry_cases():
                 SAMPLE_TEMPLATE,
             ),
             1,
-        ),
-        (
-            "an entry that starts with an issue number passes",
-            changelog_errors(
-                CHANGELOG_SAMPLE.replace("- New thing.", "#12: New thing."),
-                [7],
-                [CHANGELOG],
-                FILLED,
-                SAMPLE_TEMPLATE,
-            ),
-            0,
         ),
     ]
 
@@ -674,6 +680,7 @@ def self_check_cases():
     return (
         template_cases()
         + changelog_entry_cases()
+        + changelog_heading_cases()
         + changelog_without_entry_cases()
         + body_and_title_attribution_cases()
         + commit_attribution_cases()
