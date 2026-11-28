@@ -21,8 +21,8 @@ drift from the API. The rules live here, their one home:
   out on both sides, since a test file adds one to keep its types to itself; an
   `@testable import` line is left out too, since a tutorial's tests import the reader's app
   and the guide tests have it in their own target;
-- a block ends at a fence of three or more backticks with nothing after it but spaces, at least
-  as long as the one that opened it, as Markdown reads it;
+- a block ends at a fence of three or more backticks, after at most three spaces, with nothing
+  after it but spaces, at least as long as the one that opened it, as Markdown reads it;
 - a block that can't be a test, such as a package manifest, is marked on the line before it with
   `<!-- not compiled: <why> -->`, and a tutorial file that opens with `// swift-tools-version` is
   a manifest. Each one is listed in the output with its reason.
@@ -41,8 +41,8 @@ ROOT = Path(__file__).resolve().parent.parent
 CATALOG = ROOT / "Sources/Understudy/Understudy.docc"
 GUIDES = ROOT / "Tests/UnderstudyTests/Guides"
 
-BLOCK = re.compile(r"^(`{3,})swift\s*$")
-FENCE = re.compile(r"^(`{3,})\s*$")
+BLOCK = re.compile(r"^ {0,3}(`{3,})swift\s*$")
+FENCE = re.compile(r"^ {0,3}(`{3,})\s*$")
 TESTABLE = re.compile(r"^@testable import ")
 NOT_COMPILED = re.compile(r"^<!--\s*not compiled:\s*(.+?)\s*-->\s*$")
 SECTION = re.compile(r"@Section\s*\(")
@@ -202,6 +202,7 @@ def self_check_fixtures():
         "holding_test": {"G.swift": last_step},
         "other_test": {"G.swift": "final class Spy {}"},
         "long_fence": "# A\n\n```swift\nfinal class Spy {\n    func call() {\n        run()\n````\n\nProse after it.\n",
+        "indented_fence": "# A\n\n```swift\nfinal class Spy {\n    func call() {\n        run()\n   ```\n\nProse.\n",
         "testable": {"Guides/A.swift": "import Understudy\nfinal class Spy {\n}\n"},
         "importing": "# A\n\n```swift\n@testable import Restaurant\nimport Understudy\nfinal class Spy {\n}\n```\n",
         "manifest_tutorial": {"t": '@Code(name: "Package", file: "package.swift")'},
@@ -241,6 +242,7 @@ def self_check_cases():
         ),
         ("a last file no test holds fails", len(tutorial_problems(fixture["steps"], fixture["other_test"])), 1),
         ("a longer closing fence ends the block", article_problems(fixture["long_fence"])[0], []),
+        ("a closing fence after three spaces ends the block", article_problems(fixture["indented_fence"])[0], []),
         (
             "an @testable import line is left out",
             article_problems(fixture["importing"], fixture["testable"])[0],
