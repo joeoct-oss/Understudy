@@ -13,8 +13,7 @@ extension FunctionRequirement {
     /// The private function a `@Spied` function's body calls on a class: it takes the function's
     /// labels, keeps its isolation and its effects, and calls `spy`.
     func forwarder(spy: String) -> DeclSyntax {
-        let actors = declaration.attributes.compactMap { $0.as(AttributeSyntax.self) }
-            .filter { $0.attributeName.trimmedDescription.hasSuffix("Actor") }
+        let actors = declaration.attributes.globalActors
             .map { $0.trimmedDescription + " " }
             .joined()
         let isolation =

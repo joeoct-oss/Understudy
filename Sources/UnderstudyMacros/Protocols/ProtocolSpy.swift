@@ -87,8 +87,7 @@ struct ProtocolSpy {
 
     /// The protocol's global actor attributes, such as `@MainActor`, one per line.
     var actors: String {
-        declaration.attributes.compactMap { $0.as(AttributeSyntax.self) }
-            .filter { $0.attributeName.trimmedDescription.hasSuffix("Actor") }
+        declaration.attributes.globalActors
             .map { $0.trimmedDescription + "\n" }
             .joined()
     }

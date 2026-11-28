@@ -50,11 +50,8 @@ extension ProtocolSpy {
             )
         }
         let answers = try firstAnswers(of: requirements, named: spyNames, in: name)
-        let isGlobalActor = declaration.attributes.contains { element in
-            element.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Actor") == true
-        }
         let nonisolatedInit = initializers.first { $0.nonisolatedModifier != nil }
-        if isGlobalActor, !answers.isEmpty, let nonisolated = nonisolatedInit {
+        if declaration.attributes.hasGlobalActor, !answers.isEmpty, let nonisolated = nonisolatedInit {
             throw UnderstudyError(
                 "\(nonisolated.subject) is nonisolated, and the spy's own initializer it calls keeps its first "
                     + "answers on the global actor, which it can't set from outside the actor for an answer that "
