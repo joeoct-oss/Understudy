@@ -11,6 +11,9 @@ import SwiftSyntax
 /// An `init` a protocol declares. Its spy is static, since the code under test calls it before
 /// any double exists, and keeps the arguments each call was given; the spy class's initializer
 /// with the protocol's signature builds the double with its first answers, then calls the spy.
+///
+/// - `Requirement`: the macros write its spy and the spy class's initializer like any other
+///   requirement's. It isn't a `SpiedMember`, since only a protocol's spy writes it.
 struct InitializerRequirement: Requirement {
     /// How the spy class's initializer with the protocol's signature builds the double.
     enum Delegation {
@@ -33,9 +36,23 @@ struct InitializerRequirement: Requirement {
     let typedError: String?
     /// Whether it is async, so the body goes through `respond(to:)`.
     let isAsync: Bool
-    /// How it builds the double; the protocol's spy sets it once it knows the double's own
-    /// initializer.
-    var delegation = Delegation.designated
+    /// Its `nonisolated` modifier as written, such as `nonisolated(nonsending)`, as a protocol
+    /// under a global actor may declare it, so the spy's `init` keeps it, and the spy's own
+    /// initializer it delegates to is `nonisolated` too.
+    let nonisolatedModifier: String?
+    /// How it builds the double; the protocol's spy reads the `init` again with it once it knows
+    /// the double's own initializer.
+    let delegation: Delegation
+    /// It answers nothing, so the double's initializer never asks for an answer.
+    let needsAnswer = false
+    /// Its spy starts answering `()`.
+    let defaultAnswer = "()"
+    /// It answers `Void`.
+    let answerType = GeneratedName.void
+    /// `()`, the one answer of `Void`.
+    let obviousAnswer: String? = "()"
+    /// Static: the code under test calls it before any double exists.
+    let isStatic = true
 
     /// How errors name it, such as `'init(user:)'`.
     var subject: String {
@@ -53,21 +70,13 @@ struct InitializerRequirement: Requirement {
         return "\(kind)<\(parameters.recordedType), \(GeneratedName.void)>"
     }
 
-    /// It answers nothing, so the double's initializer never asks for an answer.
-    let needsAnswer = false
-    /// Its spy starts answering `()`.
-    let defaultAnswer = "()"
-    /// It answers `Void`.
-    let answerType = GeneratedName.void
-    /// `()`, the one answer of `Void`.
-    let obviousAnswer: String? = "()"
-    /// Static: the code under test calls it before any double exists.
-    let isStatic = true
-
-    /// Reads an `init`, or explains why it can't be written: failable, generic, `rethrows`, or
-    /// with a parameter that has no name.
-    init(_ declaration: InitializerDeclSyntax) throws {
+    /// Reads an `init` that builds the double as `delegation` says, or explains why it can't be
+    /// written: failable, generic, `rethrows`, or with a parameter that has no name.
+    init(_ declaration: InitializerDeclSyntax, delegation: Delegation = .designated) throws {
         self.declaration = declaration
+        self.delegation = delegation
+        nonisolatedModifier =
+            declaration.modifiers.first { modifier in modifier.name.text == "nonisolated" }?.trimmedDescription
         let parameterList = declaration.signature.parameterClause.parameters
         labels = parameterList.map(\.firstName.text)
         let subject = Self.subject(labels: labels)
@@ -98,12 +107,13 @@ struct InitializerRequirement: Requirement {
 
     /// How errors name an `init` with these labels, such as `'init(user:)'`.
     static func subject(labels: [String]) -> String {
-        "'init(" + labels.map { $0 + ":" }.joined() + ")'"
+        "'init(" + labels.map { label in label + ":" }.joined() + ")'"
     }
 
     /// The initializer with the protocol's signature, for the spy class written next to it.
     func implementation(spy: String, access: String) -> DeclSyntax {
-        let prefix = access.isEmpty ? "" : access + " "
+        let prefix =
+            (access.isEmpty ? "" : access + " ") + (nonisolatedModifier.map { modifier in modifier + " " } ?? "")
         let signature = declaration.signature.trimmedDescription
         guard case .delegating(let call, let keyword) = delegation else {
             return """

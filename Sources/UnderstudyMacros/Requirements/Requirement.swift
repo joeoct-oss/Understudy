@@ -8,7 +8,8 @@
 
 import SwiftSyntax
 
-/// A requirement a double stands in for, with its own spy: a function, a property or a subscript.
+/// A requirement a double stands in for, with its own spy: a function, a property, a subscript or
+/// an initializer.
 protocol Requirement {
     /// The name the requirement is declared with, where errors about it point.
     var nameToken: TokenSyntax { get }

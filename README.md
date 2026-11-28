@@ -390,6 +390,8 @@ try await store.save(.apple)
 #expect(store.saveSpy.callCount == 1)
 ```
 
+A class or protocol under a global actor, such as `@MainActor`, works too: a protocol's spy gets the same global actor, and the static spies of either are `nonisolated`, so a test reads them without `await`. The macros know a global actor by its name ending in `Actor`; one with another name isn't seen as one. They see only a global actor written on the double or protocol itself, outside `#if`: not one it gets from a protocol it conforms to or a superclass, so write `@MainActor` on such a class.
+
 ### Doubles next to your protocol
 
 On a protocol in your own code, `@GenerateSpies` writes the double next to it, named with `Spy` added:
@@ -441,7 +443,7 @@ try await SessionSpy.withFreshSpies {
 }
 ```
 
-The spy's own initializer, `SessionSpy(ping: 3)`, is unchanged and records nothing. When the protocol declares `init()` and the spy's own initializer would take nothing, the protocol's `init()` is the spy's, so the test's own `SessionSpy()` is recorded too. `initSpy` is a static spy, so run the test's body in `withFreshSpies` (see [Static members](#static-members)). A failable or generic `init`, and an `init` next to an associated type or in a protocol that inherits one with a spy, need the class form.
+The spy's own initializer, `SessionSpy(ping: 3)`, is unchanged and records nothing; an `init` keeps its `nonisolated` modifier as written. Under a global actor, a `nonisolated` `init` needs a spy whose own initializer takes no answer, since it can't set an answer that isn't `Sendable` from outside the actor; that initializer is then `nonisolated` too. When the protocol declares `init()` and the spy's own initializer would take nothing, the protocol's `init()` is the spy's, so the test's own `SessionSpy()` is recorded too. `initSpy` is a static spy, so run the test's body in `withFreshSpies` (see [Static members](#static-members)). A failable or generic `init`, and an `init` next to an associated type or in a protocol that inherits one with a spy, need the class form.
 
 **Inherited protocols.** When the parent protocol has `@GenerateSpies` too, the child's spy stores the parent's spy and answers the parent's requirements through it. The child's initializer takes each parent's spy, first, so the parent's answers are set where its spy is made, and the test reads the parent's spies on the child's:
 
@@ -466,7 +468,7 @@ Several parents work the same way, `ProfileSpy(base: BaseSpy(), named: NamedSpy(
 Its limits:
 
 - **The parent needs `@GenerateSpies`**, in its own module. One such as `Identifiable`, which the macro refuses, needs the class form. A parent without `@GenerateSpies` shows as the compiler's "cannot find 'BaseSpyForwarding' in scope".
-- **A parent with associated types, an actor protocol, or one declared inside another type** can't be forwarded to: the child's spy fails to build with a message saying why. Use the class form for the child.
+- **A parent with associated types, an actor protocol, one that declares an `init`, or one declared inside another type** can't be forwarded to: the child's spy fails to build with a message saying why. Use the class form for the child.
 - **An actor protocol that inherits another** needs the class form, because forwarding across the actor needs its own design.
 - **A `Sendable` child needs `Sendable` parents**, because its spy stores theirs.
 - **Names can clash.** A parent called `Base` gives the child a stored `baseSpy`, which clashes with the spy of a requirement named `base`, and two parents with a requirement of the same name clash too. The compiler reports both.
@@ -608,7 +610,7 @@ Each of these is a compile error at the line it's about, saying what to do inste
 | `mutating` functions | The macro writes classes and actors. |
 | A parameter named `_` with no internal name | The body has no name to pass to the spy; name it. |
 | Two requirements that would share a spy name | Rename one, or give the overloads different labels. |
-| A failable or generic protocol `init`, or one next to a requirement with no obvious first answer or with the labels and types of the spy's own initializer; a generic, `static`, `async` or throwing subscript | The macro can't write them; use the class form or write it by hand. |
+| A failable or generic protocol `init`, or one next to a requirement with no obvious first answer, a `nonisolated` one under a global actor next to a requirement that needs a first answer, or one whose labels and types the spy's own initializer also takes, in order (its defaults would let a call to it reach the `init`); a generic, `static`, `async` or throwing subscript | The macro can't write them; use the class form or write it by hand. |
 | A protocol that inherits a standard library protocol, such as `Identifiable`, or a protocol written with its associated types (`Box<Int>`); an actor protocol that inherits another | There is no spy to forward to, or forwarding across the actor needs its own design; use the class form. See [Doubles next to your protocol](#doubles-next-to-your-protocol). |
 | A `where` clause on an associated type or on a protocol with associated types, or a static requirement or an `init` next to an associated type | A generic parameter can't keep the clause, and a generic class can't keep a static spy; use the class form. |
 | An `init` in a protocol that inherits one with `@GenerateSpies` | The spy's own initializer takes the parent's spy, which the `init` can't pass; use the class form. A protocol with an `init` can't be a parent either. |

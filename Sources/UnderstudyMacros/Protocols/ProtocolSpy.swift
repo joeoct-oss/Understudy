@@ -87,8 +87,7 @@ struct ProtocolSpy {
 
     /// The protocol's global actor attributes, such as `@MainActor`, one per line.
     var actors: String {
-        declaration.attributes.compactMap { $0.as(AttributeSyntax.self) }
-            .filter { $0.attributeName.trimmedDescription.hasSuffix("Actor") }
+        declaration.attributes.globalActors
             .map { $0.trimmedDescription + "\n" }
             .joined()
     }
@@ -120,7 +119,7 @@ struct ProtocolSpy {
         if isNested {
             return "is declared inside another type"
         }
-        if requirements.contains(where: { $0 is InitializerRequirement }) {
+        if requirements.contains(where: { requirement in requirement is InitializerRequirement }) {
             return "declares an init"
         }
         return associatedTypes.isEmpty ? nil : "has associated types"

@@ -61,11 +61,40 @@ extension ExpansionTests {
         Refused(
             name: "an init with the signature of the spy's own initializer",
             source: "@GenerateSpies\nprotocol Session {\n    init(count: Int)\n    func count() -> Int\n}",
-            message: "'init(count:)' has the labels and types of the spy's own initializer, 'init(count:)', "
-                + "which takes the first answers; use @GenerateSpies on a class or an actor that conforms to "
-                + "'Session' instead",
+            message: "'init(count:)' takes labels and types the spy's own initializer, 'init(count:)', takes "
+                + "with defaults, so a test's call to that initializer would reach the init; use @GenerateSpies "
+                + "on a class or an actor that conforms to 'Session' instead",
             line: 3,
             column: 5
+        ),
+        Refused(
+            name: "an init that takes some of the spy's own initializer's answers, in order",
+            source: "@GenerateSpies\nprotocol Session {\n    init(name: String)\n    var name: String { get }\n"
+                + "    func age() -> Int\n}",
+            message: "'init(name:)' takes labels and types the spy's own initializer, 'init(name:age:)', takes "
+                + "with defaults, so a test's call to that initializer would reach the init; use @GenerateSpies "
+                + "on a class or an actor that conforms to 'Session' instead",
+            line: 3,
+            column: 5
+        ),
+        Refused(
+            name: "an init with the own initializer's type written with its module",
+            source: "@GenerateSpies\nprotocol Session {\n    init(count: Swift.Int)\n    func count() -> Int\n}",
+            message: "'init(count:)' takes labels and types the spy's own initializer, 'init(count:)', takes "
+                + "with defaults, so a test's call to that initializer would reach the init; use @GenerateSpies "
+                + "on a class or an actor that conforms to 'Session' instead",
+            line: 3,
+            column: 5
+        ),
+        Refused(
+            name: "a nonisolated init under a global actor next to a first answer",
+            source: "@MainActor\n@GenerateSpies\nprotocol Badge {\n    nonisolated init(label: String)\n"
+                + "    func isVisible() -> Bool\n}",
+            message: "'init(label:)' is nonisolated, and the spy's own initializer it calls keeps its first answers "
+                + "on the global actor, which it can't set from outside the actor for an answer that isn't "
+                + "Sendable; use @GenerateSpies on a class or an actor that conforms to 'Badge' instead",
+            line: 4,
+            column: 17
         ),
         Refused(
             name: "an init whose spy name another requirement's spy has",

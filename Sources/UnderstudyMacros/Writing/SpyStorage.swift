@@ -36,8 +36,28 @@ extension GenerateSpiesMacro {
         let instances = zip(requirements, names).filter { !$0.0.isStatic }
         let (spies, answers) = instanceSpies(for: instances, prefix: spyPrefix)
         declarations += spies
-        if let initializer = initializer(taking: parents, and: answers, prefix: prefix) {
+        // Under a global actor, a `nonisolated` protocol `init` delegates to the spy's own
+        // initializer, which must then be `nonisolated` too, or the call would cross into the
+        // actor. An actor's own initializer is synchronous, which can't be `nonisolated`.
+        let delegatesNonisolated =
+            isGlobalActor
+            && requirements.contains { requirement in
+                (requirement as? InitializerRequirement)?.nonisolatedModifier != nil
+            }
+        let initializerPrefix = prefix + (delegatesNonisolated ? "nonisolated " : "")
+        let replacesOwn = requirements.contains { requirement in
+            (requirement as? InitializerRequirement)?.parameters.isEmpty == true
+        }
+        if let initializer = initializer(taking: parents, and: answers, prefix: initializerPrefix) {
             declarations.append(initializer)
+        } else if delegatesNonisolated, !replacesOwn {
+            // The implicit `init()` would be on the global actor, which the `init` can't call.
+            declarations.append(
+                """
+                /// Creates the double off the global actor, for the protocol's `nonisolated` `init`.
+                \(raw: initializerPrefix)init() { }
+                """
+            )
         }
         return declarations
     }

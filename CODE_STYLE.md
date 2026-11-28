@@ -19,9 +19,9 @@ Each file holds one job, named after it, in the folder for its part of the packa
 | `Sources/Understudy/Traits/` | `.freshSpies` and `.verifiesMocks` |
 | `Sources/Understudy/Clock/` | `TestClock` |
 | `Sources/UnderstudyMacros/Macros/` | The macros themselves and the compiler plugin |
-| `Sources/UnderstudyMacros/Requirements/` | Reading a requirement: functions, properties, subscripts and the types they record |
+| `Sources/UnderstudyMacros/Requirements/` | Reading a requirement: functions, properties, subscripts, initializers and the types they record |
 | `Sources/UnderstudyMacros/Protocols/` | The spy written next to a protocol |
-| `Sources/UnderstudyMacros/Writing/` | The code the macros write: storage, forwarding and generated names |
+| `Sources/UnderstudyMacros/Writing/` | The code the macros write: storage, forwarding, generated names and the global actors it keeps |
 | `Sources/UnderstudyMacros/Diagnostics/` | Errors and fix-its |
 | `Sources/UnderstudySamples/`, `Sources/UnderstudySamplesMacros/` | `@Sample` and its macro, one file per type with no folders while they stay this small |
 | `Tests/*/` | One file per feature, with shared doubles and tables under `Fixtures/` |

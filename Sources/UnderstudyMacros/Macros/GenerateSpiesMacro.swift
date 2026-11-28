@@ -109,9 +109,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         }
         let typeName = declaration.asProtocol(NamedDeclSyntax.self)?.name.text ?? ""
         let access = access(of: declaration.modifiers)
-        let isGlobalActor = declaration.attributes.contains { element in
-            element.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Actor") == true
-        }
+        let isGlobalActor = declaration.attributes.hasGlobalActor
         return try storage(
             for: requirements,
             in: typeName,

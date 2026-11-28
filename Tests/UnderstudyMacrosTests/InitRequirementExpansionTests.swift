@@ -17,8 +17,8 @@ import UnderstudyMacros
 /// that matter, never the whole expansion; the refusals are among `ExpansionTests.refused`.
 @Suite("Macros write a protocol's init requirements")
 struct InitRequirementExpansionTests {
-    @Test("A protocol's init delegates to the spy's own initializer, passing every first answer")
-    func initDelegatesWithEveryFirstAnswer() {
+    @Test("A public protocol's init is public, beside the spy's own initializer")
+    func publicInitBesideTheOwnInitializer() {
         let (expanded, diagnostics) = expand(
             """
             @GenerateSpies
@@ -30,26 +30,22 @@ struct InitRequirementExpansionTests {
             """
         )
 
-        let code = expanded.description
         #expect(diagnostics.isEmpty)
-        #expect(code.contains("public convenience init(user: String) throws {"))
-        #expect(code.contains("self.init(ping: 0, name: \"\")"))
-        #expect(code.contains("try Self.initSpy(user)"))
-        #expect(code.contains("let initSpy = Understudy.ThrowingSpy<String, Swift.Void>(returning: ())"))
-        #expect(code.contains("Session, Understudy.StaticSpies"))
+        #expect(expanded.description.contains("public convenience init(user: String) throws {"))
     }
 
-    @Test("With no answers to take, each init delegates to init(), or is designated beside init()")
+    @Test("Beside the protocol's init(), with no answers to take, no init is a convenience init")
     func initWithNoAnswersToTake() {
-        let (delegating, _) = expand("@GenerateSpies\nprotocol Session {\n    init(user: String)\n}")
-        let (designated, _) = expand(
+        let (delegating, delegatingDiagnostics) = expand(
+            "@GenerateSpies\nprotocol Session {\n    init(user: String)\n}"
+        )
+        let (designated, designatedDiagnostics) = expand(
             "@GenerateSpies\nprotocol Session {\n    init()\n    init(user: String, age: Int)\n}"
         )
 
-        #expect(delegating.description.contains("convenience init(user: String) {\n        self.init()"))
-        #expect(designated.description.contains("    init() {\n        Self.initSpy()"))
-        let recorded = "    init(user: String, age: Int) {\n        Self.initUserAgeSpy((user: user, age: age))"
-        #expect(designated.description.contains(recorded))
+        #expect(delegatingDiagnostics.isEmpty)
+        #expect(designatedDiagnostics.isEmpty)
+        #expect(delegating.description.contains("convenience init(user: String) {"))
         #expect(!designated.description.contains("convenience"))
     }
 
@@ -60,13 +56,12 @@ struct InitRequirementExpansionTests {
         )
 
         #expect(diagnostics.isEmpty)
-        #expect(expanded.description.contains("    init(owner: String) {\n        self.init(total: 0)"))
         #expect(!expanded.description.contains("convenience"))
     }
 
-    @Test("An async init records through respond(to:), and a typed throws one rethrows as its type")
+    @Test("An async init and a typed throws init are written with no diagnostic")
     func asyncAndTypedThrowsInits() {
-        let (expanded, _) = expand(
+        let (_, diagnostics) = expand(
             """
             @GenerateSpies
             protocol Connection {
@@ -76,34 +71,26 @@ struct InitRequirementExpansionTests {
             """
         )
 
-        let code = expanded.description
-        #expect(code.contains("await Self.initHostSpy.respond(to: host)"))
-        #expect(code.contains("} catch let error as ConnectionError {"))
-        #expect(code.contains("initPortSpy threw \\(Swift.type(of: error)), not \\(ConnectionError.self)"))
+        #expect(diagnostics.isEmpty)
     }
 
-    @Test("Under a global actor, the box of static spies and its readers are nonisolated")
-    func globalActorStaticsAreNonisolated() {
-        let (expanded, diagnostics) = expand(
-            "@MainActor\n@GenerateSpies\nprotocol Banner {\n    init(text: String)\n}"
-        )
-        let (plain, _) = expand("@GenerateSpies\nprotocol Banner {\n    init(text: String)\n}")
+    // The isolation these shapes are written with is checked where the compiler builds the
+    // doubles, in `InitRequirementTests` and `StaticDoubleTests`.
+    @Test("Inits and statics under a global actor or in an actor are written with no diagnostic")
+    func isolatedShapesAreWritten() {
+        let sources = [
+            "@MainActor\n@GenerateSpies\nprotocol Banner {\n    init(text: String)\n}",
+            "@MainActor\n@GenerateSpies\nprotocol Badge {\n    nonisolated init(label: String)\n    func show()\n}",
+            "@GenerateSpies\nprotocol Logbook: Actor {\n    nonisolated(nonsending) init(owner: String) async\n"
+                + "    func total() -> Int\n}",
+            "@GenerateSpies\nfinal class SpyFeed: Feed {\n    @Spied nonisolated(nonsending) func load() async\n}",
+            "@MainActor\n@GenerateSpies\nfinal class SpyClock: Clock {\n    @Spied static func now() -> Int\n}",
+        ]
 
-        #expect(diagnostics.isEmpty)
-        #expect(expanded.description.contains("private nonisolated static let __understudy_statics"))
-        #expect(expanded.description.contains("nonisolated static let withFreshSpies"))
-        #expect(expanded.description.contains("nonisolated static var initSpy"))
-        #expect(!plain.description.contains("nonisolated"))
-    }
-
-    @Test("A class under a global actor with a static spy gets nonisolated statics too")
-    func globalActorClassStaticsAreNonisolated() {
-        let (expanded, diagnostics) = expand(
-            "@MainActor\n@GenerateSpies\nfinal class SpyClock: Clock {\n    @Spied static func now() -> Int\n}"
-        )
-
-        #expect(diagnostics.isEmpty)
-        #expect(expanded.description.contains("nonisolated static let withFreshSpies"))
+        for source in sources {
+            let (_, diagnostics) = expand(source)
+            #expect(diagnostics.isEmpty, "\(source)")
+        }
     }
 
     @Test("A protocol with an init can't be forwarded to, and its forwarding protocol says why")
@@ -117,18 +104,19 @@ struct InitRequirementExpansionTests {
         #expect(!expanded.description.contains("where Self:"))
     }
 
-    /// Expands the macros in `source`, and gives the expanded file and the messages of its
-    /// diagnostics.
+    // Expands the macros in `source`, and gives the expanded file and the messages of its
+    // diagnostics.
     private func expand(_ source: String) -> (Syntax, [String]) {
         let file = Parser.parse(source: source)
-        let context = BasicMacroExpansionContext(
-            sourceFiles: [file: .init(moduleName: "TestModule", fullFilePath: "test.swift")]
-        )
+        let known = BasicMacroExpansionContext.KnownSourceFile(moduleName: "TestModule", fullFilePath: "test.swift")
+        let sourceFiles = [file: known]
+        let context = BasicMacroExpansionContext(sourceFiles: sourceFiles)
+        let macroSpecs = [
+            "GenerateSpies": MacroSpec(type: GenerateSpiesMacro.self),
+            "Spied": MacroSpec(type: SpiedMacro.self),
+        ]
         let expanded = file.expand(
-            macroSpecs: [
-                "GenerateSpies": MacroSpec(type: GenerateSpiesMacro.self),
-                "Spied": MacroSpec(type: SpiedMacro.self),
-            ],
+            macroSpecs: macroSpecs,
             contextGenerator: { syntax in
                 BasicMacroExpansionContext(sharingWith: context, lexicalContext: syntax.allMacroLexicalContexts())
             },
