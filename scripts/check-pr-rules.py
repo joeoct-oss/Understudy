@@ -18,13 +18,20 @@ The rules (Yousef, 2026-11-26), each as one check:
 - CHANGELOG: an added line under "## Unreleased" (or a new version heading, for a release). With
   no CHANGELOG change, nothing under Sources/ or in Package.swift may change, and the body's
   "Docs and CHANGELOG" section says why in a line of its own.
-- No attribution: no AI or tool credit in the body, the commit messages or the added lines, and
-  no added line citing a private planning issue, a planning repo or a numbered decision.
+- No attribution: no AI or tool credit in the title, the body, the commit messages or the added
+  lines, and no added line citing a private planning issue, a planning repo or a numbered
+  decision. Credit means a "Generated", "Written", "Created" or "Made" with, by or using line
+  naming an AI tool, a Co-Authored-By trailer naming one, a Claude-Session trailer, any claude.ai
+  link (a session, a project or thread, an artifact, a chat or a share), and the hidden project
+  credit comment. Nothing is exempt, so the credit lines a tool puts at the top of a body fail
+  too (Yousef, 2026-11-28: text posted from the cloud is cleaned after, and this check is the
+  net that holds the merge until it is).
 
 Pull requests Dependabot opened from its own dependabot/ branch carry no template and pass.
 CodeRabbit's pre-merge checks of the same names explain a failure in words; this script decides.
 
-Usage: check-pr-rules.py             reads PR_BODY, PR_AUTHOR, HEAD_REF, BASE_SHA, HEAD_SHA
+Usage: check-pr-rules.py             reads PR_TITLE, PR_BODY, PR_AUTHOR, HEAD_REF, BASE_SHA,
+                                     HEAD_SHA
        check-pr-rules.py --self-check  runs its own cases and exits
 """
 
@@ -53,12 +60,17 @@ PATTERN_FILES = {"scripts/check-pr-rules.py", "scripts/check-public-text.sh", ".
 AI_TOOLS = r"(claude|anthropic|copilot|codex|cursor|chatgpt|openai|gemini|devin)"
 ATTRIBUTION = [
     re.compile(r"co-authored-by:.*" + AI_TOOLS, re.IGNORECASE),
-    re.compile(r"^\s*claude-session:", re.IGNORECASE),
-    re.compile(r"generated (with|by)\W*(github\W+)?" + AI_TOOLS, re.IGNORECASE),
-    re.compile(r"claude\.ai/code/session", re.IGNORECASE),
+    re.compile(r"\bclaude-session\s*:", re.IGNORECASE),
+    re.compile(
+        r"(generated|written|created|made)\s+(with|by|using)\W*(github\W+)?" + AI_TOOLS,
+        re.IGNORECASE,
+    ),
+    # Any claude.ai link: a session, a project or thread, an artifact, a chat or a share. The
+    # "Requested by" credit line at the top of a body carries a project link, so it fails here.
+    re.compile(r"\bclaude\.ai/", re.IGNORECASE),
+    # The hidden credit comment at the top of a generated body.
+    re.compile(r"claude-projects-attribution", re.IGNORECASE),
 ]
-# The two credit lines at the top of a body: an HTML comment and a "Requested by" line.
-CREDIT_LINE = re.compile(r"^\s*(<!-- claude-projects-attribution:.*-->|_Requested by .*_)\s*$")
 PRIVATE_REFS = [
     re.compile(r"planning\s*#\s*\d+", re.IGNORECASE),
     re.compile(r"\b[A-Za-z]+-planning\b"),
@@ -180,12 +192,15 @@ def credits_a_tool(line):
     return any(pattern.search(line) for pattern in ATTRIBUTION)
 
 
-def attribution_errors(body, commit_messages, added):
+def attribution_errors(title, body, commit_messages, added):
     """added maps each changed file to its added lines."""
-    errors = [
+    errors = []
+    if credits_a_tool(title):
+        errors.append(f'the title credits an AI or tool: "{title.strip()[:80]}"')
+    errors += [
         f'the body credits an AI or tool: "{line.strip()[:80]}"'
         for line in body.splitlines()
-        if not CREDIT_LINE.match(line) and credits_a_tool(line)
+        if credits_a_tool(line)
     ]
     errors += [
         f'a commit message credits an AI or tool: "{line.strip()[:80]}"'
@@ -280,7 +295,9 @@ def run():
         "CHANGELOG under Unreleased": changelog_errors(
             changelog, numbers.get(CHANGELOG, []), changed, body, template
         ),
-        "No attribution or private refs": attribution_errors(body, messages, added),
+        "No attribution or private refs": attribution_errors(
+            os.environ.get("PR_TITLE", ""), body, messages, added
+        ),
     }
     failed = False
     for name, errors in checks.items():
@@ -323,10 +340,7 @@ Closes <owner/repo>#<issue>
 - [ ] Code follows `CODE_STYLE.md`
 """
 
-FILLED = """<!-- claude-projects-attribution: {"github_login":"someone"} -->
-_Requested by **Someone** · [project thread](https://claude.ai/code/project/x)_
-
-Closes owner/repo#12
+FILLED = """Closes owner/repo#12
 Part of owner/repo#10
 
 ## What changed and why
@@ -356,10 +370,23 @@ PLANNING_ISSUE = "planning" + " #12"
 PLANNING_REPO = "Waypoint-" + "planning"
 DECISION = "decision" + " 0012"
 # The attribution samples are built in pieces too, so the file adds no attribution itself.
-FOOTER = "_Generated " + "by [Claude Code](https://x)_"
+CLAUDE_CODE = "Claude" + " Code"
+CLAUDE_AI = "https://claude" + ".ai"
+FOOTER = "_Generated " + f"by [{CLAUDE_CODE}]({CLAUDE_AI}/code)_"
+ROBOT_FOOTER = "🤖 Generated " + f"with [{CLAUDE_CODE}](https://claude.com/claude-code)"
 COPILOT = "Generated " + "by GitHub Copilot"
 TRAILER = "Co-Authored-" + "By: Claude <noreply@anthropic.com>"
+ANTHROPIC_TRAILER = "Co-authored-" + "by: someone <noreply@anthropic.com>"
 SESSION = "Claude-" + "Session: x"
+INDENTED_SESSION = "  Claude-" + "Session: x"
+SESSION_LINK = f"See {CLAUDE_AI}/code/session_01ABC"
+PROJECT_LINK = f"[project thread]({CLAUDE_AI}/code/project/chan_01?thread=cmsg_01)"
+REQUESTED_BY = f"_Requested by **Someone** · {PROJECT_LINK}_"
+CREDIT_COMMENT = "<!-- claude-projects-" + 'attribution: {"github_login":"someone"} -->'
+ARTIFACT_LINK = f"{CLAUDE_AI}/code/artifact/abc"
+SHARE_LINK = f"{CLAUDE_AI}/share/abc"
+WRITTEN_WITH = "Written " + f"with {CLAUDE_CODE}"
+MADE_USING = "Made " + "using ChatGPT"
 
 CHANGELOG_SAMPLE = """# Changelog
 
@@ -485,37 +512,96 @@ def self_check_cases():
             ),
             0,
         ),
-        ("the credit lines pass", attribution_errors(FILLED, ["Add a check"], {}), 0),
+        ("a plain body passes", attribution_errors("Add a check", FILLED, ["Add a check"], {}), 0),
+    ]
+    in_body = [
+        ("a footer", FOOTER),
+        ("a robot footer", ROBOT_FOOTER),
+        ("a vendor-first footer", COPILOT),
+        ("a session link", SESSION_LINK),
+        ("a project link", PROJECT_LINK),
+        ("a Requested by credit line", REQUESTED_BY),
+        ("the hidden credit comment", CREDIT_COMMENT),
+        ("an artifact link", ARTIFACT_LINK),
+        ("a share link", SHARE_LINK),
+        ("a written-with line", WRITTEN_WITH),
+        ("a made-using line", MADE_USING),
+    ]
+    cases += [
         (
-            "a footer in the body fails",
-            attribution_errors(FILLED + f"\n{FOOTER}\n", [], {}),
+            f"{name} in the body fails",
+            attribution_errors("", FILLED + f"\n{line}\n", [], {}),
             1,
+        )
+        for name, line in in_body
+    ]
+    cases += [
+        (
+            "the credit lines at the top of a body fail",
+            attribution_errors("", f"{CREDIT_COMMENT}\n{REQUESTED_BY}\n\n{FILLED}", [], {}),
+            2,
         ),
+        ("a credit in the title fails", attribution_errors(WRITTEN_WITH, "", [], {}), 1),
+        ("a link in the title fails", attribution_errors(SESSION_LINK, "", [], {}), 1),
         (
             "a co-author trailer fails",
-            attribution_errors("", [f"Fix\n\n{TRAILER}"], {}),
+            attribution_errors("", "", [f"Fix\n\n{TRAILER}"], {}),
             1,
         ),
-        ("a session line fails", attribution_errors("", [f"Fix\n\n{SESSION}"], {}), 1),
-        ("a vendor-first footer fails", attribution_errors(COPILOT, [], {}), 1),
+        (
+            "an anthropic co-author fails",
+            attribution_errors("", "", [f"Fix\n\n{ANTHROPIC_TRAILER}"], {}),
+            1,
+        ),
+        ("a session line fails", attribution_errors("", "", [f"Fix\n\n{SESSION}"], {}), 1),
+        (
+            "an indented session line fails",
+            attribution_errors("", "", [f"Fix\n\n{INDENTED_SESSION}"], {}),
+            1,
+        ),
+        (
+            "a link in a commit fails",
+            attribution_errors("", "", [f"Fix\n\n{SESSION_LINK}"], {}),
+            1,
+        ),
+        (
+            "a footer in a file fails",
+            attribution_errors("", "", [], {"README.md": [FOOTER]}),
+            1,
+        ),
+        (
+            "a project link in a file fails",
+            attribution_errors("", "", [], {"docs/notes.md": [PROJECT_LINK]}),
+            1,
+        ),
+        (
+            "this file's own patterns pass",
+            attribution_errors("", "", [], {"scripts/check-pr-rules.py": [FOOTER]}),
+            0,
+        ),
         (
             "a planning reference in a file fails",
-            attribution_errors("", [], {"README.md": [f"See {PLANNING_ISSUE}."]}),
+            attribution_errors("", "", [], {"README.md": [f"See {PLANNING_ISSUE}."]}),
             1,
         ),
         (
             "a planning repo name in a file fails",
-            attribution_errors("", [], {"a.swift": [f"// in {PLANNING_REPO}"]}),
+            attribution_errors("", "", [], {"a.swift": [f"// in {PLANNING_REPO}"]}),
             1,
         ),
         (
             "a numbered decision in a file fails",
-            attribution_errors("", [], {"a.md": [f"As {DECISION} says."]}),
+            attribution_errors("", "", [], {"a.md": [f"As {DECISION} says."]}),
             1,
         ),
         (
             "plain text passes",
-            attribution_errors("", [], {"a.md": ["Plan the route, then decide."]}),
+            attribution_errors(
+                "Plan the release",
+                "",
+                ["Add a plan"],
+                {"a.md": ["Plan the route, then decide.", "Made with care by hand."]},
+            ),
             0,
         ),
     ]
