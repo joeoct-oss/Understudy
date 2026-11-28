@@ -57,13 +57,14 @@ AUTHOR_TEXT_SECTIONS = [WHAT, MERGE, TESTS]
 # These files hold the patterns below, so their own lines would always match.
 PATTERN_FILES = {"scripts/check-pr-rules.py", "scripts/check-public-text.sh", ".coderabbit.yaml"}
 
-# The tool's name ends at a word boundary, so "cursors" or "Devinder" is plain text.
-AI_TOOLS = r"(claude|anthropic|copilot|codex|cursor|chatgpt|openai|gemini|devin)\b"
+# The tool's name can't run on into a letter or digit, so "cursors" or "Devinder" is plain text.
+# An underscore may follow it, as in Markdown emphasis, so "_Made using ChatGPT_" still fails.
+AI_TOOLS = r"(claude|anthropic|copilot|codex|cursor|chatgpt|openai|gemini|devin)(?![a-z0-9])"
 ATTRIBUTION = [
     re.compile(r"co-authored-by:.*" + AI_TOOLS, re.IGNORECASE),
     re.compile(r"\bclaude-session\s*:", re.IGNORECASE),
     re.compile(
-        r"(generated|written|created|made)\s+(with|by|using)\W*(github\W+)?" + AI_TOOLS,
+        r"(generated|written|created|made)\s+(with|by|using)[\W_]*(github[\W_]+)?" + AI_TOOLS,
         re.IGNORECASE,
     ),
     # Any claude.ai link: a session, a project or thread, an artifact, a chat or a share. The
@@ -219,8 +220,29 @@ def credit_errors(where, text):
     return []
 
 
-def attribution_errors(title, body, commit_messages, added):
-    """added maps each changed file to its added lines."""
+def added_blocks(lines, numbers):
+    """The added lines joined into blocks of consecutive lines, so a credit wrapped over two
+    added lines is seen whole while lines from separate hunks are never joined. Without
+    numbers, the lines count as one block."""
+    if not numbers:
+        return ["\n".join(lines)] if lines else []
+    blocks = []
+    block = []
+    previous = None
+    for number, line in zip(numbers, lines):
+        if block and number != previous + 1:
+            blocks.append("\n".join(block))
+            block = []
+        block.append(line)
+        previous = number
+    if block:
+        blocks.append("\n".join(block))
+    return blocks
+
+
+def attribution_errors(title, body, commit_messages, added, added_numbers=None):
+    """added maps each changed file to its added lines, and added_numbers maps it to their line
+    numbers."""
     errors = []
     if credits_a_tool(title):
         errors.append(f'the title credits an AI or tool: "{title.strip()[:80]}"')
@@ -230,7 +252,8 @@ def attribution_errors(title, body, commit_messages, added):
     for path, lines in added.items():
         if path in PATTERN_FILES:
             continue
-        if any(credits_a_tool(line) for line in lines):
+        numbers = (added_numbers or {}).get(path, [])
+        if any(credits_a_tool(block) for block in added_blocks(lines, numbers)):
             errors.append(f"{path} adds AI or tool attribution")
         if any(pattern.search(line) for line in lines for pattern in PRIVATE_REFS):
             errors.append(f"{path} adds a private planning or decision reference")
@@ -315,7 +338,7 @@ def run():
             changelog, numbers.get(CHANGELOG, []), changed, body, template
         ),
         "No attribution or private refs": attribution_errors(
-            os.environ.get("PR_TITLE", ""), body, messages, added
+            os.environ.get("PR_TITLE", ""), body, messages, added, numbers
         ),
     }
     failed = False
@@ -414,7 +437,10 @@ OTHER_HOST_USER_INFO = "See https://claude" + ".ai@example.com/docs"
 WRITTEN_WITH = "Written " + f"with {CLAUDE_CODE}"
 MADE_USING = "Made " + "using ChatGPT"
 WRAPPED_CREDIT = "Written " + "with\nClaude Code"
+WRAPPED_LINES = WRAPPED_CREDIT.split("\n")
 TOOL_AS_WORD_PART = "Made with cursors instead of arrays."
+EMPHASIZED_CREDIT = "_Made " + "using ChatGPT_"
+EMPHASIZED_TOOL = "Made " + "with _ChatGPT_"
 
 CHANGELOG_SAMPLE = """# Changelog
 
@@ -626,6 +652,8 @@ def title_and_host_cases():
             attribution_errors(TOOL_AS_WORD_PART, TOOL_AS_WORD_PART, [TOOL_AS_WORD_PART], {}),
             0,
         ),
+        ("a credit in emphasis fails", attribution_errors(EMPHASIZED_CREDIT, "", [], {}), 1),
+        ("a tool name in emphasis fails", attribution_errors(EMPHASIZED_TOOL, "", [], {}), 1),
         ("a hyphenated host name passes", attribution_errors(HYPHENATED_HOST, "", [], {}), 0),
         ("a subdomain path fails", attribution_errors(BARE_SUBDOMAIN_PATH, "", [], {}), 1),
         ("a link with user information fails", attribution_errors(USER_INFO_LINK, "", [], {}), 1),
@@ -676,6 +704,20 @@ def added_line_cases():
             "a project link in a file fails",
             attribution_errors("", "", [], {"docs/notes.md": [PROJECT_LINK]}),
             1,
+        ),
+        (
+            "a credit wrapped over two added lines fails",
+            attribution_errors(
+                "", "", [], {"README.md": WRAPPED_LINES}, {"README.md": [4, 5]}
+            ),
+            1,
+        ),
+        (
+            "a credit split across two hunks passes",
+            attribution_errors(
+                "", "", [], {"README.md": WRAPPED_LINES}, {"README.md": [4, 9]}
+            ),
+            0,
         ),
         (
             "this file's own patterns pass",
