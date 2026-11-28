@@ -24,9 +24,11 @@ the clean one. It is the one home for these rules:
 - A pull request's head branch is moved to the text commit's parent, the last work commit:
   created there, or fast-forwarded to it. It is never moved backwards or sideways, and isn't
   moved at all when it already holds that commit, so a text-only update is a text commit made on
-  top of the head branch's latest commit. The head can't be the pushed branch. Every commit it
-  gains must be Verified and none may touch .github/text-to-publish/, so the text files never
-  reach a pull request. The pull request for that head is opened, or its title and text updated.
+  top of the head branch's latest commit. The head must be a work branch named by the branch
+  rule, so main, a release branch or a claude/ branch is refused before anything moves. Every
+  commit it gains must be Verified and none may touch .github/text-to-publish/, so the text
+  files never reach a pull request. The pull request for that head is opened, or its title and
+  text updated.
 - When every message is published, the pushed branch is moved back to the work commit, while it
   is still at the text commit, so the text commit is gone and the work stays. A branch pushed to
   since is left alone, and so is a branch after a failure. The pushing side drops the text
@@ -73,14 +75,19 @@ KINDS = {
 }
 NUMBER_KEYS = {"number", "on", "reply-to", "edit"}
 BRANCH_NAME = re.compile(r"^[A-Za-z0-9._/-]+$")
+# A pull request's head must follow the branch rule, <type>/<issue number>-<plain words>, and not
+# start with a tool's prefix, so a text commit can only ever move a work branch: never main, a
+# release branch or a claude/ one.
+WORK_BRANCH = re.compile(r"^[a-z]+/[0-9]+-[a-z][a-z0-9]*(-[a-z0-9]+)*$")
+TOOL_PREFIX = re.compile(r"^(claude|codex|copilot|dependabot)/")
 
 
 class PublishError(Exception):
     """A message or a commit that can't be posted, with a reason a person can act on."""
 
 
-def parse_message(path, text):
-    """Reads one text file into (fields, body). Raises PublishError naming the file."""
+def split_message(path, text):
+    """Splits one text file into its "key: value" fields and its body."""
     lines = text.splitlines()
     if SEPARATOR not in (line.strip() for line in lines):
         raise PublishError(f'{path} has no line holding only "{SEPARATOR}" before its text')
@@ -99,9 +106,13 @@ def parse_message(path, text):
             raise PublishError(f"{path} sets {key} twice")
         fields[key] = value.strip()
     body = "\n".join(lines[position + 1:]).strip("\n") + "\n"
-    kind = fields.pop("kind", "")
-    if kind not in KINDS:
-        raise PublishError(f"{path} has kind {kind!r}; it must be one of {', '.join(KINDS)}")
+    if not body.strip():
+        raise PublishError(f"{path} has no text after {SEPARATOR}")
+    return fields, body
+
+
+def check_keys(path, kind, fields):
+    """Checks the keys a kind takes and needs, and the form of each value."""
     allowed = KINDS[kind]
     unknown = sorted(set(fields) - set(allowed))
     if unknown:
@@ -119,8 +130,27 @@ def parse_message(path, text):
             raise PublishError(f"{path} {key} is not a branch name: {fields[key]!r}")
     if kind == "comment" and "reply-to" in fields and "edit" in fields:
         raise PublishError(f"{path} sets both reply-to and edit; a comment does one")
-    if not body.strip():
-        raise PublishError(f"{path} has no text after {SEPARATOR}")
+
+
+def check_head(path, fields):
+    """A pull request's head must be a work branch, never main, a release or a claude/ one."""
+    head = fields["head"]
+    if not WORK_BRANCH.match(head) or TOOL_PREFIX.match(head):
+        raise PublishError(f"{path} head {head!r} isn't a work branch named by the branch rule, "
+                           "<type>/<issue number>-<plain words>")
+    if head == fields.get("base", "main"):
+        raise PublishError(f"{path} head and base are both {head!r}")
+
+
+def parse_message(path, text):
+    """Reads one text file into (kind, fields, body). Raises PublishError naming the file."""
+    fields, body = split_message(path, text)
+    kind = fields.pop("kind", "")
+    if kind not in KINDS:
+        raise PublishError(f"{path} has kind {kind!r}; it must be one of {', '.join(KINDS)}")
+    check_keys(path, kind, fields)
+    if kind == "pull-request":
+        check_head(path, fields)
     return kind, fields, body
 
 
@@ -334,6 +364,33 @@ def post_comment(github, fields, body):
     return f"Commented on #{number}: {comment['html_url']}", []
 
 
+def read_messages(text_commit):
+    """The (path, (kind, fields, body)) of each file the text commit adds or changes, in name
+    order. A file it deletes has nothing to publish."""
+    paths = sorted(path for path in git("diff-tree", "--no-commit-id", "--name-only", "-r", "-z",
+                                        "--root", "--diff-filter=AM", text_commit).split("\0")
+                   if path)
+    return [(path, parse_message(path, git("show", f"{text_commit}:{path}"))) for path in paths]
+
+
+def publish(github, message, work_commit):
+    kind, fields, body = message
+    if kind == "pull-request":
+        return post_pull_request(github, fields, body, work_commit)
+    if kind == "issue":
+        return post_issue(github, fields, body)
+    return post_comment(github, fields, body)
+
+
+def move_back(github, branch, text_commit, work_commit, summary):
+    try:
+        github.push(f"--force-with-lease=refs/heads/{branch}:{text_commit}",
+                    f"+{work_commit}:refs/heads/{branch}")
+        summary.write(f"\nMoved {branch} back to the work commit {work_commit[:12]}.")
+    except subprocess.CalledProcessError:
+        summary.write(f"\nLeft {branch} alone: it was pushed to after the text commit.")
+
+
 def run():
     token = os.environ.get("UNDERSTUDY_TEXT_PUBLISHER_TOKEN", "")
     text_commit = os.environ["TEXT_COMMIT"]
@@ -348,39 +405,21 @@ def run():
         raise PublishError(errors[0])
     if not token:
         raise PublishError("the UNDERSTUDY_TEXT_PUBLISHER_TOKEN secret is missing. Yousef "
-                          "makes it; see the workflow file's comment.")
+                           "makes it; see the workflow file's comment.")
+    # Every message is read and checked before anything is published or moved.
+    messages = read_messages(text_commit)
     github = GitHub(token, os.environ["GITHUB_REPOSITORY"])
     if not github.verified(text_commit):
         raise PublishError(f"the text commit {text_commit} is not Verified")
     work_commit = git("rev-parse", f"{text_commit}^").strip()
-    # Files the commit adds or changes; one it deletes has nothing to post.
-    present = sorted(path for path in git("diff-tree", "--no-commit-id", "--name-only", "-r",
-                                          "-z", "--root", "--diff-filter=AM", text_commit)
-                     .split("\0") if path)
-    messages = [parse_message(path, git("show", f"{text_commit}:{path}"))
-                for path in present]
-    for path, (kind, fields, body) in zip(present, messages, strict=True):
-        if kind == "pull-request" and fields["head"] == branch:
-            raise PublishError(f"{path} names the pushed branch as its head; push the text "
-                              "commit to another branch, such as the cloud work's claude/ one")
     summary = Summary()
     summary.write(f"### Text commit {text_commit[:12]} on {branch}\n")
-    for path, (kind, fields, body) in zip(present, messages, strict=True):
-        if kind == "pull-request":
-            line, warnings = post_pull_request(github, fields, body, work_commit)
-        elif kind == "issue":
-            line, warnings = post_issue(github, fields, body)
-        else:
-            line, warnings = post_comment(github, fields, body)
+    for path, message in messages:
+        line, warnings = publish(github, message, work_commit)
         summary.write(f"- {path}: {line}")
         for warning in warnings:
             print(f"::warning::{path}: {warning}")
-    try:
-        github.push(f"--force-with-lease=refs/heads/{branch}:{text_commit}",
-                    f"+{work_commit}:refs/heads/{branch}")
-        summary.write(f"\nMoved {branch} back to the work commit {work_commit[:12]}.")
-    except subprocess.CalledProcessError:
-        summary.write(f"\nLeft {branch} alone: it was pushed to after the text commit.")
+    move_back(github, branch, text_commit, work_commit, summary)
     return 0
 
 
@@ -431,11 +470,6 @@ def parse_cases():
          1),
         ("a comment number that isn't a number fails",
          errors_of("kind: comment\non: #12\n---\nText\n"), 1),
-        ("a draft that isn't true or false fails",
-         errors_of("kind: pull-request\ntitle: Work\nhead: ci/1-work\ndraft: yes\n---\nText\n"),
-         1),
-        ("a head with spaces fails",
-         errors_of("kind: pull-request\ntitle: Work\nhead: ci/1 work\n---\nText\n"), 1),
         ("a comment that both replies and edits fails",
          errors_of("kind: comment\non: 3\nreply-to: 4\nedit: 5\n---\nText\n"), 1),
         ("a message with no text fails", errors_of("kind: issue\ntitle: Work\n---\n\n"), 1),
@@ -443,6 +477,35 @@ def parse_cases():
          0),
         ("keys are read whatever their case", errors_of("Kind: issue\nTitle: Work\n---\nText\n"),
          0),
+    ]
+
+
+def head_rule_cases():
+    """Which branches a pull request may name as its head."""
+    def errors_of(text):
+        try:
+            parse_message(".github/text-to-publish/message.md", text)
+        except PublishError as error:
+            return [str(error)]
+        return []
+
+    return [
+        ("a draft that isn't true or false fails",
+         errors_of("kind: pull-request\ntitle: Work\nhead: ci/1-work\ndraft: yes\n---\nText\n"),
+         1),
+        ("a head with spaces fails",
+         errors_of("kind: pull-request\ntitle: Work\nhead: ci/1 work\n---\nText\n"), 1),
+        ("main as the head fails",
+         errors_of("kind: pull-request\ntitle: Work\nhead: main\n---\nText\n"), 1),
+        ("a claude/ head fails",
+         errors_of("kind: pull-request\ntitle: Work\nhead: claude/1-work\n---\nText\n"), 1),
+        ("a head the branch rule doesn't name fails",
+         errors_of("kind: pull-request\ntitle: Work\nhead: release/1.2\n---\nText\n"), 1),
+        ("a head equal to its base fails",
+         errors_of("kind: pull-request\ntitle: Work\nhead: ci/1-work\nbase: ci/1-work\n"
+                   "---\nText\n"), 1),
+        ("a work branch named by the branch rule passes",
+         errors_of("kind: pull-request\ntitle: Work\nhead: fix/92-clock-hop\n---\nText\n"), 0),
     ]
 
 
@@ -494,7 +557,7 @@ def head_cases():
 
 def self_check_cases():
     """Each case is (name, errors found, errors expected): the table the self-check runs."""
-    return parse_cases() + commit_cases() + head_cases()
+    return parse_cases() + head_rule_cases() + commit_cases() + head_cases()
 
 
 def self_check():
