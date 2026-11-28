@@ -64,7 +64,8 @@ ATTRIBUTION = [
     re.compile(r"co-authored-by:.*" + AI_TOOLS, re.IGNORECASE),
     re.compile(r"\bclaude-session\s*:", re.IGNORECASE),
     re.compile(
-        r"(generated|written|created|made)\s+(with|by|using)[\W_]*(github[\W_]+)?" + AI_TOOLS,
+        r"(generated|written|created|made)[*_]*\s+[*_]*(with|by|using)[\W_]*(github[\W_]+)?"
+        + AI_TOOLS,
         re.IGNORECASE,
     ),
     # Any claude.ai link: a session, a project or thread, an artifact, a chat or a share. The
@@ -229,7 +230,7 @@ def added_blocks(lines, numbers):
     blocks = []
     block = []
     previous = None
-    for number, line in zip(numbers, lines):
+    for number, line in zip(numbers, lines, strict=True):
         if block and number != previous + 1:
             blocks.append("\n".join(block))
             block = []
@@ -441,6 +442,7 @@ WRAPPED_LINES = WRAPPED_CREDIT.split("\n")
 TOOL_AS_WORD_PART = "Made with cursors instead of arrays."
 EMPHASIZED_CREDIT = "_Made " + "using ChatGPT_"
 EMPHASIZED_TOOL = "Made " + "with _ChatGPT_"
+EMPHASIZED_VERB = "**Written** " + f"with {CLAUDE_CODE}"
 
 CHANGELOG_SAMPLE = """# Changelog
 
@@ -654,6 +656,7 @@ def title_and_host_cases():
         ),
         ("a credit in emphasis fails", attribution_errors(EMPHASIZED_CREDIT, "", [], {}), 1),
         ("a tool name in emphasis fails", attribution_errors(EMPHASIZED_TOOL, "", [], {}), 1),
+        ("a verb in emphasis fails", attribution_errors(EMPHASIZED_VERB, "", [], {}), 1),
         ("a hyphenated host name passes", attribution_errors(HYPHENATED_HOST, "", [], {}), 0),
         ("a subdomain path fails", attribution_errors(BARE_SUBDOMAIN_PATH, "", [], {}), 1),
         ("a link with user information fails", attribution_errors(USER_INFO_LINK, "", [], {}), 1),
