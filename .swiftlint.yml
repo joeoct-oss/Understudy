@@ -9,7 +9,8 @@
 # - The custom rules are regexes over one file at a time. What they can't see, CODE_STYLE.md
 #   leaves to review.
 # - The version is pinned in scripts/lint-tools.sh: an upgrade that changes the rules is its own PR.
-# - Waypoint's .swiftlint.yml holds the same rules; a rule change updates both.
+# - Waypoint's .swiftlint.yml holds the same rules, except the naming rule (`identifier_name`
+#   and `no_shorthand_argument`), as CODE_STYLE.md lists; a rule change updates both.
 
 strict: true
 
