@@ -62,8 +62,8 @@ ALL = frozenset(LEGS)
 # matches reads as every leg's: the package's sources, tests and manifests fall there on purpose,
 # as do checks.yml and this script, which decide how every leg runs.
 LEG_RULES = [
-    # Read by no leg: docs, review tool config, and workflows and scripts no leg calls on a pull
-    # request (the fast checks and SonarQube run on every pull request anyway).
+    # Read by no leg: root Markdown, review tool config, and workflows and scripts no leg calls on
+    # a pull request (the fast checks and SonarQube run on every pull request anyway).
     (r"[^/]+\.md|LICENSE|\.gitignore|\.coderabbit\.yaml|\.spi\.yml|codecov\.yml", set()),
     (r"sonar-project\.properties|\.gitar/.*", set()),
     # The lint config and scripts: lint runs in the fast checks on every pull request.
@@ -375,14 +375,15 @@ CLASSIFY_CASES = [
 ]
 
 # The pull request's changed files, its earlier commits and which legs run, for the self-check.
-# c1 and c2 passed the Linux and Apple legs; c1 is followed only by docs, c2 by code.
+# c1 and c2 passed the Linux and Apple legs; c1 is followed only by root Markdown, c2 by code.
 CODE = ["Sources/a.swift"]
 FLOW_CASES = [
-    # A merge from main that brings only docs reuses what passed on the commit before it.
+    # A merge from main that brings only root Markdown or config reuses what passed on the commit
+    # before it.
     (CODE, ["c1"], {LINUX: False, APPLE: False, BENCHMARKS: True, MUTATION: True}),
     # A newer commit that changed code runs again, even if an older one passed.
     (CODE, ["c2", "c1"], {LINUX: True, APPLE: True, BENCHMARKS: True, MUTATION: True}),
-    # The first push of a docs-only pull request runs no leg.
+    # The first push of a pull request that changes only root Markdown or config runs no leg.
     (["README.md"], [], {LINUX: False, APPLE: False, BENCHMARKS: False, MUTATION: False}),
 ]
 FLOW_PASSES = {"c1": {LINUX, APPLE}, "c2": {LINUX, APPLE}}
