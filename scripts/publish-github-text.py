@@ -295,8 +295,10 @@ def move_head(github, fields, work_commit):
         return action
     since = head_commit or f"refs/remotes/publisher/{base}"
     shas = [sha for sha in git("rev-list", f"{since}..{work_commit}").split() if sha]
-    paths = [path for path in git("diff", "--name-only", "-z", f"{since}...{work_commit}")
-             .split("\0") if path]
+    # Every path each gained commit touches, merges included, so a text file added in one
+    # commit and deleted in a later one is still seen.
+    paths = sorted({path for path in git("log", "-m", "--format=", "--name-only", "-z",
+                                         f"{since}..{work_commit}").split("\0") if path})
     errors = gained_commit_errors([(sha, github.verified(sha)) for sha in shas], paths)
     if errors:
         raise PublishError(f"can't move {head}: " + "; ".join(errors))
@@ -383,12 +385,19 @@ def publish(github, message, work_commit):
 
 
 def move_back(github, branch, text_commit, work_commit, summary):
+    """Moves the pushed branch back to the work commit. A branch pushed to since is left alone;
+    a branch still at the text commit after a refused push is a failure."""
     try:
         github.push(f"--force-with-lease=refs/heads/{branch}:{text_commit}",
                     f"+{work_commit}:refs/heads/{branch}")
-        summary.write(f"\nMoved {branch} back to the work commit {work_commit[:12]}.")
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as error:
+        if github.branch_commit(branch) == text_commit:
+            detail = (error.stderr or b"").decode("utf-8", "replace").strip()
+            raise PublishError(f"the text was published, but {branch} couldn't be moved back "
+                               f"to {work_commit}: {detail}") from error
         summary.write(f"\nLeft {branch} alone: it was pushed to after the text commit.")
+        return
+    summary.write(f"\nMoved {branch} back to the work commit {work_commit[:12]}.")
 
 
 def run():
@@ -397,6 +406,14 @@ def run():
     branch = os.environ["PUSHED_BRANCH"]
     changed = [path for path in git("diff-tree", "--no-commit-id", "--name-only", "-r", "-z",
                                     "--root", text_commit).split("\0") if path]
+    parents = git("rev-list", "--parents", "-n", "1", text_commit).split()[1:]
+    if len(parents) != 1:
+        # git lists no changed paths for a merge, so its tree decides: a merge that holds text
+        # files can't be published, one without them isn't a text commit.
+        if git("ls-tree", "-r", "--name-only", text_commit, "--", TEXT_FOLDER).strip():
+            raise PublishError(f"the pushed commit {text_commit} has {len(parents)} parents; a "
+                               "text commit has exactly one, on top of the work")
+        changed = []
     errors = text_commit_errors(changed)
     if errors is None:
         print(f"{text_commit} changes no file under {TEXT_FOLDER}, so it isn't a text commit.")
