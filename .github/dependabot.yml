@@ -1,6 +1,9 @@
 # Keeps the pinned actions and swift-syntax current. Each ecosystem gets one grouped pull request a
 # month, at 3:00 AM Cairo time. The swift images in ci.yml are pinned by digest and bumped by hand
-# in the actions PR.
+# in the actions PR. Dependabot's pull requests read SONAR_TOKEN from the repo's Dependabot
+# secrets, since they get none of its Actions secrets. Their titles stay Dependabot's own: a
+# grouped title can't be changed, and a commit-message prefix would only add one. CodeRabbit's
+# title check passes dependabot/ branches instead (.coderabbit.yaml).
 version: 2
 updates:
   - package-ecosystem: github-actions

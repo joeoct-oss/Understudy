@@ -14,7 +14,9 @@
 # - The version Sonar records is the newest version in CHANGELOG.md (scripts/release-notes.sh), so
 #   the release commit itself starts a new version and new code on main is everything after it. A
 #   pull request is always compared with main.
-# - Needs SONAR_TOKEN. Pull requests from forks get no secrets, so they stop here.
+# - Needs SONAR_TOKEN. Pull requests from forks get no secrets, so they stop here. Dependabot's
+#   pull requests get the Dependabot secrets instead of the Actions secrets, so SONAR_TOKEN is in
+#   both.
 set -euo pipefail
 
 scanner_version="8.5.0.16571"
