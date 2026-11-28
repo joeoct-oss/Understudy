@@ -78,7 +78,7 @@ final class MockRegistry: @unchecked Sendable {
         defer {
             lock.unlock()
         }
-        if !ledgers.contains(where: { $0 === ledger }) {
+        if !ledgers.contains(where: { registered in registered === ledger }) {
             ledgers.append(ledger)
         }
     }
@@ -88,7 +88,7 @@ final class MockRegistry: @unchecked Sendable {
         lock.lock()
         let listed = ledgers
         lock.unlock()
-        return listed.flatMap { $0.unreportedProblems() }
+        return listed.flatMap { listedLedger in listedLedger.unreportedProblems() }
     }
 }
 

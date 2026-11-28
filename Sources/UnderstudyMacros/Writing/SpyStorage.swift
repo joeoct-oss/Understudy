@@ -27,13 +27,13 @@ extension GenerateSpiesMacro {
         let names = try spyNames(for: requirements)
         let prefix = access.isEmpty ? "" : access + " "
         let spyPrefix = prefix + (isActor ? "nonisolated " : "")
-        let statics = zip(requirements, names).filter { $0.0.isStatic }
+        let statics = zip(requirements, names).filter { requirement, _ in requirement.isStatic }
         // `var` because the parents' spies, the instance spies and the initializer are added below.
         var declarations = try staticStorage(for: statics, in: typeName, prefix: prefix, isGlobalActor: isGlobalActor)
         for parent in parents {
             declarations.append("\(raw: spyPrefix)let \(raw: parent.property): \(raw: parent.spyType)")
         }
-        let instances = zip(requirements, names).filter { !$0.0.isStatic }
+        let instances = zip(requirements, names).filter { requirement, _ in !requirement.isStatic }
         let (spies, answers) = instanceSpies(for: instances, prefix: spyPrefix)
         declarations += spies
         // Under a global actor, a `nonisolated` protocol `init` delegates to the spy's own
@@ -101,12 +101,12 @@ extension GenerateSpiesMacro {
             return nil
         }
         let parameters =
-            parents.map { "\($0.label): \($0.spyType)" }
+            parents.map { parent in "\(parent.label): \(parent.spyType)" }
             + answers.map { answer in
-                "\(label(of: answer.name)): \(answer.output)" + (answer.obvious.map { " = \($0)" } ?? "")
+                "\(label(of: answer.name)): \(answer.output)" + (answer.obvious.map { value in " = \(value)" } ?? "")
             }
         let assignments =
-            parents.map { "self.\($0.property) = \($0.label)" }
+            parents.map { parent in "self.\(parent.property) = \(parent.label)" }
             + answers.map { answer in
                 let name = label(of: answer.name)
                 return "self.\(answer.name) = .init(returning: \(name == "subscript" ? "`subscript`" : name))"

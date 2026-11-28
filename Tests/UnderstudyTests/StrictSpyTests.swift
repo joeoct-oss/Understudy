@@ -99,8 +99,8 @@ struct StrictSpyTests {
     func expectationsCanMatchInputsThatAreNotEquatable() throws {
         let save = Spy<(path: String, force: Bool), Void>()
         let loader = ThrowingSpy<(path: String, force: Bool), Int>(returning: 0)
-        save.expect { $0.force }
-        loader.expect(times: 2) { !$0.force }
+        save.expect { request in request.force }
+        loader.expect(times: 2) { request in !request.force }
 
         save((path: "a", force: true))
         _ = try loader((path: "b", force: false))
@@ -113,7 +113,7 @@ struct StrictSpyTests {
     @Test("A throwing spy's expectation with a matcher reports a call count it didn't get")
     func throwingSpyExpectationReportsShortfall() throws {
         let loader = ThrowingSpy<(path: String, force: Bool), Int>(returning: 0)
-        loader.expect(times: 2) { !$0.force }
+        loader.expect(times: 2) { request in !request.force }
 
         _ = try loader((path: "b", force: false))
         // `var` because `withKnownIssue`'s body sets it.

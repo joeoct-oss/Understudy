@@ -69,6 +69,14 @@ type_contents_order:
 redundant_discardable_let:
   ignore_swiftui_view_bodies: true
 
+# The naming rule: no name of one or two characters, closure parameters and loop variables
+# included. `id` is exempt, since `Identifiable` and other protocols dictate it. SwiftLint's
+# default is the same; it is written out here so a default change can't loosen it.
+identifier_name:
+  min_length: 3
+  excluded:
+    - '^id$'
+
 # Public members of a type that conforms to a protocol need a doc comment too.
 missing_docs:
   excludes_inherited_types: false
@@ -213,4 +221,13 @@ custom_rules:
     regex: '\bmutating[ \t]+func\b'
     excluded_match_kinds: [comment, doccomment, string]
     message: 'Return a new value from a non-mutating function instead.'
+    severity: error
+
+  # The naming rule: no `$0`. SwiftLint's `shorthand_argument` rule allows `$0` on the line that
+  # opens the closure, so this regex catches every one, in string interpolation too.
+  no_shorthand_argument:
+    name: 'no_shorthand_argument'
+    regex: '\$[0-9]+'
+    excluded_match_kinds: [comment, doccomment, string]
+    message: 'Name this closure parameter instead of using `$0`.'
     severity: error

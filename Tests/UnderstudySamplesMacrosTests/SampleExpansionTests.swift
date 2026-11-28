@@ -67,7 +67,7 @@ struct SampleExpansionTests {
         let function = try #require(sampleFunction(in: expanded))
         let clause = sequence(first: Syntax(function), next: \.parent)
             .lazy
-            .compactMap { $0.as(IfConfigClauseSyntax.self) }
+            .compactMap { element in element.as(IfConfigClauseSyntax.self) }
             .first
         #expect(clause?.condition?.trimmedDescription == "DEBUG")
         #expect(clause?.poundKeyword.tokenKind == .poundIf)
@@ -88,7 +88,7 @@ struct SampleExpansionTests {
 
         let function = try #require(sampleFunction(in: expanded))
         let levels = ["public", "package", "internal", "fileprivate", "private"]
-        let written = function.modifiers.first { levels.contains($0.name.text) }?.name.text
+        let written = function.modifiers.first { modifier in levels.contains(modifier.name.text) }?.name.text
         #expect(written == access)
     }
 
@@ -120,7 +120,9 @@ struct SampleExpansionTests {
     /// The `sample(...)` function in an expanded file, if the macro wrote one.
     private func sampleFunction(in file: Syntax) -> FunctionDeclSyntax? {
         file.tokens(viewMode: .sourceAccurate)
-            .first { $0.tokenKind == .identifier("sample") && $0.parent?.is(FunctionDeclSyntax.self) == true }?
+            .first { token in
+                token.tokenKind == .identifier("sample") && token.parent?.is(FunctionDeclSyntax.self) == true
+            }?
             .parent?.as(FunctionDeclSyntax.self)
     }
 

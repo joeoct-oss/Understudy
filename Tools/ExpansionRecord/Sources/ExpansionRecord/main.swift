@@ -36,7 +36,7 @@ let macros: [String: MacroSpec] = [
 
 /// Whether `source` writes one of the macros as an attribute.
 func usesMacro(_ source: String) -> Bool {
-    macros.keys.contains { source.contains("@" + $0) }
+    macros.keys.contains { macro in source.contains("@" + macro) }
 }
 
 /// What the macros write for `source`, and every diagnostic they give, one per line.
@@ -149,12 +149,13 @@ func isDeclaration(_ node: Syntax) -> Bool {
 
 /// Whether `node` is an attribute that names one of the package's macros.
 func isMacroUse(_ node: Syntax) -> Bool {
-    node.as(AttributeSyntax.self).map { macros[$0.attributeName.trimmedDescription] != nil } ?? false
+    node.as(AttributeSyntax.self).map { attribute in macros[attribute.attributeName.trimmedDescription] != nil }
+        ?? false
 }
 
 /// Prints how many macro uses the sources hold, and the lines and declarations the macros add.
 func printCount(of all: [ExpandedSource]) {
-    let uses = all.reduce(0) { $0 + count(in: $1.text, where: isMacroUse) }
+    let uses = all.reduce(0) { total, file in total + count(in: file.text, where: isMacroUse) }
     let added = all.map { source in
         let code = expansion(of: source.text).code
         let declarations = count(in: code, where: isDeclaration) - count(in: source.text, where: isDeclaration)
@@ -162,8 +163,8 @@ func printCount(of all: [ExpandedSource]) {
     }
     print("sources \(all.count)")
     print("macro uses \(uses)")
-    print("lines written \(added.reduce(0) { $0 + $1.0 })")
-    print("declarations written \(added.reduce(0) { $0 + $1.1 })")
+    print("lines written \(added.reduce(0) { total, written in total + written.0 })")
+    print("declarations written \(added.reduce(0) { total, written in total + written.1 })")
 }
 
 /// Prints the median, fastest and slowest of 10 rounds that expand every source, after 3 rounds
@@ -191,7 +192,7 @@ func milliseconds(_ duration: Duration) -> String {
 }
 
 let arguments = CommandLine.arguments.dropFirst()
-let all = try arguments.filter { !$0.hasPrefix("--") }.flatMap(sources(in:))
+let all = try arguments.filter { argument in !argument.hasPrefix("--") }.flatMap(sources(in:))
 if arguments.contains("--count") {
     printCount(of: all)
 } else if arguments.contains("--time") {

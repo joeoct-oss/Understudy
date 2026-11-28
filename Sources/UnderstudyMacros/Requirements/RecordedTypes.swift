@@ -33,7 +33,8 @@ extension FunctionRequirement {
                 let message = "\(subject) takes a parameter pack; write its double by hand"
                 throw UnderstudyError(message, at: declaration.name)
             }
-            generics[parameter.name.text] = parameter.inheritedType.map { "any " + $0.trimmedDescription } ?? "Any"
+            generics[parameter.name.text] =
+                parameter.inheritedType.map { inherited in "any " + inherited.trimmedDescription } ?? "Any"
         }
         return generics
     }
@@ -44,7 +45,7 @@ extension FunctionRequirement {
     static func erased(_ type: TypeSyntax, generics: [String: String]) -> Erased? {
         func generic(_ element: some SyntaxProtocol) -> Erased? {
             let name = element.trimmedDescription
-            return generics[name].map { Erased(type: $0, parameter: name) }
+            return generics[name].map { erased in Erased(type: erased, parameter: name) }
         }
         if let whole = generic(type) {
             return whole
@@ -62,7 +63,7 @@ extension FunctionRequirement {
         }
         if let set = type.as(IdentifierTypeSyntax.self), set.name.text == "Set",
             let arguments = set.genericArgumentClause?.arguments, arguments.count == 1,
-            let element = arguments.first.flatMap({ generic($0.argument) })
+            let element = arguments.first.flatMap({ argument in generic(argument.argument) })
         {
             return Erased(type: "Swift.Set<Swift.AnyHashable>", parameter: element.parameter)
         }
@@ -71,12 +72,13 @@ extension FunctionRequirement {
 
     /// Whether a type mentions a generic parameter anywhere in it.
     private static func mentionsGeneric(_ type: some SyntaxProtocol, _ generics: [String: String]) -> Bool {
-        type.tokens(viewMode: .sourceAccurate).contains { generics[$0.text] != nil }
+        type.tokens(viewMode: .sourceAccurate).contains { token in generics[token.text] != nil }
     }
 
     /// Refuses a type that mentions a generic parameter without being it.
     static func refuseNested(_ type: some SyntaxProtocol, generics: [String: String], in subject: String) throws {
-        if let name = type.tokens(viewMode: .sourceAccurate).first(where: { generics[$0.text] != nil })?.text {
+        let mentioned = type.tokens(viewMode: .sourceAccurate).first { token in generics[token.text] != nil }
+        if let name = mentioned?.text {
             throw UnderstudyError(
                 "\(subject) uses '\(name)' inside another type; write its double by hand",
                 at: type
@@ -95,7 +97,7 @@ extension FunctionRequirement {
         // `var` because an `@escaping` attribute is taken off below.
         var type = parameter.type
         if let attributed = type.as(AttributedTypeSyntax.self) {
-            if attributed.specifiers.contains(where: { $0.trimmedDescription.hasPrefix("inout") }) {
+            if attributed.specifiers.contains(where: { specifier in specifier.trimmedDescription.hasPrefix("inout") }) {
                 throw UnderstudyError("\(subject) takes an inout parameter; write its double by hand", at: parameter)
             }
             let kept = attributed.attributes.filter { attribute in

@@ -66,7 +66,7 @@ public struct SpiedMacro: BodyMacro {
     /// Whether the declaration is a member of a class or an actor marked `@GenerateSpies`; for a
     /// subscript's `get` or `set`, the subscript's.
     static func isInsideUnderstudyType(_ context: some MacroExpansionContext) -> Bool {
-        let contexts = context.lexicalContext.drop { $0.is(SubscriptDeclSyntax.self) }
+        let contexts = context.lexicalContext.drop { enclosing in enclosing.is(SubscriptDeclSyntax.self) }
         let type = contexts.first
         let attributes = type?.as(ClassDeclSyntax.self)?.attributes ?? type?.as(ActorDeclSyntax.self)?.attributes
         guard let attributes else {

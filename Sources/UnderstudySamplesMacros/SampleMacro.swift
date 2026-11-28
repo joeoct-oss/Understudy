@@ -36,14 +36,15 @@ public struct SampleMacro: MemberMacro {
             throw SampleError("attach it to a struct; only a struct has a memberwise initializer to call")
         }
         let parameters = try type.memberBlock.members
-            .compactMap { $0.decl.as(VariableDeclSyntax.self) }
+            .compactMap { member in member.decl.as(VariableDeclSyntax.self) }
             .flatMap(SampleParameter.parameters(of:))
         let access =
             type.modifiers
-            .first { $0.name.text == "public" || $0.name.text == "package" }
-            .map { $0.name.text + " " } ?? ""
-        let list = parameters.map { "\($0.name): \($0.type) = \($0.value)" }.joined(separator: ",\n")
-        let arguments = parameters.map { "\($0.name): \($0.name)" }.joined(separator: ", ")
+            .first { modifier in modifier.name.text == "public" || modifier.name.text == "package" }
+            .map { modifier in modifier.name.text + " " } ?? ""
+        let fields = parameters.map { parameter in "\(parameter.name): \(parameter.type) = \(parameter.value)" }
+        let list = fields.joined(separator: ",\n")
+        let arguments = parameters.map { parameter in "\(parameter.name): \(parameter.name)" }.joined(separator: ", ")
         return """
             #if DEBUG
             /// A complete value for tests, with a default for every property the test doesn't name.

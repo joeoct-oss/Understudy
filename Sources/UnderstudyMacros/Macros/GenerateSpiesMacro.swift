@@ -55,7 +55,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         if let proto = declaration.as(ProtocolDeclSyntax.self) {
             // `peers(of:)` reports a protocol the macro can't write.
             let spy = try? ProtocolSpy(proto, isNested: !context.lexicalContext.isEmpty)
-            return spy?.forwardingExtension().map { [$0] } ?? []
+            return spy?.forwardingExtension().map { forwarding in [forwarding] } ?? []
         }
         guard declaration.is(ClassDeclSyntax.self) || declaration.is(ActorDeclSyntax.self),
             let requirements = try? spiedRequirements(of: declaration.memberBlock),
@@ -80,7 +80,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
             guard let node = error.node else {
                 throw error
             }
-            context.diagnose(Diagnostic(node: node, message: error, fixIts: error.fixIt.map { [$0] } ?? []))
+            context.diagnose(Diagnostic(node: node, message: error, fixIts: error.fixIt.map { fixIt in [fixIt] } ?? []))
             return []
         }
     }
@@ -173,7 +173,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         let conformances =
             [spy.name] + spy.parents.map(\.forwarding)
             + (spy.requirements.contains(where: \.isStatic) ? [GeneratedName.staticSpies] : [])
-        let body = members.map { $0.trimmedDescription }.joined(separator: "\n\n")
+        let body = members.map(\.trimmedDescription).joined(separator: "\n\n")
         let header =
             "\(spy.prefix)\(kind) \(spy.spyName)\(spy.genericParameters): "
             + conformances.joined(separator: ", ")
@@ -195,12 +195,12 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
                 return try SubscriptRequirement(spied, inProtocol: false)
             }
             if let property = member.decl.as(VariableDeclSyntax.self),
-                property.attributes.contains(where: { isAttribute($0, named: "SpiedProperty") })
+                property.attributes.contains(where: { attribute in isAttribute(attribute, named: "SpiedProperty") })
             {
                 return try PropertyRequirement(property, inProtocol: false)
             }
             guard let function = member.decl.as(FunctionDeclSyntax.self),
-                function.attributes.contains(where: { isAttribute($0, named: "Spied") })
+                function.attributes.contains(where: { attribute in isAttribute(attribute, named: "Spied") })
             else {
                 return nil
             }
@@ -224,16 +224,16 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         of block: MemberBlockSyntax
     ) -> [(IdentifierPatternSyntax, AttributeSyntax)] {
         block.members
-            .compactMap { $0.decl.as(VariableDeclSyntax.self) }
+            .compactMap { member in member.decl.as(VariableDeclSyntax.self) }
             .flatMap { variable -> [(IdentifierPatternSyntax, AttributeSyntax)] in
                 guard
-                    let attribute = variable.attributes.lazy.compactMap({ $0.as(AttributeSyntax.self) })
-                        .first(where: { isAttribute(.attribute($0), named: "Recorded") })
+                    let attribute = variable.attributes.lazy.compactMap({ element in element.as(AttributeSyntax.self) })
+                        .first(where: { attribute in isAttribute(.attribute(attribute), named: "Recorded") })
                 else {
                     return []
                 }
-                return variable.bindings.compactMap { $0.pattern.as(IdentifierPatternSyntax.self) }
-                    .map { ($0, attribute) }
+                return variable.bindings.compactMap { binding in binding.pattern.as(IdentifierPatternSyntax.self) }
+                    .map { pattern in (pattern, attribute) }
             }
     }
 
@@ -241,7 +241,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
     private static func hasSpiedAccessor(_ declaration: SubscriptDeclSyntax) -> Bool {
         let accessors = declaration.accessorBlock?.accessors.as(AccessorDeclListSyntax.self) ?? []
         return accessors.contains { accessor in
-            accessor.attributes.contains { isAttribute($0, named: "Spied") }
+            accessor.attributes.contains { attribute in isAttribute(attribute, named: "Spied") }
         }
     }
 
@@ -254,7 +254,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
     /// The access level a generated member takes from the declaration it belongs to.
     static func access(of modifiers: DeclModifierListSyntax) -> String {
         let levels = ["open", "public", "package", "internal", "fileprivate", "private"]
-        guard let level = modifiers.first(where: { levels.contains($0.name.text) })?.name.text else {
+        guard let level = modifiers.first(where: { modifier in levels.contains(modifier.name.text) })?.name.text else {
             return ""
         }
         switch level {

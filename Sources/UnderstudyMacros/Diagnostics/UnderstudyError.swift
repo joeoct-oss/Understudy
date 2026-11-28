@@ -41,7 +41,7 @@ struct UnderstudyError: Error, CustomStringConvertible, DiagnosticMessage {
     /// An error with `description`, at `node` when there is one, with the fix-it that solves it.
     init(_ description: String, at node: (some SyntaxProtocol)? = Optional<Syntax>.none, fixIt: FixIt? = nil) {
         self.description = "@GenerateSpies: " + description
-        self.node = node.map { Syntax($0) }
+        self.node = node.map { node in Syntax(node) }
         self.fixIt = fixIt
     }
 }
