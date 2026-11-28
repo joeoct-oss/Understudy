@@ -24,13 +24,13 @@
 
         @Steps {
             @Step {
-                This is the code under test, in the `Restaurant` target: a `Menu` protocol, and a `DishScreen` that shows the name of the dish it was opened with.
+                This is the code under test, in the `Restaurant` target: a `Menu` protocol, and a `DishScreen` that shows the name of the dish it was opened with. They are `public`, so the tests reach them the way any other code does.
 
                 @Code(name: "Menu.swift", file: "first-double-02-menu.swift")
             }
 
             @Step {
-                In your test target, write a class that conforms to `Menu`. `@testable import Restaurant` lets the tests see the app's types, and the compiler asks for `dish(number:)`.
+                In your test target, write a class that conforms to `Menu`. `import Restaurant` lets the tests see the app's public types, and the compiler asks for `dish(number:)`.
 
                 @Code(name: "SpyMenu.swift", file: "first-double-03-spy.swift")
             }

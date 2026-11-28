@@ -6,9 +6,9 @@
 //  Copyright © 2026 Yousef Mohamed. MIT License.
 //
 
+import Restaurant
 import Testing
 import Understudy
-@testable import Restaurant
 
 struct DishScreenTests {
     @Test("The screen shows the dish's name")

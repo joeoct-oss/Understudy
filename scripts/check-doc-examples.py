@@ -18,9 +18,9 @@ drift from the API. The rules live here, their one home:
   part of it: its lines, in order, all in the last one;
 - lines are compared with their indentation and runs of spaces collapsed, blank lines skipped, a
   code file's opening header comment left out, and a leading `private ` or `fileprivate ` left
-  out on both sides, since a test file adds one to keep its types to itself; an
-  `@testable import` line is left out too, since a tutorial's tests import the reader's app
-  and the guide tests have it in their own target;
+  out on both sides, since a test file adds one to keep its types to itself; `import` lines
+  are left out too, since a tutorial's tests import the reader's app and the guide tests have
+  its code in their own target;
 - a block ends at a fence of three or more backticks, after at most three spaces, with nothing
   after it but spaces, at least as long as the one that opened it, as Markdown reads it;
 - a block that can't be a test, such as a package manifest, is marked on the line before it with
@@ -43,7 +43,7 @@ GUIDES = ROOT / "Tests/UnderstudyTests/Guides"
 
 BLOCK = re.compile(r"^ {0,3}(`{3,})swift\s*$")
 FENCE = re.compile(r"^ {0,3}(`{3,})\s*$")
-TESTABLE = re.compile(r"^@testable import ")
+IMPORT = re.compile(r"^import ")
 NOT_COMPILED = re.compile(r"^<!--\s*not compiled:\s*(.+?)\s*-->\s*$")
 SECTION = re.compile(r"@Section\s*\(")
 CODE = re.compile(r'@Code\s*\(\s*name:\s*"([^"]+)"\s*,\s*file:\s*"([^"]+)"\s*\)')
@@ -62,7 +62,7 @@ def normalized(text):
     result = []
     for line in lines:
         line = " ".join(line.split())
-        if line and not TESTABLE.match(line):
+        if line and not IMPORT.match(line):
             result.append(ACCESS.sub("", line))
     return result
 
@@ -203,8 +203,8 @@ def self_check_fixtures():
         "other_test": {"G.swift": "final class Spy {}"},
         "long_fence": "# A\n\n```swift\nfinal class Spy {\n    func call() {\n        run()\n````\n\nProse after it.\n",
         "indented_fence": "# A\n\n```swift\nfinal class Spy {\n    func call() {\n        run()\n   ```\n\nProse.\n",
-        "testable": {"Guides/A.swift": "import Understudy\nfinal class Spy {\n}\n"},
-        "importing": "# A\n\n```swift\n@testable import Restaurant\nimport Understudy\nfinal class Spy {\n}\n```\n",
+        "importing_test": {"Guides/A.swift": "import Understudy\nfinal class Spy {\n}\n"},
+        "importing": "# A\n\n```swift\nimport Restaurant\nimport Understudy\nfinal class Spy {\n}\n```\n",
         "manifest_tutorial": {"t": '@Code(name: "Package", file: "package.swift")'},
         "manifest_file": {"package.swift": "// swift-tools-version: 6.0\nlet package = Package()"},
     }
@@ -244,8 +244,8 @@ def self_check_cases():
         ("a longer closing fence ends the block", article_problems(fixture["long_fence"])[0], []),
         ("a closing fence after three spaces ends the block", article_problems(fixture["indented_fence"])[0], []),
         (
-            "an @testable import line is left out",
-            article_problems(fixture["importing"], fixture["testable"])[0],
+            "import lines are left out",
+            article_problems(fixture["importing"], fixture["importing_test"])[0],
             [],
         ),
         ("a missing code file fails", len(tutorial_problems({}, {})), 2),

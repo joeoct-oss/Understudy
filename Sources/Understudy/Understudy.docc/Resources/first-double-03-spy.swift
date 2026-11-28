@@ -6,8 +6,8 @@
 //  Copyright © 2026 Yousef Mohamed. MIT License.
 //
 
+import Restaurant
 import Understudy
-@testable import Restaurant
 
 /// The menu the tests pass to the screen.
 ///

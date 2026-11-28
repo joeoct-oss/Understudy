@@ -3,7 +3,8 @@
 # tests would let through. It reports and never fails: a survivor can be an equivalent change, which
 # only a person can judge.
 # - Pull requests to main, called by the checks workflow (checks.yml) once SonarQube Cloud's quality
-#   gate passed. A pull request that changes no Swift file in Sources/ stops before the build.
+#   gate passed. A pull request that changes no Swift file in Sources/ outside a DocC catalog
+#   (*.docc) stops before the build.
 # - A DocC catalog's code files are never mutated, as SwiftPM doesn't build them.
 # - A manual run mutates all of Sources/, which takes about 11 hours in one job, past the 6 hour
 #   job limit: it runs as parallel jobs instead, one per group of `scripts/mutate.py --shard`
