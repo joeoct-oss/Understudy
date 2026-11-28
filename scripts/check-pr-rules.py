@@ -67,9 +67,13 @@ ATTRIBUTION = [
     ),
     # Any claude.ai link: a session, a project or thread, an artifact, a chat or a share. The
     # "Requested by" credit line at the top of a body carries a project link, so it fails here.
-    # A bare site link ends at the host: "https://claude.ai" or "https://claude.ai." both fail,
-    # while a longer host such as claude.ai.example.com passes.
-    re.compile(r"\bclaude\.ai/|https?://([\w-]+\.)*claude\.ai(?![\w-]|\.\w)", re.IGNORECASE),
+    # The host must be claude.ai or one of its subdomains: a bare site link ("https://claude.ai",
+    # or the same with a full stop after it) fails, while a longer host such as
+    # claude.ai.example.com or one that only ends in the name, such as not-claude.ai, passes.
+    re.compile(
+        r"(?<![\w.-])([\w-]+\.)*claude\.ai/|https?://([\w-]+\.)*claude\.ai(?![\w-]|\.\w)",
+        re.IGNORECASE,
+    ),
     # The hidden credit comment at the top of a generated body.
     re.compile(r"claude-projects-attribution", re.IGNORECASE),
 ]
@@ -390,6 +394,8 @@ SHARE_LINK = f"{CLAUDE_AI}/share/abc"
 ROOT_LINK = f"See {CLAUDE_AI}."
 SUBDOMAIN_LINK = "See https://www.claude" + ".ai"
 LONGER_HOST = "See https://claude" + ".ai.example.com/docs and https://notclaude" + ".ai/x"
+HYPHENATED_HOST = "See https://not-claude" + ".ai/docs and docs.not-claude" + ".ai/x"
+BARE_SUBDOMAIN_PATH = "See www.claude" + ".ai/x"
 WRITTEN_WITH = "Written " + f"with {CLAUDE_CODE}"
 MADE_USING = "Made " + "using ChatGPT"
 
@@ -457,8 +463,8 @@ def changelog_entry_cases():
     ]
 
 
-def changelog_heading_cases():
-    """The CHANGELOG cases about release and other headings."""
+def changelog_release_heading_cases():
+    """The CHANGELOG cases about a new release heading."""
     return [
         (
             "a release heading passes",
@@ -482,6 +488,12 @@ def changelog_heading_cases():
             ),
             2,
         ),
+    ]
+
+
+def changelog_heading_cases():
+    """The CHANGELOG cases about editing a heading."""
+    return [
         (
             "an edited Unreleased heading alone fails",
             changelog_errors(CHANGELOG_SAMPLE, [3, 5], [CHANGELOG], FILLED, SAMPLE_TEMPLATE),
@@ -538,8 +550,8 @@ def changelog_without_entry_cases():
     ]
 
 
-def body_and_title_attribution_cases():
-    """Each credit form in the body, the credit lines at its top, and the title."""
+def body_attribution_cases():
+    """Each credit form in the body, and the credit lines at its top."""
     in_body = [
         ("a footer", FOOTER),
         ("a robot footer", ROBOT_FOOTER),
@@ -572,11 +584,19 @@ def body_and_title_attribution_cases():
             attribution_errors("", f"{CREDIT_COMMENT}\n{REQUESTED_BY}\n\n{FILLED}", [], {}),
             2,
         ),
+    ]
+    return cases
+
+
+def title_and_host_cases():
+    """Credit in the title, and which host names count as the site."""
+    return [
         ("a credit in the title fails", attribution_errors(WRITTEN_WITH, "", [], {}), 1),
         ("a link in the title fails", attribution_errors(SESSION_LINK, "", [], {}), 1),
         ("a longer host name passes", attribution_errors(LONGER_HOST, LONGER_HOST, [], {}), 0),
+        ("a hyphenated host name passes", attribution_errors(HYPHENATED_HOST, "", [], {}), 0),
+        ("a subdomain path fails", attribution_errors(BARE_SUBDOMAIN_PATH, "", [], {}), 1),
     ]
-    return cases
 
 
 def commit_attribution_cases():
@@ -607,7 +627,7 @@ def commit_attribution_cases():
 
 
 def added_line_cases():
-    """Credit and private references in the lines a pull request adds."""
+    """Credit in the lines a pull request adds."""
     return [
         (
             "a footer in a file fails",
@@ -624,6 +644,12 @@ def added_line_cases():
             attribution_errors("", "", [], {"scripts/check-pr-rules.py": [FOOTER]}),
             0,
         ),
+    ]
+
+
+def private_reference_cases():
+    """Private planning references in added lines, and plain text that passes."""
+    return [
         (
             "a planning reference in a file fails",
             attribution_errors("", "", [], {"README.md": [f"See {PLANNING_ISSUE}."]}),
@@ -680,11 +706,14 @@ def self_check_cases():
     return (
         template_cases()
         + changelog_entry_cases()
+        + changelog_release_heading_cases()
         + changelog_heading_cases()
         + changelog_without_entry_cases()
-        + body_and_title_attribution_cases()
+        + body_attribution_cases()
+        + title_and_host_cases()
         + commit_attribution_cases()
         + added_line_cases()
+        + private_reference_cases()
         + patch_cases()
     )
 
