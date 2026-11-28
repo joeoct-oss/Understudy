@@ -15,6 +15,10 @@ protocol Sundial {
     static func hour() -> Int?
 }
 
+/// The sundial the greeting tests read.
+///
+/// Conformances:
+/// - `Sundial`, so the greeting can read it in place of the real sundial.
 @GenerateSpies
 final class SpySundial: Sundial {
     @Spied static func hour() -> Int?
@@ -33,12 +37,16 @@ struct GreetingTests {
 /// The example of the guide's protocol form, as the guide shows it.
 @Suite("Guide: give each test its own static spies")
 struct GiveEachTestItsOwnStaticSpiesGuide {
-    @Test("A protocol's spy runs the test's body with fresh static spies")
-    func protocolSpyRunsTheBodyWithFreshSpies() async throws {
+    @Test("Each body a protocol's spy runs gets its own static spies")
+    func protocolSpyRunsEachBodyWithItsOwnSpies() async throws {
         try await MetronomeSpy.withFreshSpies {
             MetronomeSpy.beatSpy.willReturn(3)
 
             #expect(MetronomeSpy.beat() == 3)
+        }
+        try await MetronomeSpy.withFreshSpies {
+            #expect(MetronomeSpy.beat() == 0)
+            #expect(MetronomeSpy.beatSpy.callCount == 1)
         }
     }
 }

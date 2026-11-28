@@ -42,7 +42,7 @@ struct TestCodeThatWaitsGuide {
     }
 
     @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
-    @Test("Greets after the delay", .timeLimit(.minutes(1)))
+    @Test("Greets by name once the test clock passes the delay", .timeLimit(.minutes(1)))
     func greetsAfterTheDelay() async throws {
         let clock = TestClock()
         let greeter = Greeter(clock: clock)
@@ -90,6 +90,10 @@ private final class FeedScreen {
 }
 
 /// A greeter that waits a moment before it greets.
+///
+/// Conformances:
+/// - `Sendable`, so a test can call it from `async let`: its one stored value is a clock, and
+///   every `Clock` is `Sendable`.
 @available(macOS 13, iOS 16, tvOS 16, watchOS 9, *)
 private final class Greeter: Sendable {
     private let clock: any Clock<Duration>

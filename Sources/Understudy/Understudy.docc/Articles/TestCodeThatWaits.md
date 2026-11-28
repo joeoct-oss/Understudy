@@ -59,7 +59,7 @@ final class Greeter: Sendable {
 The test passes a ``TestClock`` and moves it, so no real time passes:
 
 ```swift
-@Test("Greets after the delay", .timeLimit(.minutes(1)))
+@Test("Greets by name once the test clock passes the delay", .timeLimit(.minutes(1)))
 func greetsAfterTheDelay() async throws {
     let clock = TestClock()
     let greeter = Greeter(clock: clock)

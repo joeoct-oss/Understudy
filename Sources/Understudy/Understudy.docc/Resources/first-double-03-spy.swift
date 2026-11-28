@@ -7,6 +7,11 @@
 //
 
 import Understudy
+@testable import Restaurant
 
+/// The menu the tests pass to the screen.
+///
+/// Conformances:
+/// - `Menu`, so a test can pass it to `DishScreen` in place of the real menu.
 final class SpyMenu: Menu {
 }

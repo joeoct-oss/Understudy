@@ -37,6 +37,10 @@ private protocol Renderer {
     func draw()
 }
 
+/// The class form of a double for `Renderer`: it writes the `init` and records it.
+///
+/// Conformances:
+/// - `Renderer`, so production code can make it through the protocol's `init`.
 @GenerateSpies
 private final class SpyRenderer: Renderer {
     convenience init(title: String) {
@@ -51,7 +55,7 @@ private final class SpyRenderer: Renderer {
 /// The examples of the "Double a protocol that declares an initializer" guide, as it shows them.
 @Suite("Guide: double a protocol that declares an initializer")
 struct DoubleAProtocolWithAnInitGuide {
-    @Test("A protocol's init records what the code made the double with, and can throw")
+    @Test("A protocol's init records each call, one that throws included, and throws what the test scripted")
     func protocolInitRecordsAndThrows() async throws {
         try await SessionSpy.withFreshSpies {
             _ = try start(SessionSpy.self)
@@ -61,16 +65,20 @@ struct DoubleAProtocolWithAnInitGuide {
 
             SessionSpy.initSpy.willThrow(SessionError.locked)
             #expect(throws: SessionError.locked) { try start(SessionSpy.self) }
+
+            #expect(SessionSpy.initSpy.callCount == 2)
         }
     }
 
-    @Test("A class double's init records its call through a static spy")
+    @Test("A class double's init records its call through a static spy, and the double still records its own calls")
     func classInitRecordsThroughAStaticSpy() async throws {
         try await SpyRenderer.withFreshSpies {
-            _ = SpyRenderer(title: "Menu")
+            let renderer = SpyRenderer(title: "Menu")
+            renderer.draw()
 
             let expectedTitles = ["Menu"]
             #expect(SpyRenderer.madeSpy.calls == expectedTitles)
+            #expect(renderer.drawSpy.callCount == 1)
         }
     }
 }

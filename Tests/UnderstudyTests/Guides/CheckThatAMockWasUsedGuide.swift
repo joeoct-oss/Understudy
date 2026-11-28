@@ -22,7 +22,7 @@ struct CheckThatAMockWasUsedGuide {
         payment = TrackedPayment(analytics: analytics)
     }
 
-    @Test("Completing a checkout tracks it, and the two views before it")
+    @Test("Completing a checkout tracks it and two views")
     func checkoutTracksItsEvents() {
         analytics.trackSpy.expect("checkout")
         analytics.trackSpy.expect(times: 2) { event in event.hasPrefix("view") }

@@ -8,7 +8,7 @@ A static requirement, such as `static func hour()`, has one spy for the whole ty
 
 ### Name the double in a trait
 
-On a class double, put `.freshSpies(...)` on the suite or the test. Each test then gets its own static spies, which every task it starts sees too:
+On a class double, put `.freshSpies(...)` on the suite or the test. Each test then gets its own static spies, which its child tasks and `async let` see too:
 
 ```swift
 @GenerateSpies

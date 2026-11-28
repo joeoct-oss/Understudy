@@ -8,6 +8,7 @@
 
 import Testing
 import Understudy
+@testable import Restaurant
 
 @Suite(.verifiesMocks)
 struct DishScreenTests {

@@ -7,7 +7,7 @@
 //
 
 /// A dish on the menu.
-struct Dish: Equatable {
+struct Dish {
     let number: Int
     let name: String
 }

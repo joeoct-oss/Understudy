@@ -23,7 +23,7 @@ output=".build/docs"
 graphs="$output/symbol-graphs"
 
 swift package dump-symbol-graph --minimum-access-level public
-rm -rf -- "$output"
+rm -rf -- "${output:?}"
 mkdir -p "$graphs"
 # Only the Understudy module's graphs: the others belong to the macros, the samples product and
 # swift-syntax, which this catalog doesn't document.

@@ -18,7 +18,11 @@ drift from the API. The rules live here, their one home:
   part of it: its lines, in order, all in the last one;
 - lines are compared with their indentation and runs of spaces collapsed, blank lines skipped, a
   code file's opening header comment left out, and a leading `private ` or `fileprivate ` left
-  out on both sides, since a test file adds one to keep its types to itself;
+  out on both sides, since a test file adds one to keep its types to itself; an
+  `@testable import` line is left out too, since a tutorial's tests import the reader's app
+  and the guide tests have it in their own target;
+- a block ends at a fence of three or more backticks with nothing after it but spaces, at least
+  as long as the one that opened it, as Markdown reads it;
 - a block that can't be a test, such as a package manifest, is marked on the line before it with
   `<!-- not compiled: <why> -->`, and a tutorial file that opens with `// swift-tools-version` is
   a manifest. Each one is listed in the output with its reason.
@@ -37,8 +41,9 @@ ROOT = Path(__file__).resolve().parent.parent
 CATALOG = ROOT / "Sources/Understudy/Understudy.docc"
 GUIDES = ROOT / "Tests/UnderstudyTests/Guides"
 
-BLOCK = re.compile(r"^```swift\s*$")
-FENCE = re.compile(r"^```\s*$")
+BLOCK = re.compile(r"^(`{3,})swift\s*$")
+FENCE = re.compile(r"^(`{3,})\s*$")
+TESTABLE = re.compile(r"^@testable import ")
 NOT_COMPILED = re.compile(r"^<!--\s*not compiled:\s*(.+?)\s*-->\s*$")
 SECTION = re.compile(r"@Section\s*\(")
 CODE = re.compile(r'@Code\s*\(\s*name:\s*"([^"]+)"\s*,\s*file:\s*"([^"]+)"\s*\)')
@@ -57,7 +62,7 @@ def normalized(text):
     result = []
     for line in lines:
         line = " ".join(line.split())
-        if line:
+        if line and not TESTABLE.match(line):
             result.append(ACCESS.sub("", line))
     return result
 
@@ -82,20 +87,27 @@ def is_part_of(earlier, last):
     return True
 
 
+def closes(line, width):
+    """Whether `line` is a fence that closes a block opened with `width` backticks."""
+    fence = FENCE.match(line)
+    return fence is not None and len(fence.group(1)) >= width
+
+
 def article_blocks(name, text):
     """Each swift block of an article: (where, code, reason it isn't compiled or None)."""
     blocks = []
     lines = text.splitlines()
     index = 0
     while index < len(lines):
-        if not BLOCK.match(lines[index]):
+        opening = BLOCK.match(lines[index])
+        if not opening:
             index += 1
             continue
         before = next((line for line in reversed(lines[:index]) if line.strip()), "")
         marked = NOT_COMPILED.match(before.strip())
         start = index + 1
         index = start
-        while index < len(lines) and not FENCE.match(lines[index]):
+        while index < len(lines) and not closes(lines[index], len(opening.group(1))):
             index += 1
         code = "\n".join(lines[start:index])
         blocks.append((f"{name}:{start + 1}", code, marked.group(1) if marked else None))
@@ -185,6 +197,9 @@ def self_check():
     bad_steps = {"s1.swift": "final class Other {\n}\n", "s2.swift": last_step}
     holding_test = {"G.swift": last_step}
     other_test = {"G.swift": "final class Spy {}"}
+    long_fence = "# A\n\n```swift\nfinal class Spy {\n    func call() {\n        run()\n````\n\nProse after it.\n"
+    testable = {"Guides/A.swift": "import Understudy\nfinal class Spy {\n}\n"}
+    importing = "# A\n\n```swift\n@testable import Restaurant\nimport Understudy\nfinal class Spy {\n}\n```\n"
     manifest_tutorial = {"t": '@Code(name: "Package", file: "package.swift")'}
     manifest_file = {"package.swift": "// swift-tools-version: 6.0\nlet package = Package()"}
     cases = [
@@ -207,6 +222,8 @@ def self_check():
             1,
         ),
         ("a last file no test holds fails", len(problems({}, {"t": tutorial}, steps, other_test)[0]), 1),
+        ("a longer closing fence ends the block", problems({"a.md": long_fence}, {}, {}, test)[0], []),
+        ("an @testable import line is left out", problems({"a.md": importing}, {}, {}, testable)[0], []),
         ("a missing code file fails", len(problems({}, {"t": tutorial}, {}, {})[0]), 2),
         (
             "a tutorial manifest is listed",

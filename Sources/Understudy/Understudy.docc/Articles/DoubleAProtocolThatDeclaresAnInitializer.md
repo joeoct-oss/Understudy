@@ -23,7 +23,7 @@ func start<Made: Session>(_ type: Made.Type) throws -> Made {
 }
 ```
 
-`initSpy` is a static spy, so the test runs its body in `withFreshSpies`, and parallel tests never see each other's calls. An `init` that throws has a ``ThrowingSpy``, so the test can make it throw:
+`initSpy` is a static spy, so the test runs its body in `withFreshSpies`, and parallel tests never see each other's calls. An `init` that throws has a ``ThrowingSpy``, so the test can make it throw, and a call that throws is recorded too:
 
 ```swift
 try await SessionSpy.withFreshSpies {
@@ -34,6 +34,8 @@ try await SessionSpy.withFreshSpies {
 
     SessionSpy.initSpy.willThrow(SessionError.locked)
     #expect(throws: SessionError.locked) { try start(SessionSpy.self) }
+
+    #expect(SessionSpy.initSpy.callCount == 2)
 }
 ```
 
