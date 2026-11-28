@@ -1,9 +1,8 @@
 # Deletes the claude/ branches that no open pull request uses, once a day (Yousef, 2026-11-28).
 # Cloud work pushes to its own claude/ branch and opens the pull request from a branch named by
 # the branch rule, so "Automatically delete head branches" never removes the claude/ one.
-# scripts/delete-unused-claude-branches.py is the one home for what gets deleted: a claude/
-# branch whose head commit is no open pull request's head commit, whose name is no open pull
-# request's head branch, and whose head commit is at least 24 hours old.
+# scripts/delete-unused-claude-branches.py is the one home for which branches go and how; this
+# file only schedules it and hands it the workflow's token.
 # - Every day, and by hand from the Actions tab, where "Dry run" lists what it would delete and
 #   deletes nothing. The run summary lists each deleted branch with its commit, so one can be put
 #   back from that commit.
@@ -12,7 +11,7 @@
 # The same file is in every repo.
 # Hardening: a free GitHub-hosted Linux runner, actions pinned to a full commit SHA,
 # the checkout keeps no token, and the job gets only the permissions it uses: contents: write to
-# delete branches, pull-requests: read to see the open pull requests.
+# delete branches (with a git push), pull-requests: read to see the open pull requests.
 name: Delete unused claude branches
 
 on:
