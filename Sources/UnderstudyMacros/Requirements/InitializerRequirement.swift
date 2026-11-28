@@ -11,6 +11,9 @@ import SwiftSyntax
 /// An `init` a protocol declares. Its spy is static, since the code under test calls it before
 /// any double exists, and keeps the arguments each call was given; the spy class's initializer
 /// with the protocol's signature builds the double with its first answers, then calls the spy.
+///
+/// - `Requirement`: the macros write its spy and the spy class's initializer like any other
+///   requirement's. It isn't a `SpiedMember`, since only a protocol's spy writes it.
 struct InitializerRequirement: Requirement {
     /// How the spy class's initializer with the protocol's signature builds the double.
     enum Delegation {
@@ -33,9 +36,9 @@ struct InitializerRequirement: Requirement {
     let typedError: String?
     /// Whether it is async, so the body goes through `respond(to:)`.
     let isAsync: Bool
-    /// How it builds the double; the protocol's spy sets it once it knows the double's own
-    /// initializer.
-    var delegation = Delegation.designated
+    /// How it builds the double; the protocol's spy reads the `init` again with it once it knows
+    /// the double's own initializer.
+    let delegation: Delegation
 
     /// How errors name it, such as `'init(user:)'`.
     var subject: String {
@@ -64,10 +67,11 @@ struct InitializerRequirement: Requirement {
     /// Static: the code under test calls it before any double exists.
     let isStatic = true
 
-    /// Reads an `init`, or explains why it can't be written: failable, generic, `rethrows`, or
-    /// with a parameter that has no name.
-    init(_ declaration: InitializerDeclSyntax) throws {
+    /// Reads an `init` that builds the double as `delegation` says, or explains why it can't be
+    /// written: failable, generic, `rethrows`, or with a parameter that has no name.
+    init(_ declaration: InitializerDeclSyntax, delegation: Delegation = .designated) throws {
         self.declaration = declaration
+        self.delegation = delegation
         let parameterList = declaration.signature.parameterClause.parameters
         labels = parameterList.map(\.firstName.text)
         let subject = Self.subject(labels: labels)

@@ -50,12 +50,11 @@ extension ProtocolSpy {
         }
         let answers = try firstAnswers(of: requirements, named: spyNames, in: name)
         let delegation = try delegation(for: initializers, answers: answers, isActor: isActor, classForm: classForm)
-        return requirements.map { requirement in
-            guard var initializer = requirement as? InitializerRequirement else {
+        return try requirements.map { requirement in
+            guard let initializer = requirement as? InitializerRequirement else {
                 return requirement
             }
-            initializer.delegation = delegation
-            return initializer
+            return try InitializerRequirement(initializer.declaration, delegation: delegation)
         }
     }
 
@@ -101,17 +100,32 @@ extension ProtocolSpy {
         }
         for initializer in initializers {
             let taken = zip(initializer.labels, initializer.parameters).map { ($0, $1.type) }
-            guard taken.elementsEqual(own, by: ==) else {
+            guard !taken.isEmpty, isPart(taken, of: own) else {
                 continue
             }
             let ownName = InitializerRequirement.subject(labels: answers.map(\.label))
             throw UnderstudyError(
-                "\(initializer.subject) has the labels and types of the spy's own initializer, \(ownName), "
-                    + "which takes the first answers; \(classForm)",
+                "\(initializer.subject) takes labels and types the spy's own initializer, \(ownName), takes "
+                    + "with defaults, so a test's call to that initializer would reach the init; \(classForm)",
                 at: initializer.nameToken
             )
         }
         let arguments = answers.map { "\($0.label): \($0.value)" }.joined(separator: ", ")
         return .delegating(call: "self.init(\(arguments))", keyword: keyword)
+    }
+
+    /// Whether every parameter of `taken` is among `own`, in the same order: then a call with
+    /// `taken`'s labels could reach either initializer, since every answer `own` takes has a
+    /// default, and Swift picks the one that leaves no default unused.
+    private static func isPart(_ taken: [(String, String)], of own: [(String, String)]) -> Bool {
+        // `var` because each parameter found consumes `own` up to it.
+        var remaining = own[...]
+        for parameter in taken {
+            guard let index = remaining.firstIndex(where: { $0 == parameter }) else {
+                return false
+            }
+            remaining = remaining[(index + 1)...]
+        }
+        return true
     }
 }

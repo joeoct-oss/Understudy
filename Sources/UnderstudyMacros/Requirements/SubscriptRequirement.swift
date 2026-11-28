@@ -12,7 +12,8 @@ import SwiftSyntax
 /// `get`, and maybe `set`, are marked `@Spied` with empty bodies, or a subscript requirement of a
 /// protocol. Its gets go to one spy, and its sets, when it has any, to a second.
 ///
-/// - `Requirement`: the macros write its spies and accessors like any other requirement's.
+/// - `SpiedMember`: the macros write its spies and accessors like any other requirement's, and a
+///   class that marks it `@Spied` gets a forwarder to its spies.
 struct SubscriptRequirement: SpiedMember {
     /// The subscript as written.
     let declaration: SubscriptDeclSyntax

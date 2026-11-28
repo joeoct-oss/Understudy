@@ -11,7 +11,8 @@ import SwiftSyntax
 
 /// One function requirement a double stands in for, read from its declaration.
 ///
-/// - `Requirement`: the macros write its spy, forwarder and body like any other requirement's.
+/// - `SpiedMember`: the macros write its spy and body like any other requirement's, and a
+///   forwarder to its spy in a class that marks it `@Spied`.
 struct FunctionRequirement: SpiedMember {
     /// One parameter: the name the body uses and the type the spy records.
     struct Parameter {

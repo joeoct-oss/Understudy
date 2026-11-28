@@ -13,7 +13,8 @@ import SwiftSyntax
 /// `@SpiedProperty var` with a type and nothing else on a class, or a `var` requirement of a
 /// protocol.
 ///
-/// - `Requirement`: the macros write its spy and accessors like any other requirement's.
+/// - `SpiedMember`: the macros write its spy and accessors like any other requirement's, and a
+///   class that marks it `@SpiedProperty` gets a forwarder to its spy.
 struct PropertyRequirement: SpiedMember {
     /// The property's name.
     let nameToken: TokenSyntax
