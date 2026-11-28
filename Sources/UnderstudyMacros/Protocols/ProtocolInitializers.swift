@@ -93,13 +93,9 @@ extension ProtocolSpy {
             let replacesOwn = initializers.contains { $0.parameters.isEmpty }
             return replacesOwn ? .designated : .delegating(call: "self.init()", keyword: keyword)
         }
-        let escaping = "@escaping "
-        let own = answers.map { answer in
-            let type = answer.type.hasPrefix(escaping) ? String(answer.type.dropFirst(escaping.count)) : answer.type
-            return (answer.label, type)
-        }
+        let own = answers.map { ($0.label, spelled($0.type)) }
         for initializer in initializers {
-            let taken = zip(initializer.labels, initializer.parameters).map { ($0, $1.type) }
+            let taken = zip(initializer.labels, initializer.parameters).map { ($0, spelled($1.type)) }
             guard !taken.isEmpty, isPart(taken, of: own) else {
                 continue
             }
@@ -110,8 +106,25 @@ extension ProtocolSpy {
                 at: initializer.nameToken
             )
         }
-        let arguments = answers.map { "\($0.label): \($0.value)" }.joined(separator: ", ")
+        // Each value names its type, so a literal such as `0` for a `Double` answer can't pick a
+        // protocol `init` that takes an `Int` instead.
+        let arguments = answers.map { "\($0.label): \($0.value) as \(withoutEscaping($0.type))" }
+            .joined(separator: ", ")
         return .delegating(call: "self.init(\(arguments))", keyword: keyword)
+    }
+
+    /// `type` without `@escaping`, which an answer is taken with and a value isn't.
+    private static func withoutEscaping(_ type: String) -> String {
+        let escaping = "@escaping "
+        return type.hasPrefix(escaping) ? String(type.dropFirst(escaping.count)) : type
+    }
+
+    /// `type` as Swift reads it for an overload, for comparing two signatures: without
+    /// `@escaping`, and without the `Swift.` module name, which `Int` and `Swift.Int` differ by.
+    private static func spelled(_ type: String) -> String {
+        let module = "Swift."
+        let plain = withoutEscaping(type)
+        return plain.hasPrefix(module) ? String(plain.dropFirst(module.count)) : plain
     }
 
     /// Whether every parameter of `taken` is among `own`, in the same order: then a call with

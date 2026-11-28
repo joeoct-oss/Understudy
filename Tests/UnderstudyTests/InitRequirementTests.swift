@@ -76,7 +76,7 @@ struct InitRequirementTests {
         }
     }
 
-    @Test("Beside an own initializer with defaults, init() is the protocol's and init(answer:) isn't")
+    @Test("Beside an own initializer with defaults, init() is the protocol's and init(count:) isn't")
     func protocolInitBesideAnOwnInitializerWithDefaults() async throws {
         try await TallySpy.withFreshSpies {
             let empty = TallySpy()
@@ -85,6 +85,17 @@ struct InitRequirementTests {
             #expect(TallySpy.initSpy.callCount == 1)
             #expect(empty.count() == 0)
             #expect(three.count() == 3)
+        }
+    }
+
+    @Test("An init whose type differs from the own initializer's answer still reaches it, not itself")
+    func initBesideAnAnswerOfAnotherType() async throws {
+        try await GaugeSpy.withFreshSpies {
+            let gauge = makeGauge(GaugeSpy.self, level: 3)
+
+            let expectedLevels = [3]
+            #expect(GaugeSpy.initSpy.calls == expectedLevels)
+            #expect(gauge.level() == 0)
         }
     }
 
@@ -176,6 +187,9 @@ protocol Renderer {
 
 /// The class form of a double for a protocol with an `init`: the class writes the `init` and
 /// records it through a static spy.
+///
+/// Conformances:
+/// - `Renderer`, so production code can make it through the protocol's `init`.
 @GenerateSpies
 final class SpyRenderer: Renderer {
     convenience init(title: String) {
@@ -193,6 +207,9 @@ private func makeMember<Made: Member>(_ type: Made.Type) -> Made {
 }
 
 /// Why a wallet can't be opened.
+///
+/// Conformances:
+/// - `Error`, so the wallet's init spy can throw it.
 enum WalletError: Error {
     case locked
 }
@@ -224,11 +241,17 @@ protocol Tally {
 }
 
 /// Why a connection failed.
+///
+/// Conformances:
+/// - `Error`, so the typed throws init can name it and its spy can throw it.
 enum ConnectionError: Error {
     case refused
 }
 
 /// A connection opened with an async init, or with a typed throws one.
+///
+/// Requirements:
+/// - `Sendable`, so the tests check that a `Sendable` spy's inits build and record.
 @GenerateSpies
 protocol Connection: Sendable {
     init(host: String) async throws
@@ -238,6 +261,9 @@ protocol Connection: Sendable {
 }
 
 /// A journal kept by an actor.
+///
+/// Requirements:
+/// - `Actor`, so the tests check an actor spy's init, which delegates without `convenience`.
 @GenerateSpies
 protocol Journal: Actor {
     init(owner: String)
@@ -252,4 +278,18 @@ protocol Banner {
     init(text: String)
 
     func isShown() -> Bool
+}
+
+/// Makes a gauge the way production code would, through the protocol.
+private func makeGauge<Made: Gauge>(_ type: Made.Type, level: Int) -> Made {
+    Made(level: level)
+}
+
+/// A gauge made with a whole level, which answers a fractional one: the spy's own initializer
+/// takes `level: Double`, and the protocol's `init` takes `level: Int`.
+@GenerateSpies
+protocol Gauge {
+    init(level: Int)
+
+    func level() -> Double
 }

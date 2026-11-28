@@ -78,6 +78,15 @@ extension ExpansionTests {
             column: 5
         ),
         Refused(
+            name: "an init with the own initializer's type written with its module",
+            source: "@GenerateSpies\nprotocol Session {\n    init(count: Swift.Int)\n    func count() -> Int\n}",
+            message: "'init(count:)' takes labels and types the spy's own initializer, 'init(count:)', takes "
+                + "with defaults, so a test's call to that initializer would reach the init; use @GenerateSpies "
+                + "on a class or an actor that conforms to 'Session' instead",
+            line: 3,
+            column: 5
+        ),
+        Refused(
             name: "an init whose spy name another requirement's spy has",
             source: "@GenerateSpies\nprotocol Session {\n    init(user: String)\n    init()\n"
                 + "    static func initUser()\n}",

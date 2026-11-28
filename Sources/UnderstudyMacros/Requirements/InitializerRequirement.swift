@@ -39,6 +39,16 @@ struct InitializerRequirement: Requirement {
     /// How it builds the double; the protocol's spy reads the `init` again with it once it knows
     /// the double's own initializer.
     let delegation: Delegation
+    /// It answers nothing, so the double's initializer never asks for an answer.
+    let needsAnswer = false
+    /// Its spy starts answering `()`.
+    let defaultAnswer = "()"
+    /// It answers `Void`.
+    let answerType = GeneratedName.void
+    /// `()`, the one answer of `Void`.
+    let obviousAnswer: String? = "()"
+    /// Static: the code under test calls it before any double exists.
+    let isStatic = true
 
     /// How errors name it, such as `'init(user:)'`.
     var subject: String {
@@ -55,17 +65,6 @@ struct InitializerRequirement: Requirement {
         let kind = throwsError ? GeneratedName.throwingSpy : GeneratedName.spy
         return "\(kind)<\(parameters.recordedType), \(GeneratedName.void)>"
     }
-
-    /// It answers nothing, so the double's initializer never asks for an answer.
-    let needsAnswer = false
-    /// Its spy starts answering `()`.
-    let defaultAnswer = "()"
-    /// It answers `Void`.
-    let answerType = GeneratedName.void
-    /// `()`, the one answer of `Void`.
-    let obviousAnswer: String? = "()"
-    /// Static: the code under test calls it before any double exists.
-    let isStatic = true
 
     /// Reads an `init` that builds the double as `delegation` says, or explains why it can't be
     /// written: failable, generic, `rethrows`, or with a parameter that has no name.
