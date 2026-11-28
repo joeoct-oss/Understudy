@@ -68,10 +68,10 @@ LEG_RULES = [
     (r"\.swift-format|\.swiftlint\.yml|\.swiftlint-baseline\.json", set()),
     (r"scripts/(lint|lint-tools|format)\.sh", set()),
     (r"\.github/(dependabot\.yml|pull_request_template\.md|assets/.*)", set()),
-    (r"\.github/workflows/(branch-name|pr-rules|codeql|security-alerts|stress|release|cache)\.yml",
-     set()),
+    ((r"\.github/workflows/(branch-name|pr-rules|codeql|security-alerts|stress|release|cache"
+      r"|delete-unused-claude-branches)\.yml"), set()),
     ((r"scripts/(check-pr-rules\.py|check-structure\.py|post-security-alerts\.sh|release-notes\.sh"
-      r"|sonar-scan\.sh)"), set()),
+      r"|sonar-scan\.sh|delete-unused-claude-branches\.py)"), set()),
     # One leg each.
     (r"\.github/workflows/ci\.yml|\.github/api-breakage-allowlist\.txt|Swift5Mode/.*", {LINUX}),
     (r"scripts/(check-coverage|check-generated-code)\.sh", {LINUX}),
@@ -360,6 +360,8 @@ CLASSIFY_CASES = [
     (["ApplePlatforms/Tuist.swift"], {APPLE}),
     ([".github/workflows/ci.yml", "Swift5Mode/Package.swift"], {LINUX}),
     ([".github/workflows/codeql.yml", "scripts/sonar-scan.sh"], set()),
+    ([".github/workflows/delete-unused-claude-branches.yml",
+      "scripts/delete-unused-claude-branches.py"], set()),
     (["scripts/mutate.py"], {MUTATION}),
     (["Benchmarks/generated-code-budget.txt"], {LINUX, BENCHMARKS}),
     (["Sources/a.md/x.swift"], ALL),
