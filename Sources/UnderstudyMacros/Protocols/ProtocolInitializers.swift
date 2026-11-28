@@ -109,8 +109,9 @@ extension ProtocolSpy {
         for initializer in initializers {
             // A variadic parameter keeps its `...`: it takes single values, not the answer's array.
             let declared = initializer.declaration.signature.parameterClause.parameters
-            let taken = zip(initializer.labels, zip(initializer.parameters, declared)).map { label, parameter in
-                (label, spelled(parameter.0.type) + (parameter.1.ellipsis == nil ? "" : "..."))
+            let taken = zip(initializer.labels, zip(initializer.parameters, declared)).map { label, pair in
+                let (recorded, written) = pair
+                return (label, spelled(recorded.type) + (written.ellipsis == nil ? "" : "..."))
             }
             guard !taken.isEmpty, isPart(taken, of: own) else {
                 continue
