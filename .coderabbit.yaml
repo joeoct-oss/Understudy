@@ -151,8 +151,9 @@ reviews:
           or using Claude Code or another AI tool, any claude.ai/ link (a session, a project or
           thread, an artifact, a chat or a share), or a claude-projects-attribution HTML
           comment. Nothing is exempt: a "Requested by" credit line with a project link and the
-          hidden credit comment at the top of the description fail too. Also fail if an added line in a file cites a private planning
-          issue ("planning #" then a number), names a repo ending in -planning, or cites a
+          hidden credit comment at the top of the description fail too. Also fail if an added
+          line in a file cites a private planning issue ("planning #" then a number), names a
+          repo ending in -planning, or cites a
           numbered decision ("decision" then a number); scripts/check-public-text.sh, which
           holds those patterns, is exempt. The description's Closes, Part of and Plan lines may
           cite planning issues and plans.

@@ -2,7 +2,8 @@
 # template filled in, one issue per PR, a CHANGELOG entry under Unreleased, and no AI or tool
 # attribution (in the title, body, commits or added lines) or private planning references.
 # scripts/check-pr-rules.py holds the rules and checks itself first. It reruns when the title or
-# body is edited, so fixing them clears it with no new push. CodeRabbit's pre-merge checks of the same names explain a failure in words.
+# body is edited, so fixing them clears it with no new push. CodeRabbit's pre-merge checks of the
+# same names explain a failure in words.
 # The same file is in every package repo. It runs no package code.
 name: Pull request rules
 
