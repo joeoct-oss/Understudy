@@ -158,14 +158,14 @@ extension ExpansionTests {
             column: 5
         ),
         Refused(
-            name: "a protocol initializer",
+            name: "a protocol member that isn't a requirement the macro writes",
             source: """
                 @GenerateSpies
                 protocol Session {
-                    init(user: String)
+                    typealias User = String
                 }
                 """,
-            message: "'Session' has a requirement that is not a function, a property or a subscript; "
+            message: "'Session' has a requirement that is not a function, a property, a subscript or an init; "
                 + "write its double by hand, or use @GenerateSpies on a class or an actor",
             line: 3,
             column: 5

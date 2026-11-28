@@ -21,6 +21,7 @@ extension GenerateSpiesMacro {
         in typeName: String,
         access: String,
         isActor: Bool,
+        isGlobalActor: Bool = false,
         parents: [ProtocolSpy.Parent] = []
     ) throws -> [DeclSyntax] {
         let names = try spyNames(for: requirements)
@@ -28,15 +29,35 @@ extension GenerateSpiesMacro {
         let spyPrefix = prefix + (isActor ? "nonisolated " : "")
         let statics = zip(requirements, names).filter { $0.0.isStatic }
         // `var` because the parents' spies, the instance spies and the initializer are added below.
-        var declarations = try staticStorage(for: statics, in: typeName, prefix: prefix)
+        var declarations = try staticStorage(for: statics, in: typeName, prefix: prefix, isGlobalActor: isGlobalActor)
         for parent in parents {
             declarations.append("\(raw: spyPrefix)let \(raw: parent.property): \(raw: parent.spyType)")
         }
         let instances = zip(requirements, names).filter { !$0.0.isStatic }
         let (spies, answers) = instanceSpies(for: instances, prefix: spyPrefix)
         declarations += spies
-        if let initializer = initializer(taking: parents, and: answers, prefix: prefix) {
+        // Under a global actor, a `nonisolated` protocol `init` delegates to the spy's own
+        // initializer, which must then be `nonisolated` too, or the call would cross into the
+        // actor. An actor's own initializer is synchronous, which can't be `nonisolated`.
+        let delegatesNonisolated =
+            isGlobalActor
+            && requirements.contains { requirement in
+                (requirement as? InitializerRequirement)?.nonisolatedModifier != nil
+            }
+        let initializerPrefix = prefix + (delegatesNonisolated ? "nonisolated " : "")
+        let replacesOwn = requirements.contains { requirement in
+            (requirement as? InitializerRequirement)?.parameters.isEmpty == true
+        }
+        if let initializer = initializer(taking: parents, and: answers, prefix: initializerPrefix) {
             declarations.append(initializer)
+        } else if delegatesNonisolated, !replacesOwn {
+            // The implicit `init()` would be on the global actor, which the `init` can't call.
+            declarations.append(
+                """
+                /// Creates the double off the global actor, for the protocol's `nonisolated` `init`.
+                \(raw: initializerPrefix)init() { }
+                """
+            )
         }
         return declarations
     }
@@ -103,16 +124,20 @@ extension GenerateSpiesMacro {
     }
 
     /// The box of static spies, held in a task local so each test can have its own, and a static
-    /// property per spy that reads the current box.
+    /// property per spy that reads the current box. Under a global actor they are `nonisolated`,
+    /// so the conformance to `StaticSpies` doesn't cross into the actor's code and a test reads the
+    /// spies without `await`.
     private static func staticStorage(
         for statics: [(any Requirement, String)],
         in typeName: String,
-        prefix: String
+        prefix: String,
+        isGlobalActor: Bool
     ) throws -> [DeclSyntax] {
         guard !statics.isEmpty else {
             return []
         }
         let box = "__understudy_statics"
+        let isolation = isGlobalActor ? "nonisolated " : ""
         let spies = try statics.map { requirement, name in
             "let \(name) = \(requirement.spyType)(returning: \(try firstStaticAnswer(of: requirement)))"
         }
@@ -120,11 +145,12 @@ extension GenerateSpiesMacro {
             """
             /// The spy for `\(raw: requirement.baseName)` in this test's box: `.freshSpies(_:)`
             /// gives each test its own.
-            \(raw: prefix)static var \(raw: name): \(raw: requirement.spyType) {
+            \(raw: prefix)\(raw: isolation)static var \(raw: name): \(raw: requirement.spyType) {
             \(raw: box).get().\(raw: name)
             }
             """
         }
+        let current = "_Concurrency.TaskLocal(wrappedValue: __UnderstudyStatics())"
         let fresh = "@Sendable (_ test: () async throws -> \(GeneratedName.void)) async throws -> \(GeneratedName.void)"
         return [
             """
@@ -133,9 +159,9 @@ extension GenerateSpiesMacro {
             \(raw: spies.joined(separator: "\n"))
             }
             """,
-            "private static let \(raw: box) = _Concurrency.TaskLocal(wrappedValue: __UnderstudyStatics())",
+            "private \(raw: isolation)static let \(raw: box) = \(raw: current)",
             """
-            \(raw: prefix)static let withFreshSpies: \(raw: fresh) = { test in
+            \(raw: prefix)\(raw: isolation)static let withFreshSpies: \(raw: fresh) = { test in
             try await \(raw: typeName).\(raw: box).withValue(__UnderstudyStatics()) {
             try await test()
             }
@@ -159,7 +185,7 @@ extension GenerateSpiesMacro {
     }
 
     /// The initializer's label for a spy's answer: the spy's name without its suffix.
-    private static func label(of spy: String) -> String {
+    static func label(of spy: String) -> String {
         String(spy.dropLast(spySuffix.count))
     }
 }

@@ -9,7 +9,7 @@
 /// Every shape of double the macros must refuse, with the message and the place it points to.
 extension ExpansionTests {
     /// Each refused double, with the message the macros give and the line and column it points to.
-    static let refused: [Refused] = refusedMembers + refusedShapes
+    static let refused: [Refused] = refusedMembers + refusedShapes + refusedInitializers
 
     /// The members the macros can't write, each refused at that member.
     private static let refusedMembers: [Refused] = [

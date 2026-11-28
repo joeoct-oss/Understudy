@@ -23,13 +23,18 @@ extension FunctionRequirement {
         /// Whether it is async.
         let isAsync: Bool
 
-        /// Reads the effects of `declaration`, or explains why a spy can't have them: `rethrows`,
-        /// or a `throws` of one of its generic parameters.
-        init(of declaration: FunctionDeclSyntax, generics: [String: String], in subject: String) throws {
-            let effects = declaration.signature.effectSpecifiers
+        /// Reads the effects of `signature`, the signature of `name`, or explains why a spy can't
+        /// have them: `rethrows`, or a `throws` of one of its generic parameters.
+        init(
+            of signature: FunctionSignatureSyntax,
+            named name: TokenSyntax,
+            generics: [String: String],
+            in subject: String
+        ) throws {
+            let effects = signature.effectSpecifiers
             let throwsClause = effects?.throwsClause
             if throwsClause?.throwsSpecifier.tokenKind == .keyword(.rethrows) {
-                throw UnderstudyError("\(subject) rethrows; write its double by hand", at: declaration.name)
+                throw UnderstudyError("\(subject) rethrows; write its double by hand", at: name)
             }
             let thrown = throwsClause?.type
             if let thrown,

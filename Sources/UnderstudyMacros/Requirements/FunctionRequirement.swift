@@ -11,8 +11,9 @@ import SwiftSyntax
 
 /// One function requirement a double stands in for, read from its declaration.
 ///
-/// - `Requirement`: the macros write its spy, forwarder and body like any other requirement's.
-struct FunctionRequirement: Requirement {
+/// - `SpiedMember`: the macros write its spy and body like any other requirement's, and a
+///   forwarder to its spy in a class that marks it `@Spied`.
+struct FunctionRequirement: SpiedMember {
     /// One parameter: the name the body uses and the type the spy records.
     struct Parameter {
         /// The name the body passes it by.
@@ -57,14 +58,7 @@ struct FunctionRequirement: Requirement {
 
     /// The spy's input type: nothing, the one parameter's type, or a labelled tuple of them all.
     var input: String {
-        switch parameters.count {
-        case 0:
-            return GeneratedName.void
-        case 1:
-            return parameters[0].type
-        default:
-            return "(" + parameters.map { "\($0.name): \($0.type)" }.joined(separator: ", ") + ")"
-        }
+        parameters.recordedType
     }
 
     /// The spy's type.
@@ -122,14 +116,7 @@ struct FunctionRequirement: Requirement {
 
     /// The argument the body passes to the spy.
     var callArgument: String {
-        switch parameters.count {
-        case 0:
-            return ""
-        case 1:
-            return parameters[0].name
-        default:
-            return "(" + parameters.map { "\($0.name): \($0.name)" }.joined(separator: ", ") + ")"
-        }
+        parameters.recordedArgument
     }
 
     /// Reads a requirement, or explains why it can't be written.
@@ -138,7 +125,12 @@ struct FunctionRequirement: Requirement {
         let subject = "'\(declaration.name.text)'"
         let generics = try Self.erasedGenerics(of: declaration, in: subject)
         isStatic = try Self.isStatic(declaration, in: subject)
-        let effects = try Effects(of: declaration, generics: generics, in: subject)
+        let effects = try Effects(
+            of: declaration.signature,
+            named: declaration.name,
+            generics: generics,
+            in: subject
+        )
         throwsError = effects.throwsError
         typedError = effects.typedError
         isAsync = effects.isAsync
@@ -233,5 +225,32 @@ struct FunctionRequirement: Requirement {
         }
         let input = parameters.isEmpty ? "()" : callArgument
         return "\(attempt)await self.\(spy).respond(to: \(input))"
+    }
+}
+
+extension [FunctionRequirement.Parameter] {
+    /// The type a spy records these parameters as: nothing, the one parameter's type, or a
+    /// labelled tuple of them all.
+    var recordedType: String {
+        switch count {
+        case 0:
+            return GeneratedName.void
+        case 1:
+            return self[0].type
+        default:
+            return "(" + map { parameter in "\(parameter.name): \(parameter.type)" }.joined(separator: ", ") + ")"
+        }
+    }
+
+    /// The argument a body passes its spy for these parameters, in the shape of ``recordedType``.
+    var recordedArgument: String {
+        switch count {
+        case 0:
+            return ""
+        case 1:
+            return self[0].name
+        default:
+            return "(" + map { parameter in "\(parameter.name): \(parameter.name)" }.joined(separator: ", ") + ")"
+        }
     }
 }

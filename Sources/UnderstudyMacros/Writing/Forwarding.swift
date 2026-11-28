@@ -12,8 +12,9 @@ import SwiftSyntax
 /// protocol's spy.
 extension ProtocolSpy {
     /// The protocol a child protocol's spy adopts to forward this protocol's requirements to
-    /// this protocol's spy. A protocol with associated types or an actor protocol can't be
-    /// forwarded, so it gets one that is unavailable, whose message the child's spy shows.
+    /// this protocol's spy. A protocol with associated types, an actor protocol or one that
+    /// declares an `init` can't be forwarded, so it gets one that is unavailable, whose message
+    /// the child's spy shows.
     func forwardingProtocol() -> DeclSyntax {
         let forwarding = forwardingName(of: name)
         guard let why = whyNotForwarded else {
