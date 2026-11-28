@@ -132,7 +132,7 @@ Change the answer at any point in the test:
 ```swift
 pricing.priceSpy.willReturn(12)               // every later call
 pricing.priceSpy.willReturnNext(1, then: 2)   // the next two calls, then back to 12
-pricing.priceSpy.willAnswer { $0 * 100 }      // worked out from the input
+pricing.priceSpy.willAnswer { productID in productID * 100 }  // worked out from the input
 
 loader.loadSpy.willThrow(LoadError.offline)   // a function that throws
 loader.loadSpy.willGiveNext(.failure(LoadError.offline), then: .success("ok"))
@@ -303,7 +303,7 @@ Tell a spy what to expect, and `verify()` reports every expected call that didn'
 
 ```swift
 analytics.trackSpy.expect("checkout")
-analytics.trackSpy.expect(times: 2) { $0.hasPrefix("view") }
+analytics.trackSpy.expect(times: 2) { event in event.hasPrefix("view") }
 
 checkout.complete()
 
