@@ -36,7 +36,11 @@ extension GenerateSpiesMacro {
         let instances = zip(requirements, names).filter { !$0.0.isStatic }
         let (spies, answers) = instanceSpies(for: instances, prefix: spyPrefix)
         declarations += spies
-        if let initializer = initializer(taking: parents, and: answers, prefix: prefix) {
+        // A `nonisolated` protocol `init` delegates to the spy's own initializer, which must then
+        // be `nonisolated` too, or the call would cross into the global actor.
+        let delegatesNonisolated = requirements.contains { ($0 as? InitializerRequirement)?.isNonisolated == true }
+        let initializerPrefix = prefix + (delegatesNonisolated ? "nonisolated " : "")
+        if let initializer = initializer(taking: parents, and: answers, prefix: initializerPrefix) {
             declarations.append(initializer)
         }
         return declarations

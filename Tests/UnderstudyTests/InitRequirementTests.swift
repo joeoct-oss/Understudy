@@ -99,6 +99,16 @@ struct InitRequirementTests {
         }
     }
 
+    @Test("A nonisolated init under a global actor is made off that actor and records the call")
+    func nonisolatedInitUnderAGlobalActor() async throws {
+        try await BadgeSpy.withFreshSpies {
+            _ = makeBadge(BadgeSpy.self, label: "new")
+
+            let expectedLabels = ["new"]
+            #expect(BadgeSpy.initSpy.calls == expectedLabels)
+        }
+    }
+
     @Test("An async init can be held, and resumes with the answer the test gives")
     func asyncInitCanBeHeld() async throws {
         try await ConnectionSpy.withFreshSpies {
@@ -292,4 +302,18 @@ protocol Gauge {
     init(level: Int)
 
     func level() -> Double
+}
+
+/// A badge made off the main actor, though it is shown on it.
+@MainActor
+@GenerateSpies
+protocol Badge {
+    nonisolated init(label: String)
+
+    func isVisible() -> Bool
+}
+
+/// Makes a badge the way production code would, off the main actor, through the protocol.
+private func makeBadge<Made: Badge>(_ type: Made.Type, label: String) -> Made {
+    Made(label: label)
 }

@@ -36,6 +36,9 @@ struct InitializerRequirement: Requirement {
     let typedError: String?
     /// Whether it is async, so the body goes through `respond(to:)`.
     let isAsync: Bool
+    /// Whether it is `nonisolated`, as a protocol under a global actor may declare it, so the
+    /// spy's `init` is too, and so is the spy's own initializer it delegates to.
+    let isNonisolated: Bool
     /// How it builds the double; the protocol's spy reads the `init` again with it once it knows
     /// the double's own initializer.
     let delegation: Delegation
@@ -71,6 +74,7 @@ struct InitializerRequirement: Requirement {
     init(_ declaration: InitializerDeclSyntax, delegation: Delegation = .designated) throws {
         self.declaration = declaration
         self.delegation = delegation
+        isNonisolated = declaration.modifiers.contains { $0.name.text == "nonisolated" }
         let parameterList = declaration.signature.parameterClause.parameters
         labels = parameterList.map(\.firstName.text)
         let subject = Self.subject(labels: labels)
@@ -106,7 +110,7 @@ struct InitializerRequirement: Requirement {
 
     /// The initializer with the protocol's signature, for the spy class written next to it.
     func implementation(spy: String, access: String) -> DeclSyntax {
-        let prefix = access.isEmpty ? "" : access + " "
+        let prefix = (access.isEmpty ? "" : access + " ") + (isNonisolated ? "nonisolated " : "")
         let signature = declaration.signature.trimmedDescription
         guard case .delegating(let call, let keyword) = delegation else {
             return """
