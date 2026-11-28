@@ -40,9 +40,14 @@ extension GenerateSpiesMacro {
         // initializer, which must then be `nonisolated` too, or the call would cross into the
         // actor. An actor's own initializer is synchronous, which can't be `nonisolated`.
         let delegatesNonisolated =
-            isGlobalActor && requirements.contains { ($0 as? InitializerRequirement)?.nonisolatedModifier != nil }
+            isGlobalActor
+            && requirements.contains { requirement in
+                (requirement as? InitializerRequirement)?.nonisolatedModifier != nil
+            }
         let initializerPrefix = prefix + (delegatesNonisolated ? "nonisolated " : "")
-        let replacesOwn = requirements.contains { ($0 as? InitializerRequirement)?.parameters.isEmpty == true }
+        let replacesOwn = requirements.contains { requirement in
+            (requirement as? InitializerRequirement)?.parameters.isEmpty == true
+        }
         if let initializer = initializer(taking: parents, and: answers, prefix: initializerPrefix) {
             declarations.append(initializer)
         } else if delegatesNonisolated, !replacesOwn {

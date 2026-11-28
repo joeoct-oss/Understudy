@@ -119,7 +119,7 @@ struct ProtocolSpy {
         if isNested {
             return "is declared inside another type"
         }
-        if requirements.contains(where: { $0 is InitializerRequirement }) {
+        if requirements.contains(where: { requirement in requirement is InitializerRequirement }) {
             return "declares an init"
         }
         return associatedTypes.isEmpty ? nil : "has associated types"

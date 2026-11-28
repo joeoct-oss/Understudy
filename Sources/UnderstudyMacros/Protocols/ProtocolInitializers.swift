@@ -29,13 +29,14 @@ extension ProtocolSpy {
         isActor: Bool,
         parents: [Parent]
     ) throws -> [any Requirement] {
-        let initializers = requirements.compactMap { $0 as? InitializerRequirement }
+        let initializers = requirements.compactMap { requirement in requirement as? InitializerRequirement }
         guard let first = initializers.first else {
             return requirements
         }
         let name = declaration.name.text
         let classForm = "use @GenerateSpies on a class or an actor that conforms to '\(name)' instead"
-        if declaration.memberBlock.members.contains(where: { $0.decl.is(AssociatedTypeDeclSyntax.self) }) {
+        if declaration.memberBlock.members.contains(where: { member in member.decl.is(AssociatedTypeDeclSyntax.self) })
+        {
             throw UnderstudyError(
                 "\(first.subject) is next to an associated type, and a spy with associated types is generic, "
                     + "so it can't keep the init's static spy; \(classForm)",
@@ -50,7 +51,7 @@ extension ProtocolSpy {
             )
         }
         let answers = try firstAnswers(of: requirements, named: spyNames, in: name)
-        let nonisolatedInit = initializers.first { $0.nonisolatedModifier != nil }
+        let nonisolatedInit = initializers.first { initializer in initializer.nonisolatedModifier != nil }
         if declaration.attributes.hasGlobalActor, !answers.isEmpty, let nonisolated = nonisolatedInit {
             throw UnderstudyError(
                 "\(nonisolated.subject) is nonisolated, and the spy's own initializer it calls keeps its first "
@@ -76,16 +77,17 @@ extension ProtocolSpy {
         named spyNames: [String],
         in name: String
     ) throws -> [FirstAnswer] {
-        try zip(requirements, spyNames).filter { !$0.0.isStatic && $0.0.needsAnswer }.map { requirement, spy in
-            guard let value = requirement.obviousAnswer else {
-                throw UnderstudyError(
-                    "'\(requirement.baseName)' has no obvious first answer, and '\(name)' declares an init, "
-                        + "which can't take one; make it optional, or write its double by hand",
-                    at: requirement.nameToken
-                )
+        try zip(requirements, spyNames).filter { requirement, _ in !requirement.isStatic && requirement.needsAnswer }
+            .map { requirement, spy in
+                guard let value = requirement.obviousAnswer else {
+                    throw UnderstudyError(
+                        "'\(requirement.baseName)' has no obvious first answer, and '\(name)' declares an init, "
+                            + "which can't take one; make it optional, or write its double by hand",
+                        at: requirement.nameToken
+                    )
+                }
+                return FirstAnswer(label: GenerateSpiesMacro.label(of: spy), type: requirement.answerType, value: value)
             }
-            return FirstAnswer(label: GenerateSpiesMacro.label(of: spy), type: requirement.answerType, value: value)
-        }
     }
 
     /// How every `init` builds the double. With no answers to take, the double's own initializer
@@ -100,12 +102,16 @@ extension ProtocolSpy {
     ) throws -> InitializerRequirement.Delegation {
         let keyword = isActor ? "" : "convenience "
         guard !answers.isEmpty else {
-            let replacesOwn = initializers.contains { $0.parameters.isEmpty }
+            let replacesOwn = initializers.contains { initializer in initializer.parameters.isEmpty }
             return replacesOwn ? .designated : .delegating(call: "self.init()", keyword: keyword)
         }
-        let own = answers.map { ($0.label, spelled($0.type)) }
+        let own = answers.map { answer in (answer.label, spelled(answer.type)) }
         for initializer in initializers {
-            let taken = zip(initializer.labels, initializer.parameters).map { ($0, spelled($1.type)) }
+            // A variadic parameter keeps its `...`: it takes single values, not the answer's array.
+            let declared = initializer.declaration.signature.parameterClause.parameters
+            let taken = zip(initializer.labels, zip(initializer.parameters, declared)).map { label, parameter in
+                (label, spelled(parameter.0.type) + (parameter.1.ellipsis == nil ? "" : "..."))
+            }
             guard !taken.isEmpty, isPart(taken, of: own) else {
                 continue
             }
@@ -118,7 +124,7 @@ extension ProtocolSpy {
         }
         // Each value names its type, so a literal such as `0` for a `Double` answer can't pick a
         // protocol `init` that takes an `Int` instead.
-        let arguments = answers.map { "\($0.label): \($0.value) as \(withoutEscaping($0.type))" }
+        let arguments = answers.map { answer in "\(answer.label): \(answer.value) as \(withoutEscaping(answer.type))" }
             .joined(separator: ", ")
         return .delegating(call: "self.init(\(arguments))", keyword: keyword)
     }
@@ -144,7 +150,7 @@ extension ProtocolSpy {
         // `var` because each parameter found consumes `own` up to it.
         var remaining = own[...]
         for parameter in taken {
-            guard let index = remaining.firstIndex(where: { $0 == parameter }) else {
+            guard let index = remaining.firstIndex(where: { candidate in candidate == parameter }) else {
                 return false
             }
             remaining = remaining[(index + 1)...]

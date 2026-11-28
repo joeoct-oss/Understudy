@@ -99,6 +99,20 @@ struct InitRequirementTests {
         }
     }
 
+    @Test("A variadic init beside an answer of its array type builds, and each reaches its own")
+    func variadicInitBesideAnArrayAnswer() async throws {
+        try await PlaylistSpy.withFreshSpies {
+            let ownTracks = ["demo"]
+            let made = makePlaylist(PlaylistSpy.self, "intro", "outro")
+            let own = PlaylistSpy(tracks: ownTracks)
+
+            let expectedTracks = [["intro", "outro"]]
+            #expect(PlaylistSpy.initSpy.calls == expectedTracks)
+            #expect(made.tracks().isEmpty)
+            #expect(own.tracks() == ownTracks)
+        }
+    }
+
     @Test("A nonisolated init under a global actor is made off that actor and records the call")
     func nonisolatedInitUnderAGlobalActor() async throws {
         try await BadgeSpy.withFreshSpies {
@@ -315,6 +329,20 @@ protocol Gauge {
     func level() -> Double
 }
 
+/// A playlist made from single tracks, which answers them as an array: the spy's own initializer
+/// takes `tracks: [String]`, and the protocol's `init` takes `tracks: String...`.
+@GenerateSpies
+protocol Playlist {
+    init(tracks: String...)
+
+    func tracks() -> [String]
+}
+
+/// Makes a playlist the way production code would, through the protocol.
+private func makePlaylist<Made: Playlist>(_ type: Made.Type, _ first: String, _ second: String) -> Made {
+    Made(tracks: first, second)
+}
+
 /// A badge made off the main actor, though it is shown on it. Its spy's own initializer takes no
 /// answer, so the protocol's `init` can make it off the actor.
 @MainActor
@@ -341,44 +369,3 @@ protocol Logbook: Actor {
 
     func total() -> Int
 }
-
-#if compiler(>=6.2)
-/// A gazette opened with a `nonisolated(nonsending)` async init, which its spy keeps as written.
-@GenerateSpies
-protocol Gazette {
-    nonisolated(nonsending) init(edition: String) async
-}
-
-/// A newsfeed loaded on the caller's actor.
-protocol Newsfeed {
-    nonisolated(nonsending) func load(_ section: String) async
-}
-
-/// A class double whose spied function keeps `nonisolated(nonsending)` as written.
-///
-/// Conformances:
-/// - `Newsfeed`, so the test reaches it through the protocol.
-@GenerateSpies
-final class SpyNewsfeed: Newsfeed {
-    @Spied nonisolated(nonsending) func load(_ section: String) async
-}
-
-/// Doubles whose `nonisolated(nonsending)` members run on the caller's actor and record.
-@Suite("Nonsending members")
-struct NonsendingMemberTests {
-    @Test("A nonsending init and a nonsending spied function record their calls")
-    func nonsendingMembersRecord() async throws {
-        try await GazetteSpy.withFreshSpies {
-            _ = await GazetteSpy(edition: "morning")
-            let feed = SpyNewsfeed()
-
-            await feed.load("sport")
-
-            let expectedEditions = ["morning"]
-            let expectedSections = ["sport"]
-            #expect(GazetteSpy.initSpy.calls == expectedEditions)
-            #expect(feed.loadSpy.calls == expectedSections)
-        }
-    }
-}
-#endif

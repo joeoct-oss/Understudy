@@ -238,7 +238,7 @@ extension [FunctionRequirement.Parameter] {
         case 1:
             return self[0].type
         default:
-            return "(" + map { "\($0.name): \($0.type)" }.joined(separator: ", ") + ")"
+            return "(" + map { parameter in "\(parameter.name): \(parameter.type)" }.joined(separator: ", ") + ")"
         }
     }
 
@@ -250,7 +250,7 @@ extension [FunctionRequirement.Parameter] {
         case 1:
             return self[0].name
         default:
-            return "(" + map { "\($0.name): \($0.name)" }.joined(separator: ", ") + ")"
+            return "(" + map { parameter in "\(parameter.name): \(parameter.name)" }.joined(separator: ", ") + ")"
         }
     }
 }

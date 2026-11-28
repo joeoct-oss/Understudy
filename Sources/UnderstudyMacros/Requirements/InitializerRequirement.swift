@@ -75,7 +75,8 @@ struct InitializerRequirement: Requirement {
     init(_ declaration: InitializerDeclSyntax, delegation: Delegation = .designated) throws {
         self.declaration = declaration
         self.delegation = delegation
-        nonisolatedModifier = declaration.modifiers.first { $0.name.text == "nonisolated" }?.trimmedDescription
+        nonisolatedModifier =
+            declaration.modifiers.first { modifier in modifier.name.text == "nonisolated" }?.trimmedDescription
         let parameterList = declaration.signature.parameterClause.parameters
         labels = parameterList.map(\.firstName.text)
         let subject = Self.subject(labels: labels)
@@ -106,12 +107,13 @@ struct InitializerRequirement: Requirement {
 
     /// How errors name an `init` with these labels, such as `'init(user:)'`.
     static func subject(labels: [String]) -> String {
-        "'init(" + labels.map { $0 + ":" }.joined() + ")'"
+        "'init(" + labels.map { label in label + ":" }.joined() + ")'"
     }
 
     /// The initializer with the protocol's signature, for the spy class written next to it.
     func implementation(spy: String, access: String) -> DeclSyntax {
-        let prefix = (access.isEmpty ? "" : access + " ") + (nonisolatedModifier.map { $0 + " " } ?? "")
+        let prefix =
+            (access.isEmpty ? "" : access + " ") + (nonisolatedModifier.map { modifier in modifier + " " } ?? "")
         let signature = declaration.signature.trimmedDescription
         guard case .delegating(let call, let keyword) = delegation else {
             return """

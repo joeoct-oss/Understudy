@@ -390,7 +390,7 @@ try await store.save(.apple)
 #expect(store.saveSpy.callCount == 1)
 ```
 
-A class or protocol under a global actor, such as `@MainActor`, works too: a protocol's spy gets the same global actor, and the static spies of either are `nonisolated`, so a test reads them without `await`. The macros know a global actor by its name ending in `Actor`; one with another name isn't seen as one.
+A class or protocol under a global actor, such as `@MainActor`, works too: a protocol's spy gets the same global actor, and the static spies of either are `nonisolated`, so a test reads them without `await`. The macros know a global actor by its name ending in `Actor`; one with another name isn't seen as one. They see only a global actor written on the double or protocol itself, outside `#if`: not one it gets from a protocol it conforms to or a superclass, so write `@MainActor` on such a class.
 
 ### Doubles next to your protocol
 
