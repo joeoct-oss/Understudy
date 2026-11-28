@@ -33,6 +33,7 @@ import json
 import os
 import re
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -111,6 +112,35 @@ def parse_time(text):
     return datetime.fromisoformat(text.replace("Z", "+00:00"))
 
 
+def report_error(message):
+    print(f"::error::{message}", file=sys.stderr)
+
+
+def delete_each(names, delete_branch, report=report_error):
+    """Deletes each branch, going on past one that fails. Returns (deleted, failed) names."""
+    deleted, failed = [], []
+    for name in names:
+        try:
+            delete_branch(name)
+        except urllib.error.URLError as error:
+            report(f"Could not delete {name}: {error}")
+            failed.append(name)
+            continue
+        deleted.append(name)
+    return deleted, failed
+
+
+def write_summary(heading, names, branches):
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_path:
+        return
+    rows = [f"| `{name}` | `{branches[name]}` |" for name in names]
+    with open(summary_path, "a", encoding="utf-8") as summary:
+        summary.write(f"### {heading}: {len(names)} of {len(branches)} {PREFIX} branches\n\n")
+        if rows:
+            summary.write("\n".join(["| Branch | Commit |", "| --- | --- |", *rows]) + "\n\n")
+
+
 def run():
     token = os.environ["GITHUB_TOKEN"]
     repository = os.environ["GITHUB_REPOSITORY"]
@@ -121,19 +151,18 @@ def run():
                        datetime.now(timezone.utc))
     print(f"{len(branches)} {PREFIX} branches, {len(chosen)} that no open pull request uses and "
           f"older than {MINIMUM_AGE_HOURS} hours.")
-    lines = ["| Branch | Commit |", "| --- | --- |"]
-    for name in chosen:
-        if not dry_run:
-            github.delete_branch(name)
-        print(f"{'Would delete' if dry_run else 'Deleted'} {name} at {branches[name]}")
-        lines.append(f"| `{name}` | `{branches[name]}` |")
-    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
-    if summary_path:
-        heading = "Would delete (dry run)" if dry_run else "Deleted"
-        with open(summary_path, "a", encoding="utf-8") as summary:
-            summary.write(f"### {heading}: {len(chosen)} of {len(branches)} {PREFIX} branches\n\n")
-            if chosen:
-                summary.write("\n".join(lines) + "\n")
+    if dry_run:
+        for name in chosen:
+            print(f"Would delete {name} at {branches[name]}")
+        write_summary("Would delete (dry run)", chosen, branches)
+        return
+    deleted, failed = delete_each(chosen, github.delete_branch)
+    for name in deleted:
+        print(f"Deleted {name} at {branches[name]}")
+    write_summary("Deleted", deleted, branches)
+    if failed:
+        write_summary("Could not delete", failed, branches)
+        sys.exit(1)
 
 
 NOW = datetime(2026, 11, 28, 12, 0, tzinfo=timezone.utc)
@@ -158,6 +187,23 @@ SELF_CHECK_CASES = [
 ]
 
 
+def check_delete_each():
+    """A branch GitHub refuses to delete doesn't stop the ones after it."""
+
+    def delete_branch(name):
+        if name == "claude/refused":
+            raise urllib.error.HTTPError("https://example.invalid", 422, "Refused", None, None)
+
+    reports = []
+    found = delete_each(["claude/before", "claude/refused", "claude/after"], delete_branch,
+                        reports.append)
+    expected = (["claude/before", "claude/after"], ["claude/refused"])
+    if found != expected or len(reports) != 1:
+        print(f"FAIL: a refused delete doesn't stop the rest: expected {expected}, got {found}")
+        return 1
+    return 0
+
+
 def self_check():
     failures = 0
     for branches, open_pulls, expected, promise in SELF_CHECK_CASES:
@@ -166,13 +212,18 @@ def self_check():
             failures += 1
             print(f"FAIL: {promise}: expected {expected}, got {found}")
     assert parse_time("2026-11-28T12:00:00Z") == NOW, "GitHub's Z times are read as UTC"
+    failures += check_delete_each()
     if failures:
         sys.exit(1)
-    print(f"All {len(SELF_CHECK_CASES)} cases pass.")
+    print(f"All {len(SELF_CHECK_CASES) + 1} cases pass.")
 
 
-if __name__ == "__main__":
+def main():
     if sys.argv[1:] == ["--self-check"]:
         self_check()
     else:
         run()
+
+
+if __name__ == "__main__":
+    main()
