@@ -8,7 +8,7 @@ A spy is lenient: it records calls and answers, and the test reads what it needs
 
 ```swift
 analytics.trackSpy.expect("checkout")
-analytics.trackSpy.expect(times: 2) { $0.hasPrefix("view") }
+analytics.trackSpy.expect(times: 2) { event in event.hasPrefix("view") }
 
 checkout.complete()
 

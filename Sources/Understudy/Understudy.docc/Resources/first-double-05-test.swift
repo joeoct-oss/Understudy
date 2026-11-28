@@ -14,6 +14,6 @@ struct DishScreenTests {
     func showsTheDishesName() {
         let menu = SpyMenu()
 
-        let screen = DishScreen(id: 7, menu: menu)
+        let screen = DishScreen(number: 7, menu: menu)
     }
 }

@@ -30,7 +30,7 @@
             }
 
             @Step {
-                In your test target, write a class that conforms to `Menu`. The compiler asks for `dish(id:)`.
+                In your test target, write a class that conforms to `Menu`. The compiler asks for `dish(number:)`.
 
                 @Code(name: "SpyMenu.swift", file: "first-double-03-spy.swift")
             }
@@ -62,7 +62,7 @@
             }
 
             @Step {
-                Read the calls: `dishSpy.calls` holds the id of every call, in order.
+                Read the calls: `dishSpy.calls` holds the dish number of every call, in order.
 
                 @Code(name: "DishScreenTests.swift", file: "first-double-07-test.swift")
             }

@@ -25,7 +25,7 @@ struct CheckThatAMockWasUsedGuide {
     @Test("Completing a checkout tracks it, and the two views before it")
     func checkoutTracksItsEvents() {
         analytics.trackSpy.expect("checkout")
-        analytics.trackSpy.expect(times: 2) { $0.hasPrefix("view") }
+        analytics.trackSpy.expect(times: 2) { event in event.hasPrefix("view") }
 
         checkout.complete()
 

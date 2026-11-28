@@ -8,20 +8,20 @@
 
 /// A dish on the menu.
 struct Dish: Equatable {
-    let id: Int
+    let number: Int
     let name: String
 }
 
 /// Where the app looks dishes up.
 protocol Menu {
-    func dish(id: Int) -> Dish?
+    func dish(number: Int) -> Dish?
 }
 
 /// The screen that shows one dish.
 final class DishScreen {
     let title: String
 
-    init(id: Int, menu: some Menu) {
-        title = menu.dish(id: id)?.name ?? "Not found"
+    init(number: Int, menu: some Menu) {
+        title = menu.dish(number: number)?.name ?? "Not found"
     }
 }

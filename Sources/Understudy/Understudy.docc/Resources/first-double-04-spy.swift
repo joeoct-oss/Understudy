@@ -10,5 +10,5 @@ import Understudy
 
 @GenerateSpies
 final class SpyMenu: Menu {
-    @Spied func dish(id: Int) -> Dish?
+    @Spied func dish(number: Int) -> Dish?
 }

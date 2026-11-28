@@ -14,9 +14,9 @@ struct DishScreenTests {
     @Test
     func showsTheDishesName() {
         let menu = SpyMenu()
-        menu.dishSpy.willReturn(Dish(id: 7, name: "Soup"))
+        menu.dishSpy.willReturn(Dish(number: 7, name: "Soup"))
 
-        let screen = DishScreen(id: 7, menu: menu)
+        let screen = DishScreen(number: 7, menu: menu)
 
         #expect(screen.title == "Soup")
     }
@@ -25,7 +25,7 @@ struct DishScreenTests {
     func asksTheMenuForTheDishItWasOpenedWith() {
         let menu = SpyMenu()
 
-        _ = DishScreen(id: 7, menu: menu)
+        _ = DishScreen(number: 7, menu: menu)
 
         let expectedIDs = [7]
         #expect(menu.dishSpy.calls == expectedIDs)
@@ -36,7 +36,7 @@ struct DishScreenTests {
         let menu = SpyMenu()
         menu.dishSpy.expect(7)
 
-        let screen = DishScreen(id: 7, menu: menu)
+        let screen = DishScreen(number: 7, menu: menu)
 
         #expect(screen.title == "Not found")
     }

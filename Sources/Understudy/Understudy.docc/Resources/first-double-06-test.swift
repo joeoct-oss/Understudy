@@ -13,9 +13,9 @@ struct DishScreenTests {
     @Test
     func showsTheDishesName() {
         let menu = SpyMenu()
-        menu.dishSpy.willReturn(Dish(id: 7, name: "Soup"))
+        menu.dishSpy.willReturn(Dish(number: 7, name: "Soup"))
 
-        let screen = DishScreen(id: 7, menu: menu)
+        let screen = DishScreen(number: 7, menu: menu)
 
         #expect(screen.title == "Soup")
     }
