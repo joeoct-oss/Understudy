@@ -57,7 +57,8 @@ AUTHOR_TEXT_SECTIONS = [WHAT, MERGE, TESTS]
 # These files hold the patterns below, so their own lines would always match.
 PATTERN_FILES = {"scripts/check-pr-rules.py", "scripts/check-public-text.sh", ".coderabbit.yaml"}
 
-AI_TOOLS = r"(claude|anthropic|copilot|codex|cursor|chatgpt|openai|gemini|devin)"
+# The tool's name ends at a word boundary, so "cursors" or "Devinder" is plain text.
+AI_TOOLS = r"(claude|anthropic|copilot|codex|cursor|chatgpt|openai|gemini|devin)\b"
 ATTRIBUTION = [
     re.compile(r"co-authored-by:.*" + AI_TOOLS, re.IGNORECASE),
     re.compile(r"\bclaude-session\s*:", re.IGNORECASE),
@@ -200,22 +201,32 @@ def credits_a_tool(line):
     return any(pattern.search(line) for pattern in ATTRIBUTION)
 
 
+def credit_errors(where, text):
+    """Each line of the text that credits a tool, or, when the credit is wrapped over several
+    lines (as in a Markdown paragraph), the wrapped part."""
+    errors = [
+        f'{where} credits an AI or tool: "{line.strip()[:80]}"'
+        for line in text.splitlines()
+        if credits_a_tool(line)
+    ]
+    if errors:
+        return errors
+    for pattern in ATTRIBUTION:
+        match = pattern.search(text)
+        if match:
+            wrapped = " ".join(match.group(0).split())
+            return [f'{where} credits an AI or tool over several lines: "{wrapped[:80]}"']
+    return []
+
+
 def attribution_errors(title, body, commit_messages, added):
     """added maps each changed file to its added lines."""
     errors = []
     if credits_a_tool(title):
         errors.append(f'the title credits an AI or tool: "{title.strip()[:80]}"')
-    errors += [
-        f'the body credits an AI or tool: "{line.strip()[:80]}"'
-        for line in body.splitlines()
-        if credits_a_tool(line)
-    ]
-    errors += [
-        f'a commit message credits an AI or tool: "{line.strip()[:80]}"'
-        for message in commit_messages
-        for line in message.splitlines()
-        if credits_a_tool(line)
-    ]
+    errors += credit_errors("the body", body)
+    for message in commit_messages:
+        errors += credit_errors("a commit message", message)
     for path, lines in added.items():
         if path in PATTERN_FILES:
             continue
@@ -402,6 +413,8 @@ USER_INFO_LINK = "See https://reader@claude" + ".ai"
 OTHER_HOST_USER_INFO = "See https://claude" + ".ai@example.com/docs"
 WRITTEN_WITH = "Written " + f"with {CLAUDE_CODE}"
 MADE_USING = "Made " + "using ChatGPT"
+WRAPPED_CREDIT = "Written " + "with\nClaude Code"
+TOOL_AS_WORD_PART = "Made with cursors instead of arrays."
 
 CHANGELOG_SAMPLE = """# Changelog
 
@@ -598,6 +611,21 @@ def title_and_host_cases():
         ("a credit in the title fails", attribution_errors(WRITTEN_WITH, "", [], {}), 1),
         ("a link in the title fails", attribution_errors(SESSION_LINK, "", [], {}), 1),
         ("a longer host name passes", attribution_errors(LONGER_HOST, LONGER_HOST, [], {}), 0),
+        (
+            "a credit wrapped over two lines fails",
+            attribution_errors("", WRAPPED_CREDIT, [], {}),
+            1,
+        ),
+        (
+            "a credit wrapped in a commit fails",
+            attribution_errors("", "", [f"Fix\n\n{WRAPPED_CREDIT}"], {}),
+            1,
+        ),
+        (
+            "a tool name inside a longer word passes",
+            attribution_errors(TOOL_AS_WORD_PART, TOOL_AS_WORD_PART, [TOOL_AS_WORD_PART], {}),
+            0,
+        ),
         ("a hyphenated host name passes", attribution_errors(HYPHENATED_HOST, "", [], {}), 0),
         ("a subdomain path fails", attribution_errors(BARE_SUBDOMAIN_PATH, "", [], {}), 1),
         ("a link with user information fails", attribution_errors(USER_INFO_LINK, "", [], {}), 1),
