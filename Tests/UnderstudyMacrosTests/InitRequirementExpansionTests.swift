@@ -101,7 +101,7 @@ struct InitRequirementExpansionTests {
         )
 
         #expect(diagnostics.isEmpty)
-        #expect(expanded.description.contains("nonisolated(nonsending) init(owner: String) async"))
+        #expect(expanded.description.contains("nonisolated(nonsending) init(owner: String) async {"))
         #expect(!expanded.description.contains("nonisolated init(total:"))
     }
 
@@ -112,7 +112,7 @@ struct InitRequirementExpansionTests {
         )
 
         #expect(diagnostics.isEmpty)
-        #expect(expanded.description.contains("nonisolated(nonsending) func"))
+        #expect(expanded.description.contains("private nonisolated(nonsending) func"))
     }
 
     @Test("A class under a global actor with a static spy gets nonisolated statics too")
