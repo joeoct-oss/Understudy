@@ -4,6 +4,7 @@
 # only a person can judge.
 # - Pull requests to main, called by the checks workflow (checks.yml) once SonarQube Cloud's quality
 #   gate passed. A pull request that changes no Swift file in Sources/ stops before the build.
+# - A DocC catalog's code files are never mutated, as SwiftPM doesn't build them.
 # - A manual run mutates all of Sources/, which takes about 11 hours in one job, past the 6 hour
 #   job limit: it runs as parallel jobs instead, one per group of `scripts/mutate.py --shard`
 #   (12 by default), and a last job joins their results into one summary of every survivor.
@@ -57,7 +58,7 @@ jobs:
           files=()
           while IFS= read -r file; do
             [[ -f "$file" ]] && files+=("$file")
-          done < <(git diff --name-only "$BASE" HEAD -- 'Sources/*.swift')
+          done < <(git diff --name-only "$BASE" HEAD -- 'Sources/*.swift' ':(exclude)Sources/*.docc/*')
           if [[ ${#files[@]} -eq 0 ]]; then
             echo "No Swift file in Sources/ changed." >>"$GITHUB_STEP_SUMMARY"
             exit 0

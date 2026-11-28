@@ -1,0 +1,77 @@
+@Tutorial(time: 10) {
+    @Intro(title: "Write your first test double") {
+        A screen in your app looks a dish up on the menu. In this tutorial you give its test a double of the menu, script what the double answers, and check how the screen called it, without writing a line of the double's code yourself.
+    }
+
+    @Section(title: "Add Understudy to your test target") {
+        @ContentAndMedia {
+            Understudy is a test dependency: your shipped code never imports it.
+        }
+
+        @Steps {
+            @Step {
+                Add the package, then add the `Understudy` product to your test target only.
+
+                @Code(name: "Package.swift", file: "first-double-01-package.swift")
+            }
+        }
+    }
+
+    @Section(title: "Write a double for a protocol") {
+        @ContentAndMedia {
+            A double stands in for a protocol your code depends on. Because the double conforms to the protocol, the compiler keeps it in step with the real thing.
+        }
+
+        @Steps {
+            @Step {
+                This is the code under test: a `Menu` protocol, and a `DishScreen` that shows the name of the dish it was opened with.
+
+                @Code(name: "Menu.swift", file: "first-double-02-menu.swift")
+            }
+
+            @Step {
+                In your test target, write a class that conforms to `Menu`. The compiler asks for `dish(id:)`.
+
+                @Code(name: "SpyMenu.swift", file: "first-double-03-spy.swift")
+            }
+
+            @Step {
+                Put `@GenerateSpies` on the class and `@Spied` on the function, with no body. The macros write the body and a spy named after the function, `dishSpy`, which records each call and answers `nil` until the test says otherwise.
+
+                @Code(name: "SpyMenu.swift", file: "first-double-04-spy.swift")
+            }
+        }
+    }
+
+    @Section(title: "Test the screen with the double") {
+        @ContentAndMedia {
+            The test makes the double, passes it to the code under test, and reads the double's spy.
+        }
+
+        @Steps {
+            @Step {
+                Make the double and pass it to the screen, as the app passes the real menu.
+
+                @Code(name: "DishScreenTests.swift", file: "first-double-05-test.swift")
+            }
+
+            @Step {
+                Script the answer with `willReturn`, then check what the screen shows.
+
+                @Code(name: "DishScreenTests.swift", file: "first-double-06-test.swift")
+            }
+
+            @Step {
+                Read the calls: `dishSpy.calls` holds the id of every call, in order.
+
+                @Code(name: "DishScreenTests.swift", file: "first-double-07-test.swift")
+            }
+
+            @Step {
+                Turn the double into a strict mock: `expect(7)` says the screen must ask for dish 7, and `.verifiesMocks` on the suite reports an expectation that wasn't met when each test ends, at the `expect` line.
+
+                @Code(name: "DishScreenTests.swift", file: "first-double-08-test.swift")
+            }
+        }
+    }
+}

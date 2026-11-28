@@ -71,10 +71,13 @@ LEG_RULES = [
     (r"\.github/workflows/(branch-name|pr-rules|codeql|security-alerts|stress|release|cache)\.yml",
      set()),
     ((r"scripts/(check-pr-rules\.py|check-structure\.py|post-security-alerts\.sh|release-notes\.sh"
-      r"|sonar-scan\.sh)"), set()),
+      r"|sonar-scan\.sh|check-doc-examples\.py)"), set()),
     # One leg each.
     (r"\.github/workflows/ci\.yml|\.github/api-breakage-allowlist\.txt|Swift5Mode/.*", {LINUX}),
     (r"scripts/(check-coverage|check-generated-code)\.sh", {LINUX}),
+    # The DocC catalog: only the Linux leg's docs job builds it, and the fast checks compare its
+    # examples with the guide tests on every pull request.
+    (r"Sources/Understudy/Understudy\.docc/.*|scripts/build-docs\.sh", {LINUX}),
     (r"\.github/workflows/apple\.yml|ApplePlatforms/.*|scripts/install-tuist\.sh", {APPLE}),
     (r"\.github/workflows/benchmarks\.yml|scripts/benchmark\.sh", {BENCHMARKS}),
     (r"\.github/workflows/mutation\.yml|scripts/mutate\.py", {MUTATION}),
@@ -360,6 +363,9 @@ CLASSIFY_CASES = [
     (["ApplePlatforms/Tuist.swift"], {APPLE}),
     ([".github/workflows/ci.yml", "Swift5Mode/Package.swift"], {LINUX}),
     ([".github/workflows/codeql.yml", "scripts/sonar-scan.sh"], set()),
+    (["Sources/Understudy/Understudy.docc/Articles/Guide.md", "scripts/build-docs.sh"], {LINUX}),
+    (["Sources/Understudy/Understudy.docc/Resources/step.swift"], {LINUX}),
+    (["scripts/check-doc-examples.py"], set()),
     (["scripts/mutate.py"], {MUTATION}),
     (["Benchmarks/generated-code-budget.txt"], {LINUX, BENCHMARKS}),
     (["Sources/a.md/x.swift"], ALL),

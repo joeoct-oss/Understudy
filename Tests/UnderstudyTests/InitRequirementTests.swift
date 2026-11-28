@@ -135,14 +135,14 @@ struct InitRequirementTests {
 
     @Test("The class form records its init through a static spy it calls")
     func classFormRecordsItsInitThroughAStaticSpy() async throws {
-        try await SpyRenderer.withFreshSpies {
-            let renderer = makeRenderer(SpyRenderer.self, title: "Home")
+        try await SpyPainter.withFreshSpies {
+            let painter = makePainter(SpyPainter.self, title: "Home")
 
-            renderer.draw()
+            painter.draw()
 
             let expectedTitles = ["Home"]
-            #expect(SpyRenderer.madeSpy.calls == expectedTitles)
-            #expect(renderer.drawSpy.callCount == 1)
+            #expect(SpyPainter.madeSpy.calls == expectedTitles)
+            #expect(painter.drawSpy.callCount == 1)
         }
     }
 
@@ -162,13 +162,13 @@ private func makeWallet<Made: Wallet>(_ type: Made.Type, user: String) throws ->
     try Made(user: user)
 }
 
-/// Makes a renderer the way production code would, through the protocol.
-private func makeRenderer<Made: Renderer>(_ type: Made.Type, title: String) -> Made {
+/// Makes a painter the way production code would, through the protocol.
+private func makePainter<Made: Painter>(_ type: Made.Type, title: String) -> Made {
     Made(title: title)
 }
 
-/// A renderer production code makes for a screen's title.
-protocol Renderer {
+/// A painter production code makes for a screen's title.
+protocol Painter {
     init(title: String)
 
     func draw()
@@ -177,7 +177,7 @@ protocol Renderer {
 /// The class form of a double for a protocol with an `init`: the class writes the `init` and
 /// records it through a static spy.
 @GenerateSpies
-final class SpyRenderer: Renderer {
+final class SpyPainter: Painter {
     convenience init(title: String) {
         self.init()
         Self.made(title: title)

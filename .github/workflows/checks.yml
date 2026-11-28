@@ -2,9 +2,10 @@
 # request needs it, in stages: each stage starts only when the one before it passed, so a failure
 # stops the run before it spends a SonarQube analysis, macOS time or a mutation run (Yousef,
 # 2026-11-26).
-# 1. "Fast checks", seconds long: actionlint, zizmor, ShellCheck, the size limits, lint
-#    (swift-format and SwiftLint, through scripts/lint.sh), dependency review when the package's
-#    dependencies changed, and which of the later legs the change needs.
+# 1. "Fast checks", seconds long: actionlint, zizmor, ShellCheck, the size limits, the docs
+#    examples against the guide tests, lint (swift-format and SwiftLint, through scripts/lint.sh),
+#    dependency review when the package's dependencies changed, and which of the later legs the
+#    change needs.
 # 2. "SonarQube Cloud quality gate": scripts/sonar-scan.sh analyzes the code with the rules in
 #    sonar-project.properties and waits for the gate (bugs, security, code quality, duplication
 #    and reviewed hotspots on new code). Then the release check or publish (release.yml).
@@ -111,6 +112,15 @@ jobs:
       - name: Size limits
         if: ${{ !cancelled() }}
         run: scripts/check-structure.py
+
+      # Every example in the DocC catalog must be one a guide test compiles
+      # (Tests/UnderstudyTests/Guides/), so the guides can't drift from the API. The rules live in
+      # the script's docstring; its own cases run first.
+      - name: Docs examples in the guide tests
+        if: ${{ !cancelled() }}
+        run: |
+          python3 -I scripts/check-doc-examples.py --self-check
+          python3 -I scripts/check-doc-examples.py
 
       # Waypoint's CODE_STYLE.md, checked by swift-format and SwiftLint (scripts/lint.sh), as in
       # the cloud while working. swift-format runs in the Swift image the Linux checks pin, whose
