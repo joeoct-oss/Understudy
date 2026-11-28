@@ -188,14 +188,6 @@ private func makeMember<Made: Member>(_ type: Made.Type) -> Made {
     Made()
 }
 
-/// Why a wallet can't be opened.
-///
-/// Conformances:
-/// - `Error`, so the wallet's init spy can throw it.
-enum WalletError: Error {
-    case locked
-}
-
 /// A wallet production code opens for a user.
 @GenerateSpies
 protocol Wallet {

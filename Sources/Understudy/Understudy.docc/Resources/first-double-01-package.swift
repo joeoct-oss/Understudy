@@ -1,4 +1,12 @@
 // swift-tools-version: 6.0
+//
+//  Package.swift
+//  Understudy
+//
+//  Created by Yousef Mohamed <youseef.elserwey@gmail.com>.
+//  Copyright © 2026 Yousef Mohamed. MIT License.
+//
+
 import PackageDescription
 
 let package = Package(
