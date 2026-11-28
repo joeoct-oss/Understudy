@@ -209,10 +209,11 @@ reviews:
         Shared code style. Report each broken rule as an inline should-fix finding (major
         severity) that names the rule, never as a nitpick or trivial item. CI's fast checks run
         swift-format and SwiftLint (scripts/lint.sh), which catch most of these; review catches
-        what they miss and what no tool can judge. An added or renamed file opens with the file
-        header: `//`, the file's own name, Understudy, "Created by Yousef Mohamed
-        <youseef.elserwey@gmail.com>.", "Copyright © <year> Yousef Mohamed. MIT License." and
-        `//` (source fixtures in test string literals are not files). Every name says what it
+        what they miss and what no tool can judge. An added or renamed file opens with the
+        seven-line file header in .gitar/rules/file-headers.md: `//`, the file's own name,
+        Understudy, `//`, "Created by Yousef Mohamed <youseef.elserwey@gmail.com>.", "Copyright ©
+        <year> Yousef Mohamed. MIT License." and `//` (source fixtures in test string literals
+        are not files). Every name says what it
         holds or does: no one- or two-character name for a variable, constant, parameter,
         property, closure parameter or loop variable, and no `$0` or other shorthand closure
         argument; name the closure's parameter instead. A name a protocol or outside API
