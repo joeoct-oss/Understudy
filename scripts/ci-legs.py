@@ -20,8 +20,10 @@ A leg is skipped in two cases:
   since, on the pull request or on the base (base_changes), and, for the Linux leg, no release
   was published since the workflow run of that pass began, as its public API check compares
   with the latest release (latest_release and check_passed; a release tagged on a commit the
-  pull request already has counts too). This is what a merge from main that brings only docs or
-  config gets: the tests that passed before the merge stay valid. The earlier commits are the
+  pull request already has counts too). This is what a merge from main that brings only root
+  Markdown or config gets: the tests that passed before the merge stay valid. A DocC catalog
+  file or scripts/build-docs.sh is the Linux leg's, which builds the docs, so a merge that
+  brings one runs that leg again instead of reusing its pass. The earlier commits are the
   pull request's own, followed by first parent from the head, newest first, up to MAX_COMMITS;
   the result is the leg's check run on that commit, made by GitHub Actions and read with the
   run's GITHUB_TOKEN.
@@ -60,8 +62,8 @@ ALL = frozenset(LEGS)
 # matches reads as every leg's: the package's sources, tests and manifests fall there on purpose,
 # as do checks.yml and this script, which decide how every leg runs.
 LEG_RULES = [
-    # Read by no leg: docs, review tool config, and workflows and scripts no leg calls on a pull
-    # request (the fast checks and SonarQube run on every pull request anyway).
+    # Read by no leg: root Markdown, review tool config, and workflows and scripts no leg calls on
+    # a pull request (the fast checks and SonarQube run on every pull request anyway).
     (r"[^/]+\.md|LICENSE|\.gitignore|\.coderabbit\.yaml|\.spi\.yml|codecov\.yml", set()),
     (r"sonar-project\.properties|\.gitar/.*", set()),
     # The lint config and scripts: lint runs in the fast checks on every pull request.
@@ -71,10 +73,13 @@ LEG_RULES = [
     ((r"\.github/workflows/(branch-name|pr-rules|codeql|security-alerts|stress|release|cache"
       r"|delete-unused-claude-branches)\.yml"), set()),
     ((r"scripts/(check-pr-rules\.py|check-structure\.py|post-security-alerts\.sh|release-notes\.sh"
-      r"|sonar-scan\.sh|delete-unused-claude-branches\.py)"), set()),
+      r"|sonar-scan\.sh|check-doc-examples\.py|delete-unused-claude-branches\.py)"), set()),
     # One leg each.
     (r"\.github/workflows/ci\.yml|\.github/api-breakage-allowlist\.txt|Swift5Mode/.*", {LINUX}),
     (r"scripts/(check-coverage|check-generated-code)\.sh", {LINUX}),
+    # The DocC catalog: only the Linux leg's docs job builds it, and the fast checks compare its
+    # examples with the guide tests on every pull request.
+    (r"Sources/Understudy/Understudy\.docc/.*|scripts/build-docs\.sh", {LINUX}),
     (r"\.github/workflows/apple\.yml|ApplePlatforms/.*|scripts/install-tuist\.sh", {APPLE}),
     (r"\.github/workflows/benchmarks\.yml|scripts/benchmark\.sh", {BENCHMARKS}),
     (r"\.github/workflows/mutation\.yml|scripts/mutate\.py", {MUTATION}),
@@ -362,6 +367,9 @@ CLASSIFY_CASES = [
     ([".github/workflows/codeql.yml", "scripts/sonar-scan.sh"], set()),
     ([".github/workflows/delete-unused-claude-branches.yml",
       "scripts/delete-unused-claude-branches.py"], set()),
+    (["Sources/Understudy/Understudy.docc/Articles/Guide.md", "scripts/build-docs.sh"], {LINUX}),
+    (["Sources/Understudy/Understudy.docc/Resources/step.swift"], {LINUX}),
+    (["scripts/check-doc-examples.py"], set()),
     (["scripts/mutate.py"], {MUTATION}),
     (["Benchmarks/generated-code-budget.txt"], {LINUX, BENCHMARKS}),
     (["Sources/a.md/x.swift"], ALL),
@@ -369,14 +377,15 @@ CLASSIFY_CASES = [
 ]
 
 # The pull request's changed files, its earlier commits and which legs run, for the self-check.
-# c1 and c2 passed the Linux and Apple legs; c1 is followed only by docs, c2 by code.
+# c1 and c2 passed the Linux and Apple legs; c1 is followed only by root Markdown, c2 by code.
 CODE = ["Sources/a.swift"]
 FLOW_CASES = [
-    # A merge from main that brings only docs reuses what passed on the commit before it.
+    # A merge from main that brings only root Markdown or config reuses what passed on the commit
+    # before it.
     (CODE, ["c1"], {LINUX: False, APPLE: False, BENCHMARKS: True, MUTATION: True}),
     # A newer commit that changed code runs again, even if an older one passed.
     (CODE, ["c2", "c1"], {LINUX: True, APPLE: True, BENCHMARKS: True, MUTATION: True}),
-    # The first push of a docs-only pull request runs no leg.
+    # The first push of a pull request that changes only root Markdown or config runs no leg.
     (["README.md"], [], {LINUX: False, APPLE: False, BENCHMARKS: False, MUTATION: False}),
 ]
 FLOW_PASSES = {"c1": {LINUX, APPLE}, "c2": {LINUX, APPLE}}
