@@ -17,7 +17,8 @@ extension FunctionRequirement {
             .filter { $0.attributeName.trimmedDescription.hasSuffix("Actor") }
             .map { $0.trimmedDescription + " " }
             .joined()
-        let isolation = declaration.modifiers.contains { $0.name.text == "nonisolated" } ? "nonisolated " : ""
+        let isolation =
+            declaration.modifiers.first { $0.name.text == "nonisolated" }.map { $0.trimmedDescription + " " } ?? ""
         let thrown = typedError.map { "throws(\($0))" } ?? "throws"
         let effects = (isAsync ? " async" : "") + (throwsError ? " " + thrown : "")
         // Only the generic parameter it returns stays generic: the others reach the spy as their

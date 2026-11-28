@@ -88,6 +88,33 @@ struct InitRequirementExpansionTests {
         #expect(!plain.description.contains("nonisolated"))
     }
 
+    @Test("An init keeps its nonisolated modifier as written, and an actor's own initializer has none")
+    func initKeepsItsNonisolatedModifier() {
+        let (expanded, diagnostics) = expand(
+            """
+            @GenerateSpies
+            protocol Logbook: Actor {
+                nonisolated(nonsending) init(owner: String) async
+                func total() -> Int
+            }
+            """
+        )
+
+        #expect(diagnostics.isEmpty)
+        #expect(expanded.description.contains("nonisolated(nonsending) init(owner: String) async"))
+        #expect(!expanded.description.contains("nonisolated init(total:"))
+    }
+
+    @Test("A class's spied function keeps its nonisolated modifier as written on its forwarder")
+    func forwarderKeepsItsNonisolatedModifier() {
+        let (expanded, diagnostics) = expand(
+            "@GenerateSpies\nfinal class SpyFeed: Feed {\n    @Spied nonisolated(nonsending) func load() async\n}"
+        )
+
+        #expect(diagnostics.isEmpty)
+        #expect(expanded.description.contains("nonisolated(nonsending) func"))
+    }
+
     @Test("A class under a global actor with a static spy gets nonisolated statics too")
     func globalActorClassStaticsAreNonisolated() {
         let (expanded, diagnostics) = expand(

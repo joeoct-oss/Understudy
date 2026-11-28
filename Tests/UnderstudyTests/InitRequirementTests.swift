@@ -109,6 +109,17 @@ struct InitRequirementTests {
         }
     }
 
+    @Test("An actor's nonisolated async init builds beside an answer and records the call")
+    func actorNonisolatedAsyncInit() async throws {
+        try await LogbookSpy.withFreshSpies {
+            let logbook = await LogbookSpy(owner: "ana")
+
+            let expectedOwners = ["ana"]
+            #expect(LogbookSpy.initSpy.calls == expectedOwners)
+            #expect(await logbook.total() == 0)
+        }
+    }
+
     @Test("An async init can be held, and resumes with the answer the test gives")
     func asyncInitCanBeHeld() async throws {
         try await ConnectionSpy.withFreshSpies {
@@ -316,4 +327,16 @@ protocol Badge {
 /// Makes a badge the way production code would, off the main actor, through the protocol.
 private func makeBadge<Made: Badge>(_ type: Made.Type, label: String) -> Made {
     Made(label: label)
+}
+
+/// A logbook kept by an actor, opened with a `nonisolated` async init beside a requirement whose
+/// answer the spy's own initializer takes.
+///
+/// Requirements:
+/// - `Actor`, so the tests check that an actor spy's own initializer stays as an actor needs it.
+@GenerateSpies
+protocol Logbook: Actor {
+    nonisolated init(owner: String) async
+
+    func total() -> Int
 }
