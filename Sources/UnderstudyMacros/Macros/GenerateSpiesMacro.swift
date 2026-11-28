@@ -109,8 +109,14 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
         }
         let typeName = declaration.asProtocol(NamedDeclSyntax.self)?.name.text ?? ""
         let access = access(of: declaration.modifiers)
-        return try storage(for: requirements, in: typeName, access: access, isActor: isActor)
-            + forwarders
+        let isGlobalActor = declaration.attributes.hasGlobalActor
+        return try storage(
+            for: requirements,
+            in: typeName,
+            access: access,
+            isActor: isActor,
+            isGlobalActor: isGlobalActor
+        ) + forwarders
     }
 
     /// Refuses `@Recorded` on an actor, whose spy a test can't read without `await`, and on a
@@ -158,6 +164,7 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
                 in: spy.spyName,
                 access: spy.access,
                 isActor: spy.isActor,
+                isGlobalActor: !spy.actors.isEmpty,
                 parents: spy.parents
             )
             + zip(spy.requirements, spy.spyNames).map { requirement, name in
@@ -182,8 +189,8 @@ public struct GenerateSpiesMacro: MemberMacro, PeerMacro, ExtensionMacro {
     }
 
     /// The `@Spied` functions, properties and subscripts of a class, in order.
-    private static func spiedRequirements(of block: MemberBlockSyntax) throws -> [any Requirement] {
-        try block.members.compactMap { member -> (any Requirement)? in
+    private static func spiedRequirements(of block: MemberBlockSyntax) throws -> [any SpiedMember] {
+        try block.members.compactMap { member -> (any SpiedMember)? in
             if let spied = member.decl.as(SubscriptDeclSyntax.self), hasSpiedAccessor(spied) {
                 return try SubscriptRequirement(spied, inProtocol: false)
             }
