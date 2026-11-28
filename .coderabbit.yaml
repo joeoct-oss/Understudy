@@ -184,11 +184,12 @@ reviews:
       - name: "Breaking change recorded"
         mode: warning
         instructions: >-
-          Fail if the PR removes or renames a public or open declaration under Sources/,
-          changes a public signature, argument label or default argument, removes a public
-          protocol conformance, adds a protocol requirement without a default, adds a case to
-          a public enum, raises a platform minimum or swift-tools-version in Package.swift,
-          or changes what a public macro generates, and CHANGELOG.md gains no entry under
+          Fail if the PR removes or renames a public or open declaration under Sources/, changes a
+          public signature, argument label, default argument, generic constraints or isolation,
+          removes a public protocol conformance (Sendable included), adds a protocol requirement
+          without a default, adds a case to a public enum, raises a platform minimum,
+          swift-tools-version or the lowest swift-syntax in Package.swift, or changes what a public
+          macro generates in a way user code can see, and CHANGELOG.md gains no entry under
           Unreleased that says it is breaking. Additions alone pass.
   # Generated or build output; nothing in it is reviewable by reading.
   path_filters:
@@ -208,7 +209,14 @@ reviews:
         Shared code style. Report each broken rule as an inline should-fix finding (major
         severity) that names the rule, never as a nitpick or trivial item. CI's fast checks run
         swift-format and SwiftLint (scripts/lint.sh), which catch most of these; review catches
-        what they miss and what no tool can judge. Empty braces have one space
+        what they miss and what no tool can judge. An added or renamed file opens with the file
+        header: `//`, the file's own name, Understudy, "Created by Yousef Mohamed
+        <youseef.elserwey@gmail.com>.", "Copyright © <year> Yousef Mohamed. MIT License." and
+        `//` (source fixtures in test string literals are not files). Every name says what it
+        holds or does: no one- or two-character name for a variable, constant, parameter,
+        property, closure parameter or loop variable, and no `$0` or other shorthand closure
+        argument; name the closure's parameter instead. A name a protocol or outside API
+        dictates, such as Identifiable's `id`, is exempt. Empty braces have one space
         inside, `{ }`, never `{}` (empty collection literals and braces inside string literals or
         test source fixtures are not braces). A type or extension with members opens its brace on
         the declaration line, puts each member on its own line and lists one enum case per line.
@@ -234,38 +242,39 @@ reviews:
         "`var` because" and names what changes it.
     - path: "Sources/**/*.swift"
       instructions: >-
-        Swift 6 language mode with strict concurrency. Code must build with Swift 6.0
-        through the newest release, on iOS 13, macOS 10.15 and Linux. Flag: an API newer
-        than the platform floor in Package.swift without an availability check; Swift 6.1+
-        syntax or library API (6.2's @concurrent and nonisolated(nonsending), InlineArray,
-        Span) not behind #if compiler(>=6.x); @unchecked Sendable
-        or nonisolated(unsafe) without a comment naming the lock that guards the state;
-        @preconcurrency on a conformance; a mutable global or static var; an unstructured Task
-        where async let or a task group would do; a semaphore or other blocking wait on async
-        work; a Task in deinit that captures self; @objc, #selector, KVO, NSClassFromString or
-        other Objective-C runtime APIs (Linux has none); URLSession without importing
-        FoundationNetworking under #if canImport(FoundationNetworking). Flag a breaking change
-        to public API (removed, renamed, relabelled or retyped declaration, dropped Sendable,
-        changed default argument, new protocol requirement without a default, new public enum
-        case, changed isolation of a public async function) that CHANGELOG.md does not record
-        as breaking. Raise a concurrency issue only with a realistic sequence that triggers it.
-        Clean code, each as an inline should-fix finding (major severity), never a nitpick: a
-        function longer than about 40 lines, or nested more
-        than three levels deep, that reads better split into named functions; a name that
-        doesn't say what it holds or does (abbreviations, single letters outside a short
-        closure or loop, vague words such as data, info, helper, manager, util, temp or flag);
-        the same logic written twice where one named function or type would serve both; a
-        boolean or bare literal argument whose meaning isn't clear at the call site; dead code,
-        commented-out code, and a number or string that needs a named constant. Raise each only
-        when the fix is concrete; don't flag a long function whose length is one flat list (a
-        table of cases or diagnostics). Do not flag: missing Sendable on actors or global-actor
-        types; a sending parameter; nonisolated on a member that reads only let state; a missing
-        @MainActor (nonisolated is the right library default); @unchecked Sendable on a type
-        whose mutable state is behind a lock named in a comment; a lock taken by hand instead of
-        NSLock.withLock (that needs iOS 17); a plain import Foundation.
+        Swift 6 language mode with strict concurrency. Code must build with Swift 6.0 through the
+        newest release, on iOS 13, macOS 10.15 and Linux. Flag: an API newer than the platform floor
+        in Package.swift without an availability check; Swift 6.1+ syntax or library API (6.2's
+        @concurrent and nonisolated(nonsending), InlineArray, Span) not behind #if compiler(>=6.x);
+        @unchecked Sendable or nonisolated(unsafe) without a comment naming the lock that guards the
+        state; @preconcurrency on a conformance or import; MainActor.assumeIsolated or unsafeBitCast
+        used to get around an isolation error; @MainActor or another global actor on a spy or on the
+        code a macro generates (a generated member's isolation follows the requirement it
+        implements); a mutable global or static var; an unstructured Task where async let or a task
+        group would do; a semaphore or other blocking wait on async work; a Task in deinit that
+        captures self; @objc, #selector, KVO, NSClassFromString or other Objective-C runtime APIs
+        (Linux has none); URLSession without importing FoundationNetworking under #if
+        canImport(FoundationNetworking). Flag a breaking change to public API (removed, renamed,
+        relabelled or retyped declaration, changed generic constraints, dropped Sendable, changed
+        default argument, new protocol requirement without a default, new public enum case, changed
+        isolation of a public async function) that CHANGELOG.md does not record as breaking. Raise a
+        concurrency issue only with a realistic sequence that triggers it. Clean code, each as an
+        inline should-fix finding (major severity), never a nitpick: a function longer than about 40
+        lines, or nested more than three levels deep, that reads better split into named functions;
+        a name that doesn't say what it holds or does (abbreviations, one or two characters, `$0`,
+        vague words such as data, info, helper, manager, util, temp or flag); the same logic written
+        twice where one named function or type would serve both; a boolean or bare literal argument
+        whose meaning isn't clear at the call site; dead code, commented-out code, and a number or
+        string that needs a named constant. Raise each only when the fix is concrete; don't flag a
+        long function whose length is one flat list (a table of cases or diagnostics). Do not flag:
+        missing Sendable on actors or global-actor types; a sending parameter; nonisolated on a
+        member that reads only let state; a missing @MainActor (nonisolated is the right library
+        default); @unchecked Sendable on a type whose mutable state is behind a lock named in a
+        comment; a lock taken by hand instead of NSLock.withLock (that needs iOS 17); a plain import
+        Foundation.
     - path: "Sources/*Macros/**/*.swift"
       instructions: >-
-        swift-syntax macro implementation. Flag fatalError, preconditionFailure, try! or
+        swift-syntax macro implementation. Flag fatalError, preconditionFailure, try!, as! or
         force-unwraps on the user's syntax; emit a Diagnostic with a clear message that says
         what to do instead, plus a FixIt when the correction is mechanical. Flag generated code
         that names types without qualification where user code could shadow them (write
@@ -273,9 +282,15 @@ reviews:
         misses a member it generates. Flag generated code a person wouldn't write by hand: the
         code a macro writes reads like a double written by hand. Flag swift-syntax APIs newer
         than the lowest swift-syntax Package.swift allows that are not behind
-        #if canImport(SwiftSyntaxNNN). A change in what a public macro generates is a public
-        API change. Braces and spacing inside the code strings a macro emits follow what the
-        expansion needs, not the source style.
+        #if canImport(SwiftSyntaxNNN). Flag file, environment, process or network access: the
+        plugin only reads the syntax it is given. A change in what a public macro generates is a
+        public API change. Flag a change to what a macro accepts, refuses or generates that no test
+        pins: a newly accepted spy shape goes in Tests/UnderstudyMacrosTests/Fixtures/ and is used
+        in source by a test in Tests/UnderstudyTests/; a new @Sample shape is pinned in
+        SampleExpansionTests and SampleTests.swift; a new or changed diagnostic is checked with its
+        message, line, column and fix-it; unless the description says why, such as a refactor that
+        keeps scripts/compare-expansions.sh output the same. Braces and spacing inside the code
+        strings a macro emits follow what the expansion needs, not the source style.
     - path: "Tests/**/*.swift"
       instructions: >-
         Report each broken rule in this block as an inline should-fix finding (major
@@ -348,8 +363,8 @@ reviews:
         changed setting whose comment no longer matches it. Flag a key the tool's schema
         doesn't have or a value of the wrong type, since these tools often ignore an unknown
         key without an error. Flag a change that adds anything paid, that turns on a pull
-        request comment or annotation from Codecov (the AI reviews, CodeRabbit and Gitar on
-        trial, are the only comments on a PR), or that lowers Codecov's patch target or project
+        request comment or annotation from Codecov (the AI reviews, CodeRabbit and Gitar, are
+        the only comments on a PR), or that lowers Codecov's patch target or project
         threshold.
     - path: ".coderabbit.yaml"
       instructions: >-
@@ -367,19 +382,19 @@ reviews:
         a language folder (scripts, .github, Tools, Benchmarks) from the analysis.
     - path: "**/*.sh"
       instructions: >-
-        Bash scripts, run on Linux CI with no Mac. Report each broken rule as an inline
-        should-fix finding (major severity), and post every ShellCheck finding of warning or
-        error level inline. The file starts with #!/usr/bin/env bash, the file header (file
-        name, Understudy, "Created by Yousef Mohamed" and the MIT copyright line), a comment
-        that says what the script does and how to run it, and set -euo pipefail. Flag GNU-only
-        or BSD-only flags where the script may also run on a Mac, unquoted expansions, eval or
-        bash -c on an argument or other outside input, rm -rf on a variable not checked to be
-        non-empty (use "${dir:?}"), cd without a check, a loop over ls output, backticks
-        instead of $( ), a download that doesn't use HTTPS and a pinned checksum, a temporary
-        file not made with mktemp, an error message not sent to stderr, and an exit status
-        that hides a failure. Flag a change that weakens the coverage gate (any line of
-        Sources/ that no test runs must still fail it), the size limits in
-        scripts/check-structure.py or the generated-code budget.
+        Bash scripts, run on Linux CI with no Mac. Report each broken rule as an inline should-fix
+        finding (major severity), and post every ShellCheck finding of warning or error level
+        inline. The file starts with #!/usr/bin/env bash, the file header (file name, Understudy,
+        "Created by Yousef Mohamed" and the MIT copyright line), a comment that says what the script
+        does and how to run it, and set -euo pipefail. Flag GNU-only or BSD-only flags where the
+        script may also run on a Mac, unquoted expansions, eval or bash -c on an argument or other
+        outside input, rm -rf on a variable not checked to be non-empty (use "${dir:?}"), cd without
+        a check, a loop over ls output, backticks instead of $( ), a download that doesn't use HTTPS
+        and a pinned checksum, a temporary file not made with mktemp, an error message not sent to
+        stderr, and an exit status that hides a failure. Flag a variable or function name of one or
+        two characters, or one that doesn't say what it holds. Flag a change that weakens the
+        coverage gate (any line of Sources/ that no test runs must still fail it), the size limits
+        in scripts/check-structure.py or the generated-code budget.
     - path: "**/*.py"
       instructions: >-
         Python 3 scripts that use only the standard library and run with python3 -I on the
@@ -397,7 +412,8 @@ reviews:
         exits 0 after a failure or
         prints an error to stdout instead of stderr; code at module level instead of in a
         main() called under if __name__ == "__main__"; a function longer than about 40 lines
-        or a name that doesn't say what it holds. Comment and docstring lines end by column
+        or a name that doesn't say what it holds, one or two characters included (loop and
+        comprehension variables too). Comment and docstring lines end by column
         100, code lines by 120.
     - path: "Benchmarks/generated-code-budget.txt"
       instructions: >-
@@ -411,7 +427,8 @@ reviews:
         stated here that has another home (CODE_STYLE.md for code style, the script or
         workflow for a limit or a rule), instead of a link to it; a relative link or anchor
         that points to a file or heading that doesn't exist; a code sample that uses API the
-        package doesn't have or wouldn't build; a mention of a private repo, a plan, a
+        package doesn't have or wouldn't build; a code sample or example that uses a one- or
+        two-character name or `$0`; a mention of a private repo, a plan, a
         decision or an issue number; a heading level that skips a level.
     - path: "CHANGELOG.md"
       instructions: >-
