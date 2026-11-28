@@ -19,7 +19,7 @@ It has three tools, in two products:
 
 **Contents:** [Install](#install) · [Quick start](#quick-start) · [Spies](#spies) · [Test clock](#test-clock) · [Sample values](#sample-values) · [What the macros refuse](#what-the-macros-refuse) · [What 1.x promises](#what-1x-promises)
 
-The API docs for both products are on the [Swift Package Index](https://swiftpackageindex.com/joeoct-oss/Understudy/documentation), built for each release.
+The API docs for both products are on the [Swift Package Index](https://swiftpackageindex.com/joeoct-oss/Understudy/documentation), built for each release. [Understudy's docs](https://swiftpackageindex.com/joeoct-oss/Understudy/documentation/understudy) there also hold a tutorial, *Write your first test double*, and guides for testing code that waits, checking calls across doubles, static spies in parallel tests, strict mocks, and protocols that declare an `init`. Every example in them is compiled and run by the tests in `Tests/UnderstudyTests/Guides/`.
 
 ## Install
 

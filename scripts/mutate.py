@@ -260,8 +260,9 @@ def outcome(relative, timeout):
 
 
 def sources(paths):
-    """Every Swift file under the paths given, or under Sources/, except compiler plugin entries.
-    A path outside Sources/ stops the run, so the script never writes anywhere else."""
+    """Every Swift file under the paths given, or under Sources/, except compiler plugin entries and
+    the code files of a DocC catalog (*.docc), which SwiftPM doesn't build. A path outside
+    Sources/ stops the run, so the script never writes anywhere else."""
     allowed = (ROOT / "Sources").resolve()
     roots = [(ROOT / path).resolve() for path in paths] or [allowed]
     for root in roots:
@@ -272,7 +273,11 @@ def sources(paths):
     for file in resolved:
         if allowed not in file.parents:
             sys.exit(f"error: {file} is not under Sources/")
-    return [file for file in resolved if file.name != "Plugin.swift"]
+    return [
+        file
+        for file in resolved
+        if file.name != "Plugin.swift" and not any(part.endswith(".docc") for part in file.parts)
+    ]
 
 
 def shard(files, part):
