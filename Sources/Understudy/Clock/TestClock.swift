@@ -145,9 +145,9 @@ public final class TestClock: Clock, @unchecked Sendable {
     /// The clock's time, which starts at zero and moves only when the test moves it. A task the
     /// clock woke reads the deadline it woke at, until it sleeps again or the next advance ends.
     public var now: Instant {
-        let task = withUnsafeCurrentTask { $0?.hashValue }
+        let task = withUnsafeCurrentTask { currentTask in currentTask?.hashValue }
         return synchronized {
-            task.flatMap { wokenAt[$0]?.instant } ?? current
+            task.flatMap { task in wokenAt[task]?.instant } ?? current
         }
     }
 
@@ -170,7 +170,7 @@ public final class TestClock: Clock, @unchecked Sendable {
             starting.insert(id)
             return id
         }
-        let task = withUnsafeCurrentTask { $0?.hashValue }
+        let task = withUnsafeCurrentTask { currentTask in currentTask?.hashValue }
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 wait(Sleeper(id: id, deadline: deadline, task: task, continuation: continuation))
@@ -233,7 +233,7 @@ public final class TestClock: Clock, @unchecked Sendable {
     private func forgetOldWakes() {
         synchronized {
             finishedAdvances += 1
-            wokenAt = wokenAt.filter { $0.value.advance >= finishedAdvances - 1 }
+            wokenAt = wokenAt.filter { _, woken in woken.advance >= finishedAdvances - 1 }
         }
     }
 
@@ -268,7 +268,7 @@ public final class TestClock: Clock, @unchecked Sendable {
     /// Whether `task` waits on this clock; `false` for no task.
     private func isSleeping(_ task: Int?) -> Bool {
         synchronized {
-            task != nil && sleepers.contains { $0.task == task }
+            task != nil && sleepers.contains { sleeper in sleeper.task == task }
         }
     }
 
@@ -312,7 +312,7 @@ public final class TestClock: Clock, @unchecked Sendable {
                 }
                 return sleepers[index].deadline <= limit
             }
-            guard let next = due.min(by: { sleepers[$0].deadline < sleepers[$1].deadline }) else {
+            guard let next = due.min(by: { left, right in sleepers[left].deadline < sleepers[right].deadline }) else {
                 if let limit {
                     moveNow(to: limit)
                 }
@@ -337,7 +337,7 @@ public final class TestClock: Clock, @unchecked Sendable {
     private func cancelSleeper(_ id: Int) {
         let cancelled: Sleeper? = synchronized {
             starting.remove(id)
-            return sleepers.firstIndex { $0.id == id }.map { sleepers.remove(at: $0) }
+            return sleepers.firstIndex { sleeper in sleeper.id == id }.map { index in sleepers.remove(at: index) }
         }
         cancelled?.continuation.resume(throwing: CancellationError())
     }

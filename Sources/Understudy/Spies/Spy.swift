@@ -165,7 +165,14 @@ extension Spy where Input: Equatable {
     /// `sourceLocation`, and each call no expectation accepts.
     public func expect(_ input: Input, times: Int = 1, sourceLocation: VerificationLocation = #_sourceLocation) {
         let description = String(describing: input)
-        ledger.expect(.init(matches: { $0 == input }, times: times, description: description, site: sourceLocation))
+        ledger.expect(
+            .init(
+                matches: { recorded in recorded == input },
+                times: times,
+                description: description,
+                site: sourceLocation
+            )
+        )
     }
     #endif
 }

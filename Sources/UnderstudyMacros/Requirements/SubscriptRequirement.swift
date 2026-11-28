@@ -43,7 +43,8 @@ struct SubscriptRequirement: SpiedMember {
         guard parameters.count > 1 else {
             return parameters.first?.type ?? GeneratedName.void
         }
-        return "(" + parameters.map { "\($0.name): \($0.type)" }.joined(separator: ", ") + ")"
+        let fields = parameters.map { parameter in "\(parameter.name): \(parameter.type)" }
+        return "(" + fields.joined(separator: ", ") + ")"
     }
 
     /// The get spy's type.
@@ -56,7 +57,7 @@ struct SubscriptRequirement: SpiedMember {
         guard isSettable else {
             return nil
         }
-        let fields = parameters.map { "\($0.name): \($0.type)" } + ["newValue: \(output)"]
+        let fields = parameters.map { parameter in "\(parameter.name): \(parameter.type)" } + ["newValue: \(output)"]
         return "\(GeneratedName.spy)<(\(fields.joined(separator: ", "))), \(GeneratedName.void)>"
     }
 
@@ -89,12 +90,14 @@ struct SubscriptRequirement: SpiedMember {
         guard parameters.count > 1 else {
             return parameters[0].name
         }
-        return "(" + parameters.map { "\($0.name): \($0.name)" }.joined(separator: ", ") + ")"
+        let fields = parameters.map { parameter in "\(parameter.name): \(parameter.name)" }
+        return "(" + fields.joined(separator: ", ") + ")"
     }
 
     /// The argument the set spy records.
     private var setArgument: String {
-        "(" + (parameters.map { "\($0.name): \($0.name)" } + ["newValue: newValue"]).joined(separator: ", ") + ")"
+        let fields = parameters.map { parameter in "\(parameter.name): \(parameter.name)" } + ["newValue: newValue"]
+        return "(" + fields.joined(separator: ", ") + ")"
     }
 
     /// Whether an accessor is marked `@Spied` and has an empty body, which `@Spied` writes.
@@ -165,7 +168,7 @@ struct SubscriptRequirement: SpiedMember {
             checkingAccessors: checkingAccessors,
             in: subject
         )
-        isSettable = accessors.contains { $0.accessorSpecifier.tokenKind == .keyword(.set) }
+        isSettable = accessors.contains { accessor in accessor.accessorSpecifier.tokenKind == .keyword(.set) }
         parameters = try declaration.parameterClause.parameters.map { parameter in
             try Self.index(parameter, in: subject)
         }
@@ -192,10 +195,12 @@ struct SubscriptRequirement: SpiedMember {
             throw UnderstudyError("\(subject) is generic; write its double by hand", at: keyword)
         }
         let accessors = declaration.accessorBlock?.accessors.as(AccessorDeclListSyntax.self) ?? []
-        if accessors.contains(where: { $0.effectSpecifiers != nil }) {
+        if accessors.contains(where: { accessor in accessor.effectSpecifiers != nil }) {
             throw UnderstudyError("\(subject) is async or throws; write its double by hand", at: keyword)
         }
-        if !inProtocol, checkingAccessors, accessors.isEmpty || accessors.contains(where: { !isSpied($0) }) {
+        if !inProtocol, checkingAccessors,
+            accessors.isEmpty || accessors.contains(where: { accessor in !isSpied(accessor) })
+        {
             throw UnderstudyError(
                 "\(subject) has @Spied accessors, so write it as { @Spied get {} @Spied set {} }, "
                     + "or { @Spied get {} } with no set",

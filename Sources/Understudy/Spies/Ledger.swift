@@ -256,7 +256,7 @@ final class Ledger<Input, Output> {
         let alreadyReported = synchronized {
             reported
         }
-        return problems().filter { !alreadyReported.contains($0.id) }
+        return problems().filter { problem in !alreadyReported.contains(problem.id) }
     }
 
     /// Every expectation not met and every call nobody expected, each with the `expect` it is
@@ -281,7 +281,7 @@ final class Ledger<Input, Output> {
             return VerificationProblem(id: .unmet(index, calls: count), message: message, site: expectation.site)
         }
         let unexpected = calls.enumerated().filter { _, input in
-            !expected.contains { $0.matches(input) }
+            !expected.contains { expectation in expectation.matches(input) }
         }.map { index, input in
             let message = "unexpected call with \(String(describing: input))"
             return VerificationProblem(id: .unexpected(index), message: message, site: nil)

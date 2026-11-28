@@ -72,7 +72,7 @@ extension Trait where Self == FreshSpies {
     /// Runs each test with fresh static spies for `doubles`, so parallel tests never see each
     /// other's calls or answers: `@Test(.freshSpies(SpyClock.self))`, or on a suite.
     public static func freshSpies(_ doubles: any StaticSpies.Type...) -> Self {
-        FreshSpies(doubles.map { $0.withFreshSpies })
+        FreshSpies(doubles.map { double in double.withFreshSpies })
     }
 }
 #endif

@@ -34,7 +34,7 @@ func spyNames(for requirements: [any Requirement]) throws -> [String] {
         guard counts[requirement.baseName, default: 0] > 1 else {
             return requirement.baseName + spySuffix
         }
-        let labels = requirement.labels.filter { $0 != "_" }
+        let labels = requirement.labels.filter { label in label != "_" }
         return requirement.baseName + labels.map(capitalized).joined() + spySuffix
     }
     // `var` because each name is inserted as it is given, to find a repeat.

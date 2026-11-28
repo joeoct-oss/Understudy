@@ -99,12 +99,12 @@ struct VerifiesMocksTests {
     func sameWordsAsAReportedProblemStillReported() async throws {
         let issues = try await issuesAfterTest {
             let analytics = Spy<Int, Void>()
-            analytics.expect { $0 == 1 }
+            analytics.expect { count in count == 1 }
             withKnownIssue(isIntermittent: true) {
                 analytics.verify()
             }
             analytics(1)
-            analytics.expect { $0 == 2 }
+            analytics.expect { count in count == 2 }
         }
 
         let expected = ["expected 1 call with a matching input, got 0 calls"]
@@ -125,7 +125,7 @@ struct VerifiesMocksTests {
     func spyWithNonSendableInputIsVerified() async throws {
         let issues = try await issuesAfterTest { @MainActor in
             let router = Spy<Screen, Void>()
-            router.expect(times: 2) { $0.title == "Cart" }
+            router.expect(times: 2) { screen in screen.title == "Cart" }
             router(Screen(title: "Cart"))
         }
 

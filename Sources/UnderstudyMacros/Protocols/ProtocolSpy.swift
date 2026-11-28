@@ -88,7 +88,7 @@ struct ProtocolSpy {
     /// The protocol's global actor attributes, such as `@MainActor`, one per line.
     var actors: String {
         declaration.attributes.globalActors
-            .map { $0.trimmedDescription + "\n" }
+            .map { actor in actor.trimmedDescription + "\n" }
             .joined()
     }
 
@@ -132,8 +132,8 @@ struct ProtocolSpy {
         access = GenerateSpiesMacro.access(of: declaration.modifiers)
         let inherited = declaration.inheritanceClause?.inheritedTypes.map(\.type) ?? []
         let written = inherited.map(\.trimmedDescription)
-        isActor = written.contains { $0 == "Actor" || $0 == "_Concurrency.Actor" }
-        isSendable = written.contains { $0 == "Sendable" || $0 == "Swift.Sendable" }
+        isActor = written.contains { parent in parent == "Actor" || parent == "_Concurrency.Actor" }
+        isSendable = written.contains { parent in parent == "Sendable" || parent == "Swift.Sendable" }
         parents = try Self.parents(of: declaration, among: inherited, isActor: isActor)
         // An actor is Sendable, so its spy's nonisolated spies need Sendable values too.
         associatedTypes = try Self.associatedTypes(of: declaration, isSendable: isSendable || isActor)
@@ -168,7 +168,7 @@ struct ProtocolSpy {
     ) throws -> [Parent] {
         let name = declaration.name.text
         let classForm = "use @GenerateSpies on a class or an actor that conforms to '\(name)' instead"
-        return try inherited.filter { !markers.contains($0.trimmedDescription) }.map { parent in
+        return try inherited.filter { parent in !markers.contains(parent.trimmedDescription) }.map { parent in
             let written = parent.trimmedDescription
             if isActor {
                 throw UnderstudyError(
@@ -199,7 +199,7 @@ struct ProtocolSpy {
     /// `Base`, `urlLoader` for `URLLoader` and `accountBase` for `Account.Base`.
     private static func initializerLabel(for parent: String) -> String {
         let name = parent.split(separator: ".").map(String.init).joined()
-        let capitals = name.prefix { $0.isUppercase }
+        let capitals = name.prefix { character in character.isUppercase }
         let lowered = capitals.count > 1 && capitals.count < name.count ? capitals.dropLast() : capitals
         return lowered.lowercased() + name.dropFirst(lowered.count)
     }
@@ -211,7 +211,9 @@ struct ProtocolSpy {
         of declaration: ProtocolDeclSyntax,
         isSendable: Bool
     ) throws -> [(name: String, constraints: [String])] {
-        let declared = declaration.memberBlock.members.compactMap { $0.decl.as(AssociatedTypeDeclSyntax.self) }
+        let declared = declaration.memberBlock.members.compactMap { member in
+            member.decl.as(AssociatedTypeDeclSyntax.self)
+        }
         if let clause = declaration.genericWhereClause, !declared.isEmpty {
             throw UnderstudyError(
                 "'\(declaration.name.text)' has a where clause, which the spy's generic parameters can't "
@@ -231,7 +233,10 @@ struct ProtocolSpy {
             }
             // `var` because `Sendable` joins the written constraints for a `Sendable` protocol.
             var constraints = associated.inheritanceClause?.inheritedTypes.map(\.type.trimmedDescription) ?? []
-            if isSendable, !constraints.contains(where: { $0 == "Sendable" || $0 == "Swift.Sendable" }) {
+            let isMarkedSendable = constraints.contains { constraint in
+                constraint == "Sendable" || constraint == "Swift.Sendable"
+            }
+            if isSendable, !isMarkedSendable {
                 constraints.append(GeneratedName.sendable)
             }
             return (associated.name.text, constraints)

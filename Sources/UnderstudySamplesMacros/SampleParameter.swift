@@ -39,7 +39,9 @@ struct SampleParameter {
     /// that has its value give none, because the memberwise initializer doesn't take them. A lazy
     /// one gives none either: it keeps its own first value.
     static func parameters(of variable: VariableDeclSyntax) throws -> [SampleParameter] {
-        let leftOut = variable.modifiers.contains { ["static", "class", "lazy"].contains($0.name.text) }
+        let leftOut = variable.modifiers.contains { modifier in
+            ["static", "class", "lazy"].contains(modifier.name.text)
+        }
         let isLet = variable.bindingSpecifier.tokenKind == .keyword(.let)
         guard !leftOut else {
             return []
@@ -71,7 +73,7 @@ struct SampleParameter {
         case .none:
             return true
         case .accessors(let accessors):
-            return accessors.allSatisfy { ["willSet", "didSet"].contains($0.accessorSpecifier.text) }
+            return accessors.allSatisfy { accessor in ["willSet", "didSet"].contains(accessor.accessorSpecifier.text) }
         case .getter:
             return false
         }
@@ -79,7 +81,8 @@ struct SampleParameter {
 
     /// The value of `@SampleDefault(...)` on a property, if it has one.
     private static func chosenDefault(of variable: VariableDeclSyntax) -> String? {
-        let attribute = variable.attributes.compactMap { $0.as(AttributeSyntax.self) }.first { attribute in
+        let attributes = variable.attributes.compactMap { element in element.as(AttributeSyntax.self) }
+        let attribute = attributes.first { attribute in
             let name = attribute.attributeName.trimmedDescription
             return name == "SampleDefault" || name == "UnderstudySamples.SampleDefault"
         }

@@ -221,7 +221,7 @@ struct TestClockTests {
         await clock.advance(by: .seconds(3))
         try await hopped
 
-        let expected = (1...3).map { TestClock.Instant(offset: .seconds($0)) }
+        let expected = (1...3).map { seconds in TestClock.Instant(offset: .seconds(seconds)) }
         #expect(wokeAt.calls == expected)
     }
 

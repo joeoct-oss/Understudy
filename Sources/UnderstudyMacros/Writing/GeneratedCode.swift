@@ -14,19 +14,19 @@ extension FunctionRequirement {
     /// labels, keeps its isolation and its effects, and calls `spy`.
     func forwarder(spy: String) -> DeclSyntax {
         let actors = declaration.attributes.globalActors
-            .map { $0.trimmedDescription + " " }
+            .map { actor in actor.trimmedDescription + " " }
             .joined()
         let isolation =
             declaration.modifiers.first { modifier in modifier.name.text == "nonisolated" }
             .map { modifier in modifier.trimmedDescription + " " } ?? ""
-        let thrown = typedError.map { "throws(\($0))" } ?? "throws"
+        let thrown = typedError.map { error in "throws(\(error))" } ?? "throws"
         let effects = (isAsync ? " async" : "") + (throwsError ? " " + thrown : "")
         // Only the generic parameter it returns stays generic: the others reach the spy as their
         // `any` type, which the forwarder takes.
         let generics =
             declaration.genericParameterClause?.parameters
-            .first { $0.name.text == returnedParameter }
-            .map { "<" + $0.with(\.trailingComma, nil).trimmedDescription + ">" } ?? ""
+            .first { parameter in parameter.name.text == returnedParameter }
+            .map { parameter in "<" + parameter.with(\.trailingComma, nil).trimmedDescription + ">" } ?? ""
         let returned = declaration.signature.returnClause?.type.trimmedDescription ?? GeneratedName.void
         let signature = "\(forwarderName)\(generics)(\(forwarderParameters))\(effects)"
         let kind = isStatic ? "static func" : "func"

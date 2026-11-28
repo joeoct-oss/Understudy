@@ -29,6 +29,6 @@ struct SampleError: Error, DiagnosticMessage {
 
     init(_ message: String, at node: (some SyntaxProtocol)? = Optional<Syntax>.none) {
         self.message = "@Sample: " + message
-        self.node = node.map { Syntax($0) }
+        self.node = node.map { node in Syntax(node) }
     }
 }

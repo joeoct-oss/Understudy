@@ -38,7 +38,9 @@ extension FunctionRequirement {
             }
             let thrown = throwsClause?.type
             if let thrown,
-                let name = thrown.tokens(viewMode: .sourceAccurate).first(where: { generics[$0.text] != nil })
+                let name = thrown.tokens(viewMode: .sourceAccurate).first(where: { token in
+                    generics[token.text] != nil
+                })
             {
                 throw UnderstudyError(
                     "\(subject) throws its generic parameter '\(name.text)'; write its double by hand",
