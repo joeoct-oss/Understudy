@@ -352,7 +352,8 @@ def run():
             print(f"{name}: passes")
     if failed:
         print(
-            f"Fix the body or the branch, as {TEMPLATE} asks. Editing the body reruns this.",
+            f"Fix the title, the body or the branch, as {TEMPLATE} asks. Editing the title or"
+            " the body reruns this.",
             file=sys.stderr,
         )
     return 1 if failed else 0
