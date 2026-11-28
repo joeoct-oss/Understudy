@@ -20,7 +20,8 @@ extension ProtocolSpy {
     /// The requirements, with each `init` set to build the double the way the spy's own
     /// initializer allows. Refuses an `init` the spy can't write: next to an associated type, in
     /// a protocol that inherits another with a spy, next to a requirement whose first answer the
-    /// `init` can't take, or with the same signature as the spy's own initializer.
+    /// `init` can't take, `nonisolated` under a global actor next to a first answer, or with the
+    /// same signature as the spy's own initializer.
     static func settingInitializers(
         of requirements: [any Requirement],
         named spyNames: [String],
@@ -49,6 +50,18 @@ extension ProtocolSpy {
             )
         }
         let answers = try firstAnswers(of: requirements, named: spyNames, in: name)
+        let isGlobalActor = declaration.attributes.contains { element in
+            element.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Actor") == true
+        }
+        let nonisolatedInit = initializers.first { $0.nonisolatedModifier != nil }
+        if isGlobalActor, !answers.isEmpty, let nonisolated = nonisolatedInit {
+            throw UnderstudyError(
+                "\(nonisolated.subject) is nonisolated, and the spy's own initializer it calls keeps its first "
+                    + "answers on the global actor, which it can't set from outside the actor for an answer that "
+                    + "isn't Sendable; \(classForm)",
+                at: nonisolated.nameToken
+            )
+        }
         let delegation = try delegation(for: initializers, answers: answers, isActor: isActor, classForm: classForm)
         return try requirements.map { requirement in
             guard let initializer = requirement as? InitializerRequirement else {

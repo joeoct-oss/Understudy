@@ -74,55 +74,23 @@ struct InitRequirementExpansionTests {
         #expect(diagnostics.isEmpty)
     }
 
-    @Test("Under a global actor, the box of static spies and its readers are nonisolated")
-    func globalActorStaticsAreNonisolated() {
-        let (expanded, diagnostics) = expand(
-            "@MainActor\n@GenerateSpies\nprotocol Banner {\n    init(text: String)\n}"
-        )
-        let (plain, _) = expand("@GenerateSpies\nprotocol Banner {\n    init(text: String)\n}")
+    // The isolation these shapes are written with is checked where the compiler builds the
+    // doubles, in `InitRequirementTests` and `StaticDoubleTests`.
+    @Test("Inits and statics under a global actor or in an actor are written with no diagnostic")
+    func isolatedShapesAreWritten() {
+        let sources = [
+            "@MainActor\n@GenerateSpies\nprotocol Banner {\n    init(text: String)\n}",
+            "@MainActor\n@GenerateSpies\nprotocol Badge {\n    nonisolated init(label: String)\n    func show()\n}",
+            "@GenerateSpies\nprotocol Logbook: Actor {\n    nonisolated(nonsending) init(owner: String) async\n"
+                + "    func total() -> Int\n}",
+            "@GenerateSpies\nfinal class SpyFeed: Feed {\n    @Spied nonisolated(nonsending) func load() async\n}",
+            "@MainActor\n@GenerateSpies\nfinal class SpyClock: Clock {\n    @Spied static func now() -> Int\n}",
+        ]
 
-        #expect(diagnostics.isEmpty)
-        #expect(expanded.description.contains("private nonisolated static let __understudy_statics"))
-        #expect(expanded.description.contains("nonisolated static let withFreshSpies"))
-        #expect(expanded.description.contains("nonisolated static var initSpy"))
-        #expect(!plain.description.contains("nonisolated"))
-    }
-
-    @Test("An init keeps its nonisolated modifier as written, and an actor's own initializer has none")
-    func initKeepsItsNonisolatedModifier() {
-        let (expanded, diagnostics) = expand(
-            """
-            @GenerateSpies
-            protocol Logbook: Actor {
-                nonisolated(nonsending) init(owner: String) async
-                func total() -> Int
-            }
-            """
-        )
-
-        #expect(diagnostics.isEmpty)
-        #expect(expanded.description.contains("nonisolated(nonsending) init(owner: String) async {"))
-        #expect(!expanded.description.contains("nonisolated init(total:"))
-    }
-
-    @Test("A class's spied function keeps its nonisolated modifier as written on its forwarder")
-    func forwarderKeepsItsNonisolatedModifier() {
-        let (expanded, diagnostics) = expand(
-            "@GenerateSpies\nfinal class SpyFeed: Feed {\n    @Spied nonisolated(nonsending) func load() async\n}"
-        )
-
-        #expect(diagnostics.isEmpty)
-        #expect(expanded.description.contains("private nonisolated(nonsending) func"))
-    }
-
-    @Test("A class under a global actor with a static spy gets nonisolated statics too")
-    func globalActorClassStaticsAreNonisolated() {
-        let (expanded, diagnostics) = expand(
-            "@MainActor\n@GenerateSpies\nfinal class SpyClock: Clock {\n    @Spied static func now() -> Int\n}"
-        )
-
-        #expect(diagnostics.isEmpty)
-        #expect(expanded.description.contains("nonisolated static let withFreshSpies"))
+        for source in sources {
+            let (_, diagnostics) = expand(source)
+            #expect(diagnostics.isEmpty, "\(source)")
+        }
     }
 
     @Test("A protocol with an init can't be forwarded to, and its forwarding protocol says why")

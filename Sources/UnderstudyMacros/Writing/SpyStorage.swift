@@ -42,8 +42,17 @@ extension GenerateSpiesMacro {
         let delegatesNonisolated =
             isGlobalActor && requirements.contains { ($0 as? InitializerRequirement)?.nonisolatedModifier != nil }
         let initializerPrefix = prefix + (delegatesNonisolated ? "nonisolated " : "")
+        let replacesOwn = requirements.contains { ($0 as? InitializerRequirement)?.parameters.isEmpty == true }
         if let initializer = initializer(taking: parents, and: answers, prefix: initializerPrefix) {
             declarations.append(initializer)
+        } else if delegatesNonisolated, !replacesOwn {
+            // The implicit `init()` would be on the global actor, which the `init` can't call.
+            declarations.append(
+                """
+                /// Creates the double off the global actor, for the protocol's `nonisolated` `init`.
+                \(raw: initializerPrefix)init() { }
+                """
+            )
         }
         return declarations
     }

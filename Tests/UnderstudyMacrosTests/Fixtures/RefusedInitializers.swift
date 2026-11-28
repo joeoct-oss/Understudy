@@ -87,6 +87,16 @@ extension ExpansionTests {
             column: 5
         ),
         Refused(
+            name: "a nonisolated init under a global actor next to a first answer",
+            source: "@MainActor\n@GenerateSpies\nprotocol Badge {\n    nonisolated init(label: String)\n"
+                + "    func isVisible() -> Bool\n}",
+            message: "'init(label:)' is nonisolated, and the spy's own initializer it calls keeps its first answers "
+                + "on the global actor, which it can't set from outside the actor for an answer that isn't "
+                + "Sendable; use @GenerateSpies on a class or an actor that conforms to 'Badge' instead",
+            line: 4,
+            column: 17
+        ),
+        Refused(
             name: "an init whose spy name another requirement's spy has",
             source: "@GenerateSpies\nprotocol Session {\n    init(user: String)\n    init()\n"
                 + "    static func initUser()\n}",
