@@ -71,9 +71,10 @@ LEG_RULES = [
     (r"scripts/(lint|lint-tools|format)\.sh", set()),
     (r"\.github/(dependabot\.yml|pull_request_template\.md|assets/.*)", set()),
     ((r"\.github/workflows/(branch-name|pr-rules|codeql|security-alerts|stress|release|cache"
-      r"|publish-github-text)\.yml"), set()),
+      r"|delete-unused-claude-branches|publish-github-text)\.yml"), set()),
     ((r"scripts/(check-pr-rules\.py|check-structure\.py|post-security-alerts\.sh|release-notes\.sh"
-      r"|sonar-scan\.sh|check-doc-examples\.py|publish-github-text\.py)"), set()),
+      r"|sonar-scan\.sh|check-doc-examples\.py|delete-unused-claude-branches\.py"
+      r"|publish-github-text\.py)"), set()),
     # One leg each.
     (r"\.github/workflows/ci\.yml|\.github/api-breakage-allowlist\.txt|Swift5Mode/.*", {LINUX}),
     (r"scripts/(check-coverage|check-generated-code)\.sh", {LINUX}),
@@ -365,6 +366,8 @@ CLASSIFY_CASES = [
     (["ApplePlatforms/Tuist.swift"], {APPLE}),
     ([".github/workflows/ci.yml", "Swift5Mode/Package.swift"], {LINUX}),
     ([".github/workflows/codeql.yml", "scripts/sonar-scan.sh"], set()),
+    ([".github/workflows/delete-unused-claude-branches.yml",
+      "scripts/delete-unused-claude-branches.py"], set()),
     (["Sources/Understudy/Understudy.docc/Articles/Guide.md", "scripts/build-docs.sh"], {LINUX}),
     (["Sources/Understudy/Understudy.docc/Resources/step.swift"], {LINUX}),
     (["scripts/check-doc-examples.py"], set()),
