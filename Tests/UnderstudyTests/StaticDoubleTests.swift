@@ -33,6 +33,18 @@ struct StaticDoubleTests {
             }
         }
     }
+
+    @Test("A main actor double's static spies build and answer")
+    func mainActorDoubleStaticSpies() async throws {
+        try await SpyMainClock.withFreshSpies {
+            SpyMainClock.nowSpy.willReturn(9)
+
+            let now = await SpyMainClock.now()
+
+            #expect(now == 9)
+            #expect(SpyMainClock.nowSpy.callCount == 1)
+        }
+    }
 }
 
 /// Measures time for the whole app, through static members.
@@ -58,4 +70,11 @@ private final class SpyStopwatch: Stopwatch {
 private protocol Calendar {
     static var zone: String { get set }
     static func today() -> String
+}
+
+/// A clock read on the main actor, through a static member.
+@MainActor
+@GenerateSpies
+private final class SpyMainClock {
+    @Spied static func now() -> Int?
 }

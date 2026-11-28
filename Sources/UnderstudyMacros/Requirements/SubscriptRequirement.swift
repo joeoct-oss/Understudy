@@ -13,7 +13,7 @@ import SwiftSyntax
 /// protocol. Its gets go to one spy, and its sets, when it has any, to a second.
 ///
 /// - `Requirement`: the macros write its spies and accessors like any other requirement's.
-struct SubscriptRequirement: Requirement {
+struct SubscriptRequirement: SpiedMember {
     /// The subscript as written.
     let declaration: SubscriptDeclSyntax
     /// Its indices, as the spy records them.

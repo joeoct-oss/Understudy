@@ -1,0 +1,117 @@
+//
+//  ProtocolInitializers.swift
+//  Understudy
+//
+//  Created by Yousef Mohamed <youseef.elserwey@gmail.com>.
+//  Copyright © 2026 Yousef Mohamed. MIT License.
+//
+
+import SwiftSyntax
+
+extension ProtocolSpy {
+    /// An answer the spy's own initializer takes: its label, its type and the obvious value an
+    /// `init` passes for it.
+    private struct FirstAnswer {
+        let label: String
+        let type: String
+        let value: String
+    }
+
+    /// The requirements, with each `init` set to build the double the way the spy's own
+    /// initializer allows. Refuses an `init` the spy can't write: next to an associated type, in
+    /// a protocol that inherits another with a spy, next to a requirement whose first answer the
+    /// `init` can't take, or with the same signature as the spy's own initializer.
+    static func settingInitializers(
+        of requirements: [any Requirement],
+        named spyNames: [String],
+        in declaration: ProtocolDeclSyntax,
+        isActor: Bool,
+        parents: [Parent]
+    ) throws -> [any Requirement] {
+        let initializers = requirements.compactMap { $0 as? InitializerRequirement }
+        guard let first = initializers.first else {
+            return requirements
+        }
+        let name = declaration.name.text
+        let classForm = "use @GenerateSpies on a class or an actor that conforms to '\(name)' instead"
+        if declaration.memberBlock.members.contains(where: { $0.decl.is(AssociatedTypeDeclSyntax.self) }) {
+            throw UnderstudyError(
+                "\(first.subject) is next to an associated type, and a spy with associated types is generic, "
+                    + "so it can't keep the init's static spy; \(classForm)",
+                at: first.nameToken
+            )
+        }
+        if let parent = parents.first {
+            throw UnderstudyError(
+                "\(first.subject) is in a protocol that inherits '\(parent.type)', whose spy the spy's own "
+                    + "initializer takes and the init can't pass; \(classForm)",
+                at: first.nameToken
+            )
+        }
+        let answers = try firstAnswers(of: requirements, named: spyNames, in: name)
+        let delegation = try delegation(for: initializers, answers: answers, isActor: isActor, classForm: classForm)
+        return requirements.map { requirement in
+            guard var initializer = requirement as? InitializerRequirement else {
+                return requirement
+            }
+            initializer.delegation = delegation
+            return initializer
+        }
+    }
+
+    /// The label, type and obvious value of each answer the spy's own initializer takes, in order.
+    /// Refuses a requirement whose answer has no obvious value, since the protocol's `init` can't
+    /// take it.
+    private static func firstAnswers(
+        of requirements: [any Requirement],
+        named spyNames: [String],
+        in name: String
+    ) throws -> [FirstAnswer] {
+        try zip(requirements, spyNames).filter { !$0.0.isStatic && $0.0.needsAnswer }.map { requirement, spy in
+            guard let value = requirement.obviousAnswer else {
+                throw UnderstudyError(
+                    "'\(requirement.baseName)' has no obvious first answer, and '\(name)' declares an init, "
+                        + "which can't take one; make it optional, or write its double by hand",
+                    at: requirement.nameToken
+                )
+            }
+            return FirstAnswer(label: GenerateSpiesMacro.label(of: spy), type: requirement.answerType, value: value)
+        }
+    }
+
+    /// How every `init` builds the double. With no answers to take, the double's own initializer
+    /// is `init()`: the protocol's `init()` takes its place and each `init` is designated, or,
+    /// without one, each delegates to it. Otherwise each delegates to the double's own
+    /// initializer, passing every answer, so a call can never pick itself.
+    private static func delegation(
+        for initializers: [InitializerRequirement],
+        answers: [FirstAnswer],
+        isActor: Bool,
+        classForm: String
+    ) throws -> InitializerRequirement.Delegation {
+        let keyword = isActor ? "" : "convenience "
+        guard !answers.isEmpty else {
+            let replacesOwn = initializers.contains { $0.parameters.isEmpty }
+            return replacesOwn ? .designated : .delegating(call: "self.init()", keyword: keyword)
+        }
+        let escaping = "@escaping "
+        let own = answers.map { answer in
+            let type = answer.type.hasPrefix(escaping) ? String(answer.type.dropFirst(escaping.count)) : answer.type
+            return (answer.label, type)
+        }
+        for initializer in initializers {
+            let taken = zip(initializer.labels, initializer.parameters).map { ($0, $1.type) }
+            guard taken.elementsEqual(own, by: ==) else {
+                continue
+            }
+            let ownName = InitializerRequirement.subject(labels: answers.map(\.label))
+            throw UnderstudyError(
+                "\(initializer.subject) has the labels and types of the spy's own initializer, \(ownName), "
+                    + "which takes the first answers; \(classForm)",
+                at: initializer.nameToken
+            )
+        }
+        let arguments = answers.map { "\($0.label): \($0.value)" }.joined(separator: ", ")
+        return .delegating(call: "self.init(\(arguments))", keyword: keyword)
+    }
+}

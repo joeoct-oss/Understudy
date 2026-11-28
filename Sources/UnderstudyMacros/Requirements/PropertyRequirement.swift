@@ -14,7 +14,7 @@ import SwiftSyntax
 /// protocol.
 ///
 /// - `Requirement`: the macros write its spy and accessors like any other requirement's.
-struct PropertyRequirement: Requirement {
+struct PropertyRequirement: SpiedMember {
     /// The property's name.
     let nameToken: TokenSyntax
     /// Whether it is `static` or `class`.

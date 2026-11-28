@@ -29,8 +29,6 @@ protocol Requirement {
     var setSpyType: String? { get }
     /// Whether it is `static`, so its spy lives in the double's box of static spies.
     var isStatic: Bool { get }
-    /// What the requirement goes through to reach `spy` on a class.
-    func forwarder(spy: String) -> DeclSyntax
     /// The requirement written out to call `spy`, for the spy class next to a protocol.
     func implementation(spy: String, access: String) -> DeclSyntax
 }
@@ -50,4 +48,11 @@ extension Requirement {
     var isStatic: Bool {
         false
     }
+}
+
+/// A requirement a class marks with `@Spied` or `@SpiedProperty`, which reaches its spy through a
+/// private forwarder `@GenerateSpies` writes into the class.
+protocol SpiedMember: Requirement {
+    /// What the requirement goes through to reach `spy` on a class.
+    func forwarder(spy: String) -> DeclSyntax
 }

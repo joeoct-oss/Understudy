@@ -120,6 +120,9 @@ struct ProtocolSpy {
         if isNested {
             return "is declared inside another type"
         }
+        if requirements.contains(where: { $0 is InitializerRequirement }) {
+            return "declares an init"
+        }
         return associatedTypes.isEmpty ? nil : "has associated types"
     }
 
@@ -135,9 +138,18 @@ struct ProtocolSpy {
         parents = try Self.parents(of: declaration, among: inherited, isActor: isActor)
         // An actor is Sendable, so its spy's nonisolated spies need Sendable values too.
         associatedTypes = try Self.associatedTypes(of: declaration, isSendable: isSendable || isActor)
-        requirements = try declaration.memberBlock.members.compactMap { member in
+        let declared = try declaration.memberBlock.members.compactMap { member in
             try Self.requirement(member.decl, in: declaration)
         }
+        let names = try UnderstudyMacros.spyNames(for: declared)
+        requirements = try Self.settingInitializers(
+            of: declared,
+            named: names,
+            in: declaration,
+            isActor: isActor,
+            parents: parents
+        )
+        spyNames = names
         if !associatedTypes.isEmpty, let shared = requirements.first(where: \.isStatic) {
             throw UnderstudyError(
                 "'\(shared.baseName)' is static, and a spy with associated types is generic, so it can't "
@@ -146,7 +158,6 @@ struct ProtocolSpy {
                 at: shared.nameToken
             )
         }
-        spyNames = try UnderstudyMacros.spyNames(for: requirements)
     }
 
     /// The protocols `declaration` inherits that have requirements, each with the label its spy
@@ -243,12 +254,15 @@ struct ProtocolSpy {
         if let spied = member.as(SubscriptDeclSyntax.self) {
             return try SubscriptRequirement(spied, inProtocol: true)
         }
+        if let initializer = member.as(InitializerDeclSyntax.self) {
+            return try InitializerRequirement(initializer)
+        }
         if member.is(AssociatedTypeDeclSyntax.self) {
             return nil
         }
         throw UnderstudyError(
-            "'\(declaration.name.text)' has a requirement that is not a function, a property or a "
-                + "subscript; write its double by hand, or use @GenerateSpies on a class or an actor",
+            "'\(declaration.name.text)' has a requirement that is not a function, a property, a "
+                + "subscript or an init; write its double by hand, or use @GenerateSpies on a class or an actor",
             at: member
         )
     }
